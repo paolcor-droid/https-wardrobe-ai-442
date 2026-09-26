@@ -1,0 +1,156 @@
+{
+  "app_name": "Lumière",
+  "personality": "3 Editorial Mobile LIGHT",
+  "personality_one_liner": "A high-fashion, editorial-led e-commerce experience where quiet typography and generous whitespace let the clothing and AI try-on feel like a premium magazine.",
+  "color": {
+    "surface": "#FDFBF7",
+    "onSurface": "#1A1A18",
+    "surfaceSecondary": "#F4F2EC",
+    "onSurfaceSecondary": "#1A1A18",
+    "surfaceTertiary": "#EAE7DF",
+    "onSurfaceTertiary": "#1A1A18",
+    "surfaceInverse": "#1A1A18",
+    "onSurfaceInverse": "#FDFBF7",
+    "brand": "#A85B4B",
+    "onBrand": "#FDFBF7",
+    "brandPrimary": "#A85B4B",
+    "onBrandPrimary": "#FDFBF7",
+    "brandSecondary": "#D29584",
+    "onBrandSecondary": "#1A1A18",
+    "brandTertiary": "#F1E3DF",
+    "onBrandTertiary": "#1A1A18",
+    "success": "#4B6653",
+    "onSuccess": "#FDFBF7",
+    "warning": "#C28B44",
+    "onWarning": "#1A1A18",
+    "error": "#8F3D3D",
+    "onError": "#FDFBF7",
+    "border": "#EAE7DF",
+    "borderStrong": "#D1CCC3",
+    "divider": "#EAE7DF",
+    "muted": "#7D7A73"
+  },
+  "typography": {
+    "displayFontFamily": "Playfair Display",
+    "textFontFamily": "Satoshi",
+    "scale": { "sm": 12, "base": 14, "lg": 16, "xl": 20, "2xl": 24 }
+  },
+  "spacing": { 
+    "rule": "Generous vertical breathing room. Use magazine-like spacing rhythms.", 
+    "xs": 4, 
+    "sm": 8, 
+    "md": 12, 
+    "lg": 16, 
+    "xl": 24, 
+    "2xl": 32, 
+    "3xl": 48 
+  },
+  "radius_tokens": { "sm": 0, "md": 0, "lg": 0, "pill": 999 },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": ["Use solid surface blocks or solid fade gradients instead of glass to maintain the raw editorial aesthetic."],
+    "dont's": ["Do not use blur or glassmorphism, it clashes with the Editorial paper-like vibe."]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    { 
+      "name": "Onboarding", 
+      "purpose": "Introduce the premium AI-styling value proposition and capture user's skin tone via a face photo scan.", 
+      "states": { 
+        "loading": "Centered elegant spinner with 'Analyzing skin tone...'", 
+        "empty": "N/A", 
+        "error": "Message 'Unable to detect face clearly.' with a 'Retake Photo' button." 
+      },
+      "layout": "Full-bleed editorial imagery. A dark vertical gradient scrim at the bottom over the image to ensure the high-contrast serif title and primary action are clearly readable." 
+    },
+    { 
+      "name": "Preferences", 
+      "purpose": "Collect budget, occasion, and clothing type preferences using elegant sliders and list selections.", 
+      "states": { 
+        "loading": "N/A", 
+        "empty": "N/A", 
+        "error": "Validation message if nothing selected." 
+      },
+      "layout": "Quiet, text-heavy layout with strong typographic hierarchy. Use `borderStrong` for selected states and hairline `border` for unselected list items. Sticky CTA at the bottom." 
+    },
+    { 
+      "name": "Discover (Home)", 
+      "purpose": "Display personalized clothing recommendations based on skin tone and preferences.", 
+      "states": { 
+        "loading": "Skeleton frames in a 2-column grid.", 
+        "empty": "Minimalist icon with 'No matches found for this filter.' and a 'Clear Filters' button.", 
+        "error": "Message 'Failed to load recommendations' and 'Retry' CTA." 
+      },
+      "layout": "2-column grid for products with generous `md` gap. Images must stretch to fill their containers without rounded corners (radius 0). Product titles in Sans, prices in Serif. Muted dividers between sections." 
+    },
+    { 
+      "name": "ProductDetail", 
+      "purpose": "Showcase a clothing item in detail with an indicator of how well it matches the user's skin tone palette, leading to Virtual Try-On.", 
+      "states": { 
+        "loading": "Spinner over image placeholder.", 
+        "empty": "N/A", 
+        "error": "Error loading product details." 
+      },
+      "layout": "Edge-to-edge product hero image. Title and description below with editorial whitespace. A dedicated 'Palette Match' section highlighting the synergy between the garment color and user's skin tone. Sticky CTA at the bottom to 'Virtual Try-On'." 
+    },
+    { 
+      "name": "VirtualTryOn", 
+      "purpose": "Upload a full-body photo and preview the AI-generated image of the user wearing the garment.", 
+      "states": { 
+        "loading": "Animated progress text 'Simulating garment...' over the uploaded photo.", 
+        "empty": "Prompt to 'Upload a full-body photo' with a chic illustration or placeholder.", 
+        "error": "Error message 'Try-on failed. Please try a clearer photo.' and a retry CTA." 
+      },
+      "layout": "Split-screen or side-by-side comparison view. Display a product carousel at the bottom to quickly swap clothing items without leaving the screen. Minimalist, uncluttered interface to keep focus on the generated image." 
+    }
+  ],
+  "images": {
+    "onboarding_hero": { 
+      "url": "https://images.unsplash.com/photo-1662532577856-e8ee8b138a8b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwzfHxlZGl0b3JpYWwlMjBmYXNoaW9uJTIwbW9kZWwlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc5MDQ2MDE1Mnww&ixlib=rb-4.1.0&q=85", 
+      "alt": "Editorial fashion model in red outfit against blue sky" 
+    },
+    "skin_tone_scan": { 
+      "url": "https://images.unsplash.com/photo-1786520992223-8452c9281972?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxtaW5pbWFsaXN0JTIwcG9ydHJhaXQlMjB3b21hbiUyMGZhY2V8ZW58MHx8fHwxNzkwNDYwMTYyfDA&ixlib=rb-4.1.0&q=85", 
+      "alt": "Profile view of woman face for skin tone analysis" 
+    },
+    "try_on_model": { 
+      "url": "https://images.unsplash.com/photo-1603189343302-e603f7add05a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxlZGl0b3JpYWwlMjBmYXNoaW9uJTIwbW9kZWwlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc5MDQ2MDE1Mnww&ixlib=rb-4.1.0&q=85", 
+      "alt": "Person posing for virtual try on" 
+    },
+    "clothing_item_1": { 
+      "url": "https://images.unsplash.com/photo-1614676471928-2ed0ad1061a4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwZmxhdCUyMGxheSUyMGNsb3RoZXN8ZW58MHx8fHwxNzkwNDYwMTUyfDA&ixlib=rb-4.1.0&q=85", 
+      "alt": "Brown leather shoes and belt flat lay" 
+    },
+    "clothing_item_2": { 
+      "url": "https://images.unsplash.com/photo-1603805752838-aa579d77da72?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxmYXNoaW9uJTIwZmxhdCUyMGxheSUyMGNsb3RoZXN8ZW58MHx8fHwxNzkwNDYwMTUyfDA&ixlib=rb-4.1.0&q=85", 
+      "alt": "Black leather jacket flat lay" 
+    },
+    "try_on_result": { 
+      "url": "https://images.unsplash.com/photo-1664076458686-3449062080ac?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwyfHxlZGl0b3JpYWwlMjBmYXNoaW9uJTIwbW9kZWwlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc5MDQ2MDE1Mnww&ixlib=rb-4.1.0&q=85", 
+      "alt": "Woman in dress, AI generated try-on result" 
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Editorial Mobile layout: generous whitespace, sharp corners (radius 0), and quiet dividers without shadows.",
+    "Do NOT use glassmorphism. This app relies on solid surfaces and stark contrasts to maintain a high-fashion, print-magazine feel.",
+    "Ensure all text layered over images uses the mandatory top-to-bottom `expo-linear-gradient` scrim (transparent to surfaceInverse) to guarantee contrast.",
+    "Typography: Never use font weights above 500. Use Playfair Display for dramatic, large headings and Satoshi for all body text, metadata, and controls.",
+    "Implement the Virtual Try-On feature as a frictionless flow. Rely on a single full-body photo upload rather than complex measurements, as discovered in the web research.",
+    "Use side-by-side or split-screen comparisons for the try-on result, keeping the clothing the focal point by avoiding brightly colored UI chrome.",
+    "Always place primary CTAs in a sticky container at the bottom of scrolling views, respecting safe area insets."
+  ]
+}
