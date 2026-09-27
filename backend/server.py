@@ -10,7 +10,10 @@ import re
 import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
+
+from services.palette_engine import build_palette
+from services.recommendation_engine import recommendation_score, recommendation_reasons
 from datetime import datetime, timezone
 import httpx
 
@@ -34,10 +37,28 @@ USER_ID = "default"  # single-user MVP
 
 # ============= MODELS =============
 
+class ColourSwatch(BaseModel):
+    name: str
+    hex: str
+
+class AnalysisQuality(BaseModel):
+    lighting_quality: Literal["poor", "fair", "good"]
+    face_visibility: Literal["poor", "fair", "good"]
+    confidence: Literal["low", "medium", "high"]
+
 class SkinTone(BaseModel):
-    undertone: str  # warm, cool, neutral
-    season: str  # spring, summer, autumn, winter
-    palette: List[str]  # hex colors that flatter
+    # Kept under the legacy field name skin_tone for backwards-compatible profile storage.
+    undertone: Literal["warm", "neutral_warm", "neutral", "neutral_cool", "cool"]
+    depth: Literal["light", "medium", "deep"] = "medium"
+    chroma: Literal["muted", "balanced", "clear"] = "balanced"
+    contrast: Literal["low", "medium", "high"] = "medium"
+    season: str
+    palette: List[str] = []
+    best_neutrals: List[ColourSwatch] = []
+    best_accents: List[ColourSwatch] = []
+    statement_colours: List[ColourSwatch] = []
+    caution_colours: List[ColourSwatch] = []
+    analysis_quality: Optional[AnalysisQuality] = None
     description: str
 
 
@@ -46,6 +67,12 @@ class Preferences(BaseModel):
     budget_max: int = 500
     occasion: str = "casual"
     categories: List[str] = []
+    climate: str = "mild"
+    style: str = "classic"
+    preferred_fit: str = "regular"
+    preferred_colours: List[str] = []
+    avoided_colours: List[str] = []
+    preferred_retailers: List[str] = ["zara", "hm", "uniqlo"]
 
 
 class Profile(BaseModel):
@@ -182,20 +209,39 @@ async def list_products(
     category: Optional[str] = None,
     occasion: Optional[str] = None,
     budget_max: Optional[float] = None,
-    palette: Optional[str] = None,  # warm, cool, neutral
+    palette: Optional[str] = None,
+    climate: Optional[str] = None,
+    style: Optional[str] = None,
 ):
+    # Category is a catalogue constraint. Personalisation is ranked rather than reduced to a coarse warm/cool DB filter.
     query: dict = {}
     if category and category != "all":
         query["category"] = category
-    if occasion:
-        query["occasions"] = occasion
-    if budget_max:
-        query["price"] = {"$lte": budget_max}
-    if palette:
-        query["palette_tags"] = palette
+
+    profile = await db.profiles.find_one({"user_id": USER_ID}, {"_id": 0}) or {}
+    colour_profile = profile.get("skin_tone")
+    pref = profile.get("preferences") or {}
+    active_occasion = occasion or pref.get("occasion")
+    active_budget = budget_max if budget_max is not None else pref.get("budget_max")
+    active_climate = climate or pref.get("climate", "mild")
+    active_style = style or pref.get("style", "classic")
 
     docs = await db.products.find(query, {"_id": 0}).to_list(200)
-    return docs
+    ranked = []
+    for doc in docs:
+        score = recommendation_score(
+            doc, colour_profile, active_occasion, active_budget, active_climate, active_style,
+            pref.get("preferred_colours"), pref.get("avoided_colours"),
+        )
+        if score < 0:
+            continue
+        doc["recommendation_score"] = score
+        doc["recommendation_reasons"] = recommendation_reasons(
+            doc, colour_profile, active_occasion, active_climate, active_style
+        )
+        ranked.append(doc)
+    ranked.sort(key=lambda x: x["recommendation_score"], reverse=True)
+    return ranked
 
 
 @api_router.get("/products/{product_id}")
@@ -203,6 +249,16 @@ async def get_product(product_id: str):
     doc = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Product not found")
+    profile = await db.profiles.find_one({"user_id": USER_ID}, {"_id": 0}) or {}
+    pref = profile.get("preferences") or {}
+    doc["recommendation_score"] = recommendation_score(
+        doc, profile.get("skin_tone"), pref.get("occasion"), pref.get("budget_max"),
+        pref.get("climate", "mild"), pref.get("style", "classic"),
+        pref.get("preferred_colours"), pref.get("avoided_colours"),
+    )
+    doc["recommendation_reasons"] = recommendation_reasons(
+        doc, profile.get("skin_tone"), pref.get("occasion"), pref.get("climate", "mild"), pref.get("style", "classic")
+    )
     return doc
 
 
@@ -213,36 +269,39 @@ async def analyze_skin(req: SkinAnalyzeRequest):
             api_key=EMERGENT_LLM_KEY,
             session_id=f"skin-{uuid.uuid4()}",
             system_message=(
-                "You are a professional color analyst specializing in seasonal color theory. "
-                "Analyze the person's face photo and determine their skin undertone and seasonal color palette. "
-                "Return ONLY a JSON object, no markdown, no code fences."
+                "You are a careful personal-colour analysis assistant. Assess only visible colour relationships in the supplied face photo. "
+                "Account for lighting and white-balance uncertainty. Return ONLY JSON; never infer ethnicity, health, age, or identity."
             ),
         ).with_model("gemini", "gemini-2.5-flash")
-
         msg = UserMessage(
             text=(
-                "Analyze this face photo. Determine: 1) undertone (one of: warm, cool, neutral), "
-                "2) season (one of: spring, summer, autumn, winter), "
-                "3) palette: array of 6 hex color codes that flatter this person, "
-                "4) description: 2 short sentences about their coloring and best colors to wear. "
-                'Return exactly this JSON schema: {"undertone":"...","season":"...","palette":["#...","#...","#...","#...","#...","#..."],"description":"..."}'
+                'Assess the visible facial colouring using multiple visible facial areas where possible. Return exactly: '
+                '{"undertone":"warm|neutral_warm|neutral|neutral_cool|cool","depth":"light|medium|deep",'
+                '"chroma":"muted|balanced|clear","contrast":"low|medium|high","season":"spring|summer|autumn|winter",'
+                '"lighting_quality":"poor|fair|good","face_visibility":"poor|fair|good","confidence":"low|medium|high",'
+                '"description":"two concise sentences explaining the observed colour relationships and uncertainty"}. '
+                "Do not generate a palette; the application constructs it deterministically."
             ),
             file_contents=[ImageContent(req.face_photo)],
         )
         response_text = await chat.send_message(msg)
-
-        # Strip markdown fences if present
         cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", response_text.strip(), flags=re.MULTILINE)
         match = re.search(r"\{.*\}", cleaned, re.DOTALL)
         if not match:
-            raise ValueError(f"No JSON found in response: {response_text[:200]}")
+            raise ValueError("No JSON object returned by colour analysis")
         data = json.loads(match.group(0))
-
-        skin_tone = SkinTone(**data)
-        return skin_tone
+        palette = build_palette(data["undertone"], data["depth"], data["chroma"], data["contrast"])
+        data.update(palette)
+        data["palette"] = [x["hex"] for x in palette["best_neutrals"] + palette["best_accents"]]
+        data["analysis_quality"] = {
+            "lighting_quality": data.pop("lighting_quality"),
+            "face_visibility": data.pop("face_visibility"),
+            "confidence": data.pop("confidence"),
+        }
+        return SkinTone(**data)
     except Exception as e:
-        logger.error(f"Skin analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Skin analysis failed: {str(e)}")
+        logger.error(f"Colour analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Colour analysis failed: {str(e)}")
 
 
 @api_router.get("/profile")
@@ -285,9 +344,11 @@ async def virtual_tryon(req: TryOnRequest):
             f"Take the person in the first image and dress them in the {product['category']} "
             f"garment shown in the second image ({product['name']} by {product['brand']}, "
             f"description: {product['description']}). "
-            f"Keep the person's face, skin tone, hair, and pose exactly as in the first image. "
-            f"Preserve their body proportions naturally. Show a realistic full-body result "
-            f"against a clean neutral studio background. Editorial fashion photography style."
+            f"Preserve the person's face, visible skin appearance, hair, body proportions, pose, hands, "
+            f"camera angle, lighting and original background as faithfully as possible. "
+            f"Change only the clothing needed to apply the selected garment. Do not replace the person, "
+            f"beautify their face, change their body shape, or move them into a studio setting. "
+            f"Produce a photorealistic result consistent with the original photograph."
         )
 
         msg = UserMessage(

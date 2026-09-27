@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -10,22 +10,59 @@ import Slider from "@react-native-community/slider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Feather from "@react-native-vector-icons/feather";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/src/api";
+import { DEFAULT_RETAILERS, RETAILERS } from "@/src/retailers";
 import { colors, spacing } from "@/src/theme";
 
 const OCCASIONS = ["casual", "work", "date", "party", "formal"];
 const CATEGORIES = ["tops", "bottoms", "dresses", "outerwear", "shoes", "accessories"];
+const CLIMATES = ["hot", "mild", "cold"];
+const STYLES = ["classic", "relaxed", "minimal", "romantic", "bold"];
+const COLOURS = ["navy", "ivory", "black", "white", "beige", "brown", "green", "blue", "red", "pink"];
 
 export default function Preferences() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: api.getProfile });
 
   const [budget, setBudget] = useState(300);
   const [occasion, setOccasion] = useState("casual");
   const [categories, setCategories] = useState<string[]>(["tops", "bottoms", "dresses"]);
+  const [climate, setClimate] = useState("mild");
+  const [style, setStyle] = useState("classic");
+  const [preferredColours, setPreferredColours] = useState<string[]>([]);
+  const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
+  const [preferredRetailers, setPreferredRetailers] = useState<string[]>(DEFAULT_RETAILERS);
+
+  useEffect(() => {
+    const p = profile?.preferences;
+    if (!p) return;
+    setBudget(p.budget_max ?? 300); setOccasion(p.occasion ?? "casual");
+    setCategories(p.categories?.length ? p.categories : ["tops", "bottoms", "dresses"]);
+    setClimate(p.climate ?? "mild"); setStyle(p.style ?? "classic");
+    setPreferredColours(p.preferred_colours ?? []); setAvoidedColours(p.avoided_colours ?? []);
+    setPreferredRetailers(p.preferred_retailers?.length ? p.preferred_retailers : DEFAULT_RETAILERS);
+  }, [profile?.preferences]);
+
+  const togglePreferredColour = (value: string) => {
+    setPreferredColours((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
+    );
+    setAvoidedColours((prev) => prev.filter((x) => x !== value));
+  };
+
+  const toggleAvoidedColour = (value: string) => {
+    setAvoidedColours((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
+    );
+    setPreferredColours((prev) => prev.filter((x) => x !== value));
+  };
+
+  const toggleRetailer = (id: string) =>
+    setPreferredRetailers((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const toggleCategory = (c: string) =>
     setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -38,6 +75,12 @@ export default function Preferences() {
           budget_max: Math.round(budget),
           occasion,
           categories,
+          climate,
+          style,
+          preferred_fit: "regular",
+          preferred_colours: preferredColours,
+          avoided_colours: avoidedColours,
+          preferred_retailers: preferredRetailers,
         },
       }),
     onSuccess: () => {
@@ -106,6 +149,38 @@ export default function Preferences() {
           </View>
         </View>
 
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>CLIMATE</Text>
+          <View style={styles.chipWrap}>{CLIMATES.map((x) => <Pressable key={x} style={[styles.chip, climate === x && styles.chipActive]} onPress={() => setClimate(x)}><Text style={[styles.chipText, climate === x && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>STYLE</Text>
+          <View style={styles.chipWrap}>{STYLES.map((x) => <Pressable key={x} style={[styles.chip, style === x && styles.chipActive]} onPress={() => setStyle(x)}><Text style={[styles.chipText, style === x && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>COLOURS YOU LIKE</Text>
+          <Text style={styles.helper}>Personal preference — kept separate from your analysed colour profile.</Text>
+          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, preferredColours.includes(x) && styles.chipActive]} onPress={() => togglePreferredColour(x)}><Text style={[styles.chipText, preferredColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>COLOURS TO AVOID</Text>
+          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, avoidedColours.includes(x) && styles.chipActive]} onPress={() => toggleAvoidedColour(x)}><Text style={[styles.chipText, avoidedColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>FAVOURITE RETAILERS</Text>
+          <Text style={styles.helper}>Choose where StyleScan should help you shop. Zara, H&M and UNIQLO are selected by default.</Text>
+          <View style={styles.chipWrap}>
+            {RETAILERS.map((retailer) => {
+              const active = preferredRetailers.includes(retailer.id);
+              return (
+                <Pressable key={retailer.id} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleRetailer(retailer.id)}>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{retailer.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>CATEGORIES</Text>
           <View style={styles.chipWrap}>
@@ -186,6 +261,7 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 17, color: colors.onSurface, fontWeight: "400" },
   optionTextActive: { color: colors.brand },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  helper: { fontSize: 12, lineHeight: 18, color: colors.muted, marginBottom: spacing.md },
   chip: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
