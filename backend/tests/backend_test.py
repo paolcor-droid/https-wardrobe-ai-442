@@ -105,10 +105,17 @@ class TestSkinAnalyze:
         r = requests.post(f"{API}/skin/analyze", json={"face_photo": face_image_b64}, timeout=90)
         assert r.status_code == 200, f"skin analyze failed: {r.status_code} {r.text[:400]}"
         data = r.json()
-        assert data["undertone"] in ["warm", "cool", "neutral"]
+        assert data["undertone"] in ["warm", "neutral_warm", "neutral", "neutral_cool", "cool"]
         assert data["season"] in ["spring", "summer", "autumn", "winter"]
-        assert isinstance(data["palette"], list) and len(data["palette"]) == 6
+        assert isinstance(data["palette"], list) and len(data["palette"]) >= 6
         assert all(c.startswith("#") for c in data["palette"])
+        assert data["depth"] in ["light", "medium", "deep"]
+        assert data["chroma"] in ["muted", "balanced", "clear"]
+        assert data["contrast"] in ["low", "medium", "high"]
+        assert len(data["best_neutrals"]) >= 4
+        assert len(data["best_accents"]) >= 4
+        assert all("name" in c and "hex" in c for c in data["best_neutrals"])
+        assert data["analysis_quality"]["confidence"] in ["low", "medium", "high"]
         assert isinstance(data["description"], str) and len(data["description"]) > 5
 
 
