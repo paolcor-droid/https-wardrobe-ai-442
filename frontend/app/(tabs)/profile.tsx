@@ -28,13 +28,15 @@ export default function Profile() {
             <>
               <Text style={styles.season}>{st.season.toUpperCase()}</Text>
               <Text style={styles.subrow}>
-                {st.undertone.charAt(0).toUpperCase() + st.undertone.slice(1)} undertone
+                {st.undertone.replace("_", "-")} · {st.depth} depth · {st.chroma} · {st.contrast} contrast
               </Text>
-              <View style={styles.paletteRow}>
-                {st.palette.map((c, i) => (
-                  <View key={i} style={[styles.swatch, { backgroundColor: c }]} />
-                ))}
-              </View>
+              {st.analysis_quality ? (
+                <Text style={styles.quality}>Confidence: {st.analysis_quality.confidence} · Lighting: {st.analysis_quality.lighting_quality}</Text>
+              ) : null}
+              <PaletteGroup title="BEST NEUTRALS" items={st.best_neutrals ?? []} />
+              <PaletteGroup title="BEST ACCENTS" items={st.best_accents ?? []} />
+              <PaletteGroup title="STATEMENT COLOURS" items={st.statement_colours ?? []} />
+              <PaletteGroup title="USE CAREFULLY NEAR THE FACE" items={st.caution_colours ?? []} />
               <Text style={styles.desc}>{st.description}</Text>
             </>
           ) : (
@@ -88,6 +90,23 @@ export default function Profile() {
   );
 }
 
+function PaletteGroup({ title, items }: { title: string; items: { name: string; hex: string }[] }) {
+  if (!items.length) return null;
+  return (
+    <View style={styles.paletteGroup}>
+      <Text style={styles.paletteTitle}>{title}</Text>
+      <View style={styles.paletteWrap}>
+        {items.map((item) => (
+          <View key={item.name} style={styles.namedSwatch}>
+            <View style={[styles.swatch, { backgroundColor: item.hex }]} />
+            <Text style={styles.swatchName}>{item.name}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
@@ -104,6 +123,12 @@ const styles = StyleSheet.create({
   paletteRow: { flexDirection: "row", gap: spacing.sm, marginVertical: spacing.lg },
   swatch: { width: 36, height: 36, borderWidth: 1, borderColor: colors.borderStrong },
   desc: { fontSize: 14, lineHeight: 21, color: colors.onSurface },
+  quality: { fontSize: 12, color: colors.muted, marginTop: spacing.sm },
+  paletteGroup: { marginTop: spacing.lg },
+  paletteTitle: { fontSize: 10, letterSpacing: 2, color: colors.muted, marginBottom: spacing.sm },
+  paletteWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  namedSwatch: { width: 68, gap: 5 },
+  swatchName: { fontSize: 10, color: colors.onSurface, lineHeight: 13 },
   placeholderText: { fontSize: 14, color: colors.muted },
   linkRow: {
     marginTop: spacing.lg,
