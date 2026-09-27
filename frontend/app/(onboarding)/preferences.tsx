@@ -44,7 +44,19 @@ export default function Preferences() {
     setPreferredColours(p.preferred_colours ?? []); setAvoidedColours(p.avoided_colours ?? []);
   }, [profile?.preferences]);
 
-  const toggleList = (value: string, list: string[], setter: (v: string[]) => void) => setter(list.includes(value) ? list.filter(x => x !== value) : [...list, value]);
+  const togglePreferredColour = (value: string) => {
+    setPreferredColours((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
+    );
+    setAvoidedColours((prev) => prev.filter((x) => x !== value));
+  };
+
+  const toggleAvoidedColour = (value: string) => {
+    setAvoidedColours((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
+    );
+    setPreferredColours((prev) => prev.filter((x) => x !== value));
+  };
 
   const toggleCategory = (c: string) =>
     setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -142,11 +154,11 @@ export default function Preferences() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>COLOURS YOU LIKE</Text>
           <Text style={styles.helper}>Personal preference — kept separate from your analysed colour profile.</Text>
-          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, preferredColours.includes(x) && styles.chipActive]} onPress={() => toggleList(x, preferredColours, setPreferredColours)}><Text style={[styles.chipText, preferredColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, preferredColours.includes(x) && styles.chipActive]} onPress={() => togglePreferredColour(x)}><Text style={[styles.chipText, preferredColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>COLOURS TO AVOID</Text>
-          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, avoidedColours.includes(x) && styles.chipActive]} onPress={() => toggleList(x, avoidedColours, setAvoidedColours)}><Text style={[styles.chipText, avoidedColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+          <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, avoidedColours.includes(x) && styles.chipActive]} onPress={() => toggleAvoidedColour(x)}><Text style={[styles.chipText, avoidedColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>CATEGORIES</Text>
