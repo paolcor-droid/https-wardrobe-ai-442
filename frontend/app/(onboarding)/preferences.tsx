@@ -13,6 +13,7 @@ import Feather from "@react-native-vector-icons/feather";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/src/api";
+import { DEFAULT_RETAILERS, RETAILERS } from "@/src/retailers";
 import { colors, spacing } from "@/src/theme";
 
 const OCCASIONS = ["casual", "work", "date", "party", "formal"];
@@ -34,6 +35,7 @@ export default function Preferences() {
   const [style, setStyle] = useState("classic");
   const [preferredColours, setPreferredColours] = useState<string[]>([]);
   const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
+  const [preferredRetailers, setPreferredRetailers] = useState<string[]>(DEFAULT_RETAILERS);
 
   useEffect(() => {
     const p = profile?.preferences;
@@ -42,6 +44,7 @@ export default function Preferences() {
     setCategories(p.categories?.length ? p.categories : ["tops", "bottoms", "dresses"]);
     setClimate(p.climate ?? "mild"); setStyle(p.style ?? "classic");
     setPreferredColours(p.preferred_colours ?? []); setAvoidedColours(p.avoided_colours ?? []);
+    setPreferredRetailers(p.preferred_retailers?.length ? p.preferred_retailers : DEFAULT_RETAILERS);
   }, [profile?.preferences]);
 
   const togglePreferredColour = (value: string) => {
@@ -57,6 +60,9 @@ export default function Preferences() {
     );
     setPreferredColours((prev) => prev.filter((x) => x !== value));
   };
+
+  const toggleRetailer = (id: string) =>
+    setPreferredRetailers((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const toggleCategory = (c: string) =>
     setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -74,6 +80,7 @@ export default function Preferences() {
           preferred_fit: "regular",
           preferred_colours: preferredColours,
           avoided_colours: avoidedColours,
+          preferred_retailers: preferredRetailers,
         },
       }),
     onSuccess: () => {
@@ -159,6 +166,20 @@ export default function Preferences() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>COLOURS TO AVOID</Text>
           <View style={styles.chipWrap}>{COLOURS.map((x) => <Pressable key={x} style={[styles.chip, avoidedColours.includes(x) && styles.chipActive]} onPress={() => toggleAvoidedColour(x)}><Text style={[styles.chipText, avoidedColours.includes(x) && styles.chipTextActive]}>{x[0].toUpperCase()+x.slice(1)}</Text></Pressable>)}</View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>FAVOURITE RETAILERS</Text>
+          <Text style={styles.helper}>Choose where StyleScan should help you shop. Zara, H&M and UNIQLO are selected by default.</Text>
+          <View style={styles.chipWrap}>
+            {RETAILERS.map((retailer) => {
+              const active = preferredRetailers.includes(retailer.id);
+              return (
+                <Pressable key={retailer.id} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleRetailer(retailer.id)}>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{retailer.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>CATEGORIES</Text>
