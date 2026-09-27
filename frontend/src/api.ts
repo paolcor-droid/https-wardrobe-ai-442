@@ -16,10 +16,24 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export type ColourSwatch = { name: string; hex: string };
+
 export type SkinTone = {
-  undertone: string;
+  undertone: "warm" | "neutral_warm" | "neutral" | "neutral_cool" | "cool";
+  depth: "light" | "medium" | "deep";
+  chroma: "muted" | "balanced" | "clear";
+  contrast: "low" | "medium" | "high";
   season: string;
   palette: string[];
+  best_neutrals: ColourSwatch[];
+  best_accents: ColourSwatch[];
+  statement_colours: ColourSwatch[];
+  caution_colours: ColourSwatch[];
+  analysis_quality?: {
+    lighting_quality: "poor" | "fair" | "good";
+    face_visibility: "poor" | "fair" | "good";
+    confidence: "low" | "medium" | "high";
+  };
   description: string;
 };
 
@@ -28,6 +42,11 @@ export type Preferences = {
   budget_max: number;
   occasion: string;
   categories: string[];
+  climate?: "hot" | "mild" | "cold";
+  style?: string;
+  preferred_fit?: string;
+  preferred_colours?: string[];
+  avoided_colours?: string[];
 };
 
 export type Profile = {
