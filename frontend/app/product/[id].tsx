@@ -47,13 +47,8 @@ export default function ProductDetail() {
   }
 
   const undertone = profile?.skin_tone?.undertone;
-  const matchScore = undertone
-    ? product.palette_tags.includes(undertone)
-      ? "Excellent match"
-      : product.palette_tags.includes("neutral")
-        ? "Good match"
-        : "Bold pairing"
-    : null;
+  const reasons = product.recommendation_reasons ?? [];
+
 
   return (
     <View style={styles.container}>
@@ -94,26 +89,18 @@ export default function ProductDetail() {
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.desc}>{product.description}</Text>
 
-          {matchScore ? (
+          {reasons.length ? (
             <>
               <View style={styles.divider} />
-              <Text style={styles.sectionTitle}>Palette match</Text>
-              <View style={styles.matchRow}>
-                <View style={styles.matchBadge}>
-                  <Text style={styles.matchBadgeText}>{matchScore}</Text>
-                </View>
-                <View style={styles.swatchesInline}>
-                  {product.colors.map((c, i) => (
-                    <View
-                      key={i}
-                      style={[styles.smallSwatch, { backgroundColor: c }]}
-                    />
-                  ))}
-                </View>
+              <Text style={styles.sectionTitle}>Why this suits you</Text>
+              <View style={styles.swatchesInline}>
+                {product.colors.map((c, i) => (
+                  <View key={i} style={[styles.smallSwatch, { backgroundColor: c }]} />
+                ))}
               </View>
-              <Text style={styles.desc}>
-                This piece{"’"}s tone works with your {undertone} undertone.
-              </Text>
+              {reasons.map((reason, i) => (
+                <Text key={i} style={styles.reasonLine}>• {reason}</Text>
+              ))}
             </>
           ) : null}
 
@@ -183,6 +170,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   desc: { fontSize: 14, lineHeight: 22, color: colors.onSurface },
+  reasonLine: { fontSize: 14, lineHeight: 21, color: colors.onSurface, marginTop: spacing.sm },
   matchRow: {
     flexDirection: "row",
     alignItems: "center",
