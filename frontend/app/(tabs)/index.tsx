@@ -27,15 +27,19 @@ export default function Discover() {
   const palette = profile?.skin_tone?.undertone;
   const budget = profile?.preferences?.budget_max;
   const occasion = profile?.preferences?.occasion;
+  const climate = profile?.preferences?.climate;
+  const style = profile?.preferences?.style;
 
   const { data: products, isLoading } = useQuery({
-    queryKey: ["products", category, palette, budget, occasion],
+    queryKey: ["products", category, palette, budget, occasion, climate, style],
     queryFn: () =>
       api.listProducts({
         category,
         palette,
         budget_max: budget,
         occasion,
+        climate,
+        style,
       }),
   });
 
@@ -117,6 +121,9 @@ function ProductCard({ product, onPress }: { product: Product; onPress: () => vo
         {product.name}
       </Text>
       <Text style={styles.cardPrice}>${product.price.toFixed(0)}</Text>
+      {product.recommendation_reasons?.[0] ? (
+        <Text style={styles.reason} numberOfLines={2}>{product.recommendation_reasons[0]}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -160,6 +167,7 @@ const styles = StyleSheet.create({
   cardBrand: { fontSize: 10, letterSpacing: 2, color: colors.muted },
   cardName: { fontSize: 14, color: colors.onSurface },
   cardPrice: { fontSize: 13, color: colors.onSurface, fontStyle: "italic", marginTop: 2 },
+  reason: { fontSize: 10, lineHeight: 14, color: colors.muted, marginTop: 3 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { padding: spacing["2xl"], alignItems: "center" },
   emptyText: { color: colors.muted, fontSize: 13 },
