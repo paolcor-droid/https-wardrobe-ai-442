@@ -72,6 +72,7 @@ class Preferences(BaseModel):
     preferred_fit: str = "regular"
     preferred_colours: List[str] = []
     avoided_colours: List[str] = []
+    preferred_retailers: List[str] = ["zara", "hm", "uniqlo"]
 
 
 class Profile(BaseModel):
