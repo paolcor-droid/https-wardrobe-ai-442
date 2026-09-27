@@ -1,3 +1,5 @@
 {
-  "env_image_name": "expo_mongo_base_image_cloud_arm:release-23092026-1"
+  "env_image_name": "expo_mongo_base_image_cloud_arm:release-23092026-1",
+  "job_id": "fa417dfa-c1fd-4363-b5af-684aa098fabe",
+  "created_at": "2026-09-27T09:18:25.538654+00:00Z"
 }
