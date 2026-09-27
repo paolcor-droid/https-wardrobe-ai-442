@@ -47,6 +47,7 @@ export type Preferences = {
   preferred_fit?: string;
   preferred_colours?: string[];
   avoided_colours?: string[];
+  preferred_retailers?: string[];
 };
 
 export type Profile = {
