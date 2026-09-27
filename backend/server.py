@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 
 from services.palette_engine import build_palette
-from services.recommendation_engine import recommendation_score
+from services.recommendation_engine import recommendation_score, recommendation_reasons
 from datetime import datetime, timezone
 import httpx
 
@@ -208,20 +208,39 @@ async def list_products(
     category: Optional[str] = None,
     occasion: Optional[str] = None,
     budget_max: Optional[float] = None,
-    palette: Optional[str] = None,  # warm, cool, neutral
+    palette: Optional[str] = None,
+    climate: Optional[str] = None,
+    style: Optional[str] = None,
 ):
+    # Category is a catalogue constraint. Personalisation is ranked rather than reduced to a coarse warm/cool DB filter.
     query: dict = {}
     if category and category != "all":
         query["category"] = category
-    if occasion:
-        query["occasions"] = occasion
-    if budget_max:
-        query["price"] = {"$lte": budget_max}
-    if palette:
-        query["palette_tags"] = palette
+
+    profile = await db.profiles.find_one({"user_id": USER_ID}, {"_id": 0}) or {}
+    colour_profile = profile.get("skin_tone")
+    pref = profile.get("preferences") or {}
+    active_occasion = occasion or pref.get("occasion")
+    active_budget = budget_max if budget_max is not None else pref.get("budget_max")
+    active_climate = climate or pref.get("climate", "mild")
+    active_style = style or pref.get("style", "classic")
 
     docs = await db.products.find(query, {"_id": 0}).to_list(200)
-    return docs
+    ranked = []
+    for doc in docs:
+        score = recommendation_score(
+            doc, colour_profile, active_occasion, active_budget, active_climate, active_style,
+            pref.get("preferred_colours"), pref.get("avoided_colours"),
+        )
+        if score < 0:
+            continue
+        doc["recommendation_score"] = score
+        doc["recommendation_reasons"] = recommendation_reasons(
+            doc, colour_profile, active_occasion, active_climate, active_style
+        )
+        ranked.append(doc)
+    ranked.sort(key=lambda x: x["recommendation_score"], reverse=True)
+    return ranked
 
 
 @api_router.get("/products/{product_id}")
@@ -229,6 +248,16 @@ async def get_product(product_id: str):
     doc = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Product not found")
+    profile = await db.profiles.find_one({"user_id": USER_ID}, {"_id": 0}) or {}
+    pref = profile.get("preferences") or {}
+    doc["recommendation_score"] = recommendation_score(
+        doc, profile.get("skin_tone"), pref.get("occasion"), pref.get("budget_max"),
+        pref.get("climate", "mild"), pref.get("style", "classic"),
+        pref.get("preferred_colours"), pref.get("avoided_colours"),
+    )
+    doc["recommendation_reasons"] = recommendation_reasons(
+        doc, profile.get("skin_tone"), pref.get("occasion"), pref.get("climate", "mild"), pref.get("style", "classic")
+    )
     return doc
 
 
