@@ -67,6 +67,8 @@ export type Product = {
   colors: string[];
   palette_tags: string[];
   occasions: string[];
+  recommendation_score?: number;
+  recommendation_reasons?: string[];
 };
 
 export type TryOnResult = {
