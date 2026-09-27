@@ -17,5 +17,5 @@ jobs:
           python-version: "3.11"
       # These unit tests exercise pure StyleScan services and do not require
       # Emergent's private runtime package or application secrets.
-      - run: pip install pytest
+      - run: pip install pytest pytest-xdist
       - run: pytest tests/test_palette_engine.py tests/test_recommendation_engine.py -q
