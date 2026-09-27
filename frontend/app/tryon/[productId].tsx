@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -32,6 +32,10 @@ export default function TryOnFlow() {
 
   const [bodyPhoto, setBodyPhoto] = useState<string | null>(profile?.body_photo ?? null);
   const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!bodyPhoto && profile?.body_photo) setBodyPhoto(profile.body_photo);
+  }, [profile?.body_photo, bodyPhoto]);
 
   const tryOn = useMutation({
     mutationFn: (b64: string) => api.tryOn(productId!, b64),
