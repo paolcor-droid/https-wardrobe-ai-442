@@ -46,8 +46,9 @@ export default function ProductDetail() {
     );
   }
 
-  const undertone = profile?.skin_tone?.undertone;
-  const reasons = product.recommendation_reasons ?? [];
+  const reasons = product.recommendation_reasons?.length
+    ? product.recommendation_reasons
+    : ["This piece fits your current wardrobe preferences."];
 
 
   return (
@@ -89,20 +90,16 @@ export default function ProductDetail() {
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.desc}>{product.description}</Text>
 
-          {reasons.length ? (
-            <>
-              <View style={styles.divider} />
-              <Text style={styles.sectionTitle}>Why this suits you</Text>
-              <View style={styles.swatchesInline}>
-                {product.colors.map((c, i) => (
-                  <View key={i} style={[styles.smallSwatch, { backgroundColor: c }]} />
-                ))}
-              </View>
-              {reasons.map((reason, i) => (
-                <Text key={i} style={styles.reasonLine}>• {reason}</Text>
-              ))}
-            </>
-          ) : null}
+          <View style={styles.divider} />
+          <Text style={styles.sectionTitle}>Why this suits you</Text>
+          <View style={styles.swatchesInline}>
+            {product.colors.map((c, i) => (
+              <View key={i} style={[styles.smallSwatch, { backgroundColor: c }]} />
+            ))}
+          </View>
+          {reasons.map((reason, i) => (
+            <Text key={i} style={styles.reasonLine}>• {reason}</Text>
+          ))}
 
           <View style={styles.divider} />
           <Text style={styles.sectionTitle}>Details</Text>
