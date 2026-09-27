@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -13,6 +14,7 @@ import Feather from "@react-native-vector-icons/feather";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/src/api";
+import { DEFAULT_RETAILERS, RETAILERS, retailerUrl } from "@/src/retailers";
 import { colors, spacing } from "@/src/theme";
 
 export default function ProductDetail() {
@@ -45,6 +47,12 @@ export default function ProductDetail() {
       </View>
     );
   }
+
+  const selectedRetailerIds = profile?.preferences?.preferred_retailers?.length
+    ? profile.preferences.preferred_retailers
+    : DEFAULT_RETAILERS;
+  const selectedRetailers = RETAILERS.filter((r) => selectedRetailerIds.includes(r.id));
+  const shopQuery = [product.name, product.category].filter(Boolean).join(" ");
 
   const reasons = product.recommendation_reasons?.length
     ? product.recommendation_reasons
@@ -100,6 +108,22 @@ export default function ProductDetail() {
           {reasons.map((reason, i) => (
             <Text key={i} style={styles.reasonLine}>• {reason}</Text>
           ))}
+
+          <View style={styles.divider} />
+          <Text style={styles.sectionTitle}>Shop similar from your retailers</Text>
+          <Text style={styles.shopHelper}>StyleScan uses your recommendation as the brief and opens matching retailer searches where supported.</Text>
+          <View style={styles.retailerWrap}>
+            {selectedRetailers.map((retailer) => (
+              <Pressable
+                key={retailer.id}
+                style={styles.retailerButton}
+                onPress={() => Linking.openURL(retailerUrl(retailer, shopQuery))}
+              >
+                <Text style={styles.retailerButtonText}>{retailer.name}</Text>
+                <Feather name="external-link" size={14} color={colors.onSurface} />
+              </Pressable>
+            ))}
+          </View>
 
           <View style={styles.divider} />
           <Text style={styles.sectionTitle}>Details</Text>
@@ -168,6 +192,10 @@ const styles = StyleSheet.create({
   },
   desc: { fontSize: 14, lineHeight: 22, color: colors.onSurface },
   reasonLine: { fontSize: 14, lineHeight: 21, color: colors.onSurface, marginTop: spacing.sm },
+  shopHelper: { fontSize: 12, lineHeight: 18, color: colors.muted, marginBottom: spacing.md },
+  retailerWrap: { gap: spacing.sm },
+  retailerButton: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  retailerButtonText: { fontSize: 13, color: colors.onSurface, letterSpacing: 1 },
   matchRow: {
     flexDirection: "row",
     alignItems: "center",
