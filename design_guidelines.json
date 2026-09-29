@@ -1,0 +1,135 @@
+{
+  "app_name": "StyleScan (Wardrobe AI)",
+  "personality": "3 Editorial Mobile LIGHT",
+  "personality_one_liner": "A high-fashion magazine talking directly to you—refined, trustworthy, and visually arresting through stark whitespace and elegant typography.",
+  "color": {
+    "surface": "#F9F9F8",
+    "onSurface": "#111111",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#111111",
+    "surfaceTertiary": "#F0F0EE",
+    "onSurfaceTertiary": "#333333",
+    "surfaceInverse": "#111111",
+    "onSurfaceInverse": "#F9F9F8",
+    "brand": "#2B2B2B",
+    "onBrand": "#FFFFFF",
+    "brandPrimary": "#1C1C1C",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#5A5A5A",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#EBEBEB",
+    "onBrandTertiary": "#111111",
+    "success": "#4A5D4E",
+    "onSuccess": "#FFFFFF",
+    "warning": "#C29367",
+    "onWarning": "#111111",
+    "error": "#964B4B",
+    "onError": "#FFFFFF",
+    "info": "#7E7E7A",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E5E3",
+    "borderStrong": "#111111",
+    "divider": "#E5E5E3",
+    "muted": "#7E7E7A"
+  },
+  "typography": {
+    "displayFontFamily": "Playfair Display",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use magazine-like spacing rhythms with generous vertical breathing room. Let typography, whitespace, content, and imagery carry the personality. Cramped layouts kill the editorial feel.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 0,
+    "md": 4,
+    "lg": 8,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "drawer",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Sticky headers over scrolling chat content",
+      "Message composer background when docked over a scrolling chat"
+    ],
+    "dont's": [
+      "Every list row",
+      "Chat bubbles themselves",
+      "Empty state buttons"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Chat (Home)",
+      "purpose": "Primary AI styling advisor chat interface.",
+      "states": {
+        "loading": "Centered minimalist spinner with 'Consulting stylist...' text.",
+        "empty": "A stunning high-fashion editorial portrait with a gradient scrim overlay, topped by a large serif welcome title ('How can I style you today?'). Followed by a few suggested prompt chips below.",
+        "error": "A refined error text message 'We lost connection to the styling desk.' with a dark, sharp retry button."
+      },
+      "layout": "Header with hamburger menu (for History) and subtle 'StyleScan' branding. Main content area is the chat feed. Chat bubbles should use solid surfaceSecondary for AI, and surfaceTertiary for user. Messages align naturally. The message composer sits fixed at the bottom inside a glass container, keeping the UI light and premium. Avoid bubbly rounded chat borders; use radius 'md' (4px) or 'sm' (0px) to keep the hard editorial look."
+    },
+    {
+      "name": "Chat History",
+      "purpose": "A side drawer (or dedicated list) to revisit past styling sessions.",
+      "states": {
+        "loading": "Clean, full-width skeleton lines simulating list rows.",
+        "empty": "An image of minimalist empty white clothes hangers on a rack, with text 'Your styling history is clear.'",
+        "error": "Standard subtle error state."
+      },
+      "layout": "Large serif title 'Conversations'. List items separated by generous vertical padding (xl) and a hairline border (0.5pt divider). No card backgrounds—keep items flush on the main surface. Minimal metadata (e.g., date) in muted DM Sans below the chat title."
+    }
+  ],
+  "images": {
+    "chat_empty_hero": {
+      "url": "https://images.unsplash.com/photo-1580478491436-fd6a937acc9e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxjaGljJTIwZmFzaGlvbiUyMGVkaXRvcmlhbCUyMG1vZGVsfGVufDB8fHxibGFja3wxNzkwNjcxODExfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "chic fashion editorial model in dark blazer"
+    },
+    "history_empty_state": {
+      "url": "https://images.unsplash.com/photo-1517502166878-35c93a0072f0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZW1wdHklMjB3YXJkcm9iZSUyMGhhbmdlciUyMHdoaXRlfGVufDB8fHx8MTc5MDY3MTgxNnww&ixlib=rb-4.1.0&q=85",
+      "alt": "minimalist empty white wardrobe clothes hangers on a rack"
+    },
+    "abstract_background": {
+      "url": "https://images.unsplash.com/photo-1644481361524-5af470330623?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMHNvZnQlMjBiZWlnZSUyMGNyZWFtJTIwdGV4dHVyZXxlbnwwfHx8fDE3OTA2NzE4MTF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "A smooth off-white surface with subtle diagonal brushstroke textures"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the 'Editorial Mobile LIGHT' personality strictly. Do not add heavy shadows, vibrant AI-style neon colors, or bubbly chat elements.",
+    "Use Playfair Display for primary headers, empty state welcomes, and empty state titles. Use DM Sans for everything else, including chat bubbles and prompts.",
+    "No blue or purple AI-defaults. The app relies on a chic, neutral stone/charcoal/ivory palette. Primary actions (buttons) should be sharp, dark charcoal.",
+    "Chat bubbles must have very tight, sharp corners (radius 0 or 4px) to retain the magazine feel, never pill-shaped bubbles.",
+    "Chat Composer must be wrapped in a frosted glass effect container (via expo-blur) so scrolling content is subtly visible underneath.",
+    "For the History view, use a drawer implementation (or stack if simpler, but style it elegantly). Elements should be separated by whitespace and subtle 0.5pt dividers, without boxed 'card' styling.",
+    "Incorporate the provided chic fashion imagery for the Chat empty state (to welcome the user with visual flair) and the white hangers for an empty history state. Use the abstract texture as an optional background if the chat feed feels too stark.",
+    "All interactive moments like sending a message, starting a new chat, or opening history must use defined haptic feedback (ImpactFeedbackStyle.Light)."
+  ]
+}
