@@ -18,6 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette
+from services.catalogue_providers import list_providers
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -306,6 +307,12 @@ def build_system_prompt(profile: Optional[dict]) -> str:
 @api_router.get("/")
 async def root():
     return {"message": "StyleScan API"}
+
+
+@api_router.get("/catalogue/providers")
+async def catalogue_providers():
+    """Expose configured shopping sources without implying live inventory access."""
+    return {"providers": list_providers(), "live_inventory_enabled": False}
 
 
 @api_router.post("/upload")
