@@ -34,7 +34,16 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
         score += 20
     score += 25 if not occasion or occasion in product.get("occasions", []) else 0
     score += 15 if climate != "hot" or is_hot_weather_suitable(product) else 0
-    text = " ".join([product.get("name", ""), product.get("description", "")]).lower()
+    text = " ".join([
+        product.get("name", ""), product.get("description", ""),
+        " ".join(product.get("colour_names", product.get("color_names", []))),
+    ]).lower()
+    preferred = [c.lower() for c in (preferred_colours or [])]
+    avoided = [c.lower() for c in (avoided_colours or [])]
+    if any(c in text for c in avoided):
+        score -= 35
+    if any(c in text for c in preferred):
+        score += 8
     if climate == "hot" and any(t in text for t in HOT_PREFER_TERMS):
         score += 8
     if style and any(t in text for t in STYLE_TERMS.get(style, ())):
