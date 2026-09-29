@@ -1,0 +1,21 @@
+name: StyleScan v3 checks
+
+on:
+  push:
+    branches: [stylescan-v3-integration]
+  pull_request:
+    branches: [emergent-new-build, main]
+
+jobs:
+  intelligence:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest pytest-xdist
+      - run: pytest -q tests/test_stylescan_intelligence.py tests/test_catalogue_providers.py
