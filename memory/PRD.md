@@ -1,42 +1,40 @@
 # StyleScan (Wardrobe AI) — PRD
 
 ## Original Problem Statement
-User wanted to import an existing GitHub repo (paolcor-droid/https-wardrobe-ai-442, branch stylescan-v2-merge) to continue work. The repo never imported into the workspace (only the blank starter template was present), so the user could not update existing code. User then requested: "Add the Claude AI Models integration to my app."
+User wanted to continue an existing GitHub repo (never imported; only blank template was present), then requested a Claude AI chat integration, followed by four enhancements: Photo Advice, Outfit Saving, Rename/Pin chats, and Share Look.
 
-User choices (gathered):
-- Claude acts as a general chat assistant AND a wardrobe/outfit styling advisor
-- Model: Claude Sonnet 5
-- Chat history saved between sessions
-- Use built-in Emergent Universal LLM key
+User choices:
+- Claude = general assistant + wardrobe/outfit stylist; model Claude Sonnet 5; saved history; Emergent Universal LLM key.
+- Photo Advice: camera + library.
+- Saved Looks: bookmark icon in top bar → Saved screen.
+- Share Look: image card on native, text fallback on web.
+- Pinned chats float to top with a marker.
 
 ## Architecture
-- Frontend: Expo Router (React Native), @tanstack/react-query, react-native-keyboard-controller, expo-blur, expo-linear-gradient, expo-image, expo-haptics, @react-native-vector-icons/feather. Custom fonts Playfair Display + DM Sans (variable TTFs).
-- Backend: FastAPI + Motor (MongoDB). Claude Sonnet 5 via emergentintegrations LlmChat, streamed over SSE.
-- DB collections: `conversations`, `messages` (uuid string ids, soft-delete via `deleted_at`, `_id` excluded).
+- Frontend: Expo Router, @tanstack/react-query, react-native-keyboard-controller, expo-blur, expo-linear-gradient, expo-image, expo-image-picker, react-native-view-shot, expo-sharing, @react-native-vector-icons/feather. Fonts: Playfair Display + DM Sans.
+- Backend: FastAPI + Motor (MongoDB). Claude Sonnet 5 via emergentintegrations LlmChat (SSE streaming, vision via ImageContent). Emergent Object Storage for photos.
+- DB collections: conversations {id,title,pinned,created_at,updated_at,deleted_at}, messages {id,conversation_id,role,content,image_path,created_at}, saved_looks {id,message_id,conversation_id,content,created_at,deleted_at}. UUID ids, soft-delete, _id excluded.
 
 ## User Personas
-- Everyday user seeking outfit/styling advice and general chat, wanting to revisit past styling sessions.
+- Everyday user seeking outfit/styling advice, wants to photograph garments, save favorite tips, revisit and organize sessions, and share looks.
 
 ## Core Requirements (static)
-- Streaming AI chat with a wardrobe stylist persona (Claude Sonnet 5).
-- Multi-turn conversation memory within a session.
-- Persistent conversation history, viewable and reopenable.
-- Editorial, high-fashion visual design (light + dark theme tokens).
+- Streaming AI stylist chat (Claude Sonnet 5) with multi-turn memory.
+- Photo-based styling advice (camera/library → Object Storage → Claude vision).
+- Persistent, organizable conversation history (rename, pin).
+- Save favorite replies as outfit cards; share replies as image/text.
+- Editorial high-fashion design (light + dark tokens).
 
-## Implemented (2026-09-29)
-- Backend endpoints: POST /api/conversations, GET /api/conversations, GET /api/conversations/{id}/messages, POST /api/conversations/{id}/chat (SSE stream), DELETE /api/conversations/{id} (soft delete).
-- Streaming Claude Sonnet 5 with seeded history for multi-turn; auto-titles conversation from first message.
-- Frontend Chat screen: glass sticky header, editorial empty state (hero + suggestion chips), streaming bubbles, **bold** markdown rendering, keyboard handling, new-chat.
-- Frontend History screen: list with relative timestamps, reopen conversation, delete, loading skeletons, empty state.
-- System prompt steered away from unsupported markdown (headings/rules/tables).
-- Verified: 9/9 backend pytest passing; all frontend flows validated by testing agent.
+## Implemented
+- 2026-09-29: Claude Sonnet 5 streaming chat, multi-turn, saved history, editorial UI, History screen (reopen/delete). 9/9 backend tests.
+- 2026-09-29: Photo Advice (upload /api/upload, /api/files, vision in chat), Outfit Saving (/api/saved + Saved screen), Rename+Pin (PATCH /api/conversations, pinned-first sort, rename modal), Share Look (ShareLookModal image card + text fallback). Camera/library permission flow with Open Settings fallback. 11/11 backend tests; all frontend flows verified.
+- Hero image on empty state swapped to a model photo per user request.
 
 ## Backlog (prioritized)
-- P1: Render richer markdown (headings, numbered lists) or keep steering via prompt.
-- P2: Swipe-to-delete on history rows; rename conversation title.
-- P2: Save favorite outfits / outfit cards; share a styling reply.
-- P2: Image input (photograph a garment for advice) via Object Storage.
-- P3: Migrate deprecated FastAPI @app.on_event("shutdown") to lifespan handler.
+- P2: Stronger pinned affordance (filled vs outline bookmark).
+- P2: Attach multiple photos; edit/crop before send.
+- P2: Group saved looks into collections/boards.
+- P3: Migrate FastAPI @app.on_event to lifespan; pytest fixture cleanup.
 
 ## Next Tasks
-- Await user direction on which enhancement to build next.
+- Await user direction on next enhancement.

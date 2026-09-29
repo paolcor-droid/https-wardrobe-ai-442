@@ -39,7 +39,15 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar",
-      "@react-native-vector-icons/feather"
+      "@react-native-vector-icons/feather",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Share photos of clothing to get styling advice",
+          "cameraPermission": "Take photos of clothing to get styling advice"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -20,13 +20,15 @@ import {
   createConversation,
   getMessages,
   streamChat,
+  saveLook,
   type ChatMessage,
 } from "@/src/api";
 import { MessageBubble } from "@/src/components/MessageBubble";
 import { Composer } from "@/src/components/Composer";
 import { ChatEmpty } from "@/src/components/ChatEmpty";
+import { ShareLookModal } from "@/src/components/ShareLookModal";
 
-type LocalMsg = Pick<ChatMessage, "role" | "content"> & { id: string };
+type LocalMsg = Pick<ChatMessage, "role" | "content" | "image_path"> & { id: string };
 
 export default function ChatScreen() {
   const styles = useStyles();
@@ -42,6 +44,8 @@ export default function ChatScreen() {
   const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [shareText, setShareText] = useState<string | null>(null);
 
   const streamingRef = useRef(false);
   const streamTextRef = useRef("");
@@ -50,16 +54,12 @@ export default function ChatScreen() {
 
   const headerHeight = 56 + insets.top;
 
-  // Sync incoming route param -> internal conversation id
   useEffect(() => {
     const pid = params.id ? String(params.id) : null;
-    if (pid !== convoId && !streamingRef.current) {
-      setConvoId(pid);
-    }
+    if (pid !== convoId && !streamingRef.current) setConvoId(pid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  // Load messages for the active conversation
   useEffect(() => {
     if (streamingRef.current) return;
     if (!convoId) {
@@ -71,7 +71,10 @@ export default function ChatScreen() {
     setLoadingHistory(true);
     getMessages(convoId)
       .then((m) => {
-        if (active) setMessages(m.map((x) => ({ id: x.id, role: x.role, content: x.content })));
+        if (active)
+          setMessages(
+            m.map((x) => ({ id: x.id, role: x.role, content: x.content, image_path: x.image_path })),
+          );
       })
       .catch(() => active && setError("We lost connection to the styling desk."))
       .finally(() => active && setLoadingHistory(false));
@@ -88,9 +91,14 @@ export default function ChatScreen() {
   useEffect(() => () => abortRef.current?.(), []);
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, imagePath?: string | null) => {
       setError(null);
-      const userMsg: LocalMsg = { id: `u-${Date.now()}`, role: "user", content: text };
+      const userMsg: LocalMsg = {
+        id: `u-${Date.now()}`,
+        role: "user",
+        content: text,
+        image_path: imagePath ?? null,
+      };
       setMessages((prev) => [...prev, userMsg]);
       streamingRef.current = true;
       streamTextRef.current = "";
@@ -111,31 +119,54 @@ export default function ChatScreen() {
         }
       }
 
-      abortRef.current = streamChat(id, text, {
-        onDelta: (t) => {
-          streamTextRef.current += t;
-          setStreamingText(streamTextRef.current);
+      abortRef.current = streamChat(
+        id,
+        text,
+        {
+          onDelta: (t) => {
+            streamTextRef.current += t;
+            setStreamingText(streamTextRef.current);
+          },
+          onDone: ({ message_id }) => {
+            const finalText = streamTextRef.current;
+            setMessages((prev) => [
+              ...prev,
+              { id: message_id, role: "assistant", content: finalText, image_path: null },
+            ]);
+            streamingRef.current = false;
+            setStreaming(false);
+            setStreamingText("");
+            queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          },
+          onError: (msg) => {
+            streamingRef.current = false;
+            setStreaming(false);
+            setStreamingText("");
+            setError(msg || "We lost connection to the styling desk.");
+          },
         },
-        onDone: () => {
-          const finalText = streamTextRef.current;
-          setMessages((prev) => [
-            ...prev,
-            { id: `a-${Date.now()}`, role: "assistant", content: finalText },
-          ]);
-          streamingRef.current = false;
-          setStreaming(false);
-          setStreamingText("");
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        },
-        onError: (msg) => {
-          streamingRef.current = false;
-          setStreaming(false);
-          setStreamingText("");
-          setError(msg || "We lost connection to the styling desk.");
-        },
-      });
+        imagePath,
+      );
     },
     [convoId, queryClient],
+  );
+
+  const handleSave = useCallback(
+    async (messageId: string) => {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSavedIds((prev) => new Set(prev).add(messageId));
+      try {
+        await saveLook(messageId);
+        queryClient.invalidateQueries({ queryKey: ["saved"] });
+      } catch {
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+      }
+    },
+    [queryClient],
   );
 
   const startNewChat = useCallback(() => {
@@ -154,6 +185,11 @@ export default function ChatScreen() {
     router.push("/history");
   }, [router]);
 
+  const openSaved = useCallback(() => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/saved");
+  }, [router]);
+
   const showEmpty = !convoId && messages.length === 0 && !streaming;
 
   return (
@@ -165,16 +201,13 @@ export default function ChatScreen() {
       >
         {showEmpty ? (
           <View style={[styles.flex, { paddingTop: headerHeight }]}>
-            <ChatEmpty onPick={handleSend} />
+            <ChatEmpty onPick={(p) => handleSend(p)} />
           </View>
         ) : (
           <ScrollView
             ref={scrollRef}
             style={styles.flex}
-            contentContainerStyle={[
-              styles.feed,
-              { paddingTop: headerHeight + 16 },
-            ]}
+            contentContainerStyle={[styles.feed, { paddingTop: headerHeight + 16 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
@@ -187,7 +220,13 @@ export default function ChatScreen() {
             ) : (
               <>
                 {messages.map((m) => (
-                  <MessageBubble key={m.id} message={m} />
+                  <MessageBubble
+                    key={m.id}
+                    message={m}
+                    saved={savedIds.has(m.id)}
+                    onSave={m.role === "assistant" ? () => handleSave(m.id) : undefined}
+                    onShare={m.role === "assistant" ? () => setShareText(m.content) : undefined}
+                  />
                 ))}
                 {streaming && (
                   <MessageBubble
@@ -208,7 +247,6 @@ export default function ChatScreen() {
         <Composer onSend={handleSend} disabled={streaming} bottomInset={insets.bottom} />
       </KeyboardAvoidingView>
 
-      {/* Sticky glass header */}
       <BlurView
         intensity={Platform.OS === "ios" ? 50 : 0}
         tint={scheme === "dark" ? "dark" : "light"}
@@ -218,10 +256,21 @@ export default function ChatScreen() {
           <Feather name="menu" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.headerTitle}>StyleScan</Text>
-        <Pressable testID="new-chat-button" onPress={startNewChat} style={styles.iconBtn}>
-          <Feather name="edit" size={20} color={colors.onSurface} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable testID="open-saved-button" onPress={openSaved} style={styles.iconBtn}>
+            <Feather name="bookmark" size={20} color={colors.onSurface} />
+          </Pressable>
+          <Pressable testID="new-chat-button" onPress={startNewChat} style={styles.iconBtn}>
+            <Feather name="edit" size={20} color={colors.onSurface} />
+          </Pressable>
+        </View>
       </BlurView>
+
+      <ShareLookModal
+        visible={!!shareText}
+        text={shareText ?? ""}
+        onClose={() => setShareText(null)}
+      />
     </View>
   );
 }
@@ -243,6 +292,7 @@ const useStyles = makeStyles((c) => ({
     borderBottomColor: c.border,
     backgroundColor: Platform.OS === "ios" ? "transparent" : c.surface,
   },
+  headerRight: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
     fontFamily: fonts.display,
     fontSize: 22,
@@ -250,20 +300,9 @@ const useStyles = makeStyles((c) => ({
     color: c.onSurface,
     letterSpacing: 0.5,
   },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   center: { paddingTop: 80, alignItems: "center", gap: 12 },
   loadingText: { fontFamily: fonts.text, color: c.muted, fontSize: 14 },
-  errorBox: {
-    borderWidth: 1,
-    borderColor: c.error,
-    borderRadius: 4,
-    padding: 14,
-    marginTop: 4,
-  },
+  errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 4, padding: 14, marginTop: 4 },
   errorText: { fontFamily: fonts.text, color: c.error, fontSize: 14 },
 }));

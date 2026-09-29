@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { makeStyles, fonts } from "@/src/theme";
 
 const HERO =
-  "https://images.unsplash.com/photo-1580478491436-fd6a937acc9e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxjaGljJTIwZmFzaGlvbiUyMGVkaXRvcmlhbCUyMG1vZGVsfGVufDB8fHxibGFja3wxNzkwNjcxODExfDA&ixlib=rb-4.1.0&q=85";
+  "https://images.unsplash.com/photo-1483985988355-763728e1935b?crop=entropy&cs=srgb&fm=jpg&w=1200&q=85";
 
 const SUGGESTIONS = [
   "Build me a smart-casual capsule wardrobe",

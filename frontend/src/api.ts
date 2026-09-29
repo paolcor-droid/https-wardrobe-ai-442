@@ -1,9 +1,11 @@
-// Thin API layer for StyleScan. All network calls go through EXPO_PUBLIC_BACKEND_URL.
+import { Platform } from "react-native";
+
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export type Conversation = {
   id: string;
   title: string;
+  pinned: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -12,6 +14,15 @@ export type ChatMessage = {
   id: string;
   conversation_id: string;
   role: "user" | "assistant";
+  content: string;
+  image_path?: string | null;
+  created_at: string;
+};
+
+export type SavedLook = {
+  id: string;
+  message_id: string;
+  conversation_id: string;
   content: string;
   created_at: string;
 };
@@ -24,6 +35,10 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export function fileUrl(path: string): string {
+  return `${BASE}/api/files/${path}`;
+}
+
 export async function createConversation(): Promise<Conversation> {
   const res = await fetch(`${BASE}/api/conversations`, { method: "POST" });
   return json<Conversation>(res);
@@ -32,6 +47,18 @@ export async function createConversation(): Promise<Conversation> {
 export async function listConversations(): Promise<Conversation[]> {
   const res = await fetch(`${BASE}/api/conversations`);
   return json<Conversation[]>(res);
+}
+
+export async function updateConversation(
+  id: string,
+  body: { title?: string; pinned?: boolean },
+): Promise<Conversation> {
+  const res = await fetch(`${BASE}/api/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return json<Conversation>(res);
 }
 
 export async function getMessages(conversationId: string): Promise<ChatMessage[]> {
@@ -46,25 +73,57 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   await json(res);
 }
 
+export async function uploadImage(uri: string, name: string, type: string): Promise<string> {
+  const form = new FormData();
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(uri)).blob();
+    form.append("file", blob, name);
+  } else {
+    // @ts-expect-error React Native FormData file shape
+    form.append("file", { uri, name, type });
+  }
+  const res = await fetch(`${BASE}/api/upload`, { method: "POST", body: form });
+  const data = await json<{ path: string }>(res);
+  return data.path;
+}
+
+export async function saveLook(messageId: string): Promise<SavedLook> {
+  const res = await fetch(`${BASE}/api/saved`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message_id: messageId }),
+  });
+  return json<SavedLook>(res);
+}
+
+export async function listSaved(): Promise<SavedLook[]> {
+  const res = await fetch(`${BASE}/api/saved`);
+  return json<SavedLook[]>(res);
+}
+
+export async function deleteSaved(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/saved/${id}`, { method: "DELETE" });
+  await json(res);
+}
+
 export type StreamHandlers = {
   onDelta: (text: string) => void;
   onDone: (payload: { message_id: string; title?: string | null }) => void;
   onError: (message: string) => void;
 };
 
-// Streams the assistant reply token-by-token using XHR progress events, which
-// is the reliable way to read a partial SSE body in React Native.
 export function streamChat(
   conversationId: string,
   message: string,
   handlers: StreamHandlers,
+  imagePath?: string | null,
 ): () => void {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", `${BASE}/api/conversations/${conversationId}/chat`);
   xhr.setRequestHeader("Content-Type", "application/json");
 
-  let consumed = 0; // chars of xhr.responseText already copied into `buffer`
-  let buffer = ""; // unprocessed tail (may contain a partial event)
+  let consumed = 0;
+  let buffer = "";
 
   const processBuffer = () => {
     const full = xhr.responseText;
@@ -98,12 +157,10 @@ export function streamChat(
   xhr.onprogress = processBuffer;
   xhr.onload = () => {
     processBuffer();
-    if (xhr.status >= 400) {
-      handlers.onError(`Request failed (${xhr.status})`);
-    }
+    if (xhr.status >= 400) handlers.onError(`Request failed (${xhr.status})`);
   };
   xhr.onerror = () => handlers.onError("We lost connection to the styling desk.");
-  xhr.send(JSON.stringify({ message }));
+  xhr.send(JSON.stringify({ message, image_path: imagePath ?? null }));
 
   return () => xhr.abort();
 }
