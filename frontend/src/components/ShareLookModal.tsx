@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { View, Text, Pressable, Modal, Platform, Share, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import ViewShot, { captureRef } from "react-native-view-shot";
+import ViewShot, { captureRef, type ViewShotRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import Feather from "@react-native-vector-icons/feather";
 
@@ -17,7 +17,7 @@ type Props = {
 export function ShareLookModal({ visible, text, imageUrl, onClose }: Props) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const shotRef = useRef<ViewShot>(null);
+  const shotRef = useRef<ViewShotRef>(null);
   const [busy, setBusy] = useState(false);
 
   const shareText = async () => {
