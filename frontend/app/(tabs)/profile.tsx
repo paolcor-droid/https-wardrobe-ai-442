@@ -19,6 +19,8 @@ import {
   type SkinAnalysis,
 } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
+import { ModelSelector } from "@/src/components/ModelSelector";
+import { useModel } from "@/src/model-provider";
 import { RETAILERS } from "@/src/retailers";
 import type { PickResult } from "@/src/utils/media";
 
@@ -34,6 +36,7 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { provider } = useModel();
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 40;
 
@@ -112,7 +115,7 @@ export default function ProfileScreen() {
     setScanning(true);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
-      await analyzeSkin(path);
+      await analyzeSkin(path, provider);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -147,6 +150,9 @@ export default function ProfileScreen() {
       >
         {/* Skin tone */}
         <Text style={styles.sectionTitle}>Skin tone & colors</Text>
+        <View style={styles.modelSelectorWrap}>
+          <ModelSelector />
+        </View>
         {skin && skin.undertone ? (
           <View style={styles.skinCard} testID="skin-result">
             <View style={styles.skinTop}>
@@ -164,6 +170,11 @@ export default function ProfileScreen() {
                 {skin.analysis_quality ? (
                   <Text style={styles.skinQuality}>
                     {skin.analysis_quality.confidence} confidence · {skin.analysis_quality.lighting_quality} lighting
+                  </Text>
+                ) : null}
+                {skin.analyzed_with ? (
+                  <Text style={styles.skinQuality}>
+                    Analysed with {skin.analyzed_with === "openai" ? "ChatGPT" : "Claude"}
                   </Text>
                 ) : null}
                 {skin.summary ? <Text style={styles.skinSummary}>{skin.summary}</Text> : null}
@@ -321,6 +332,7 @@ const useStyles = makeStyles((c) => ({
     marginTop: 28,
     marginBottom: 14,
   },
+  modelSelectorWrap: { marginBottom: 16 },
   scanCard: {
     borderWidth: 1,
     borderColor: c.borderStrong,

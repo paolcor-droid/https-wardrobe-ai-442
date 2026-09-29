@@ -28,6 +28,8 @@ import { MessageBubble } from "@/src/components/MessageBubble";
 import { Composer } from "@/src/components/Composer";
 import { ChatEmpty } from "@/src/components/ChatEmpty";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
+import { ModelSelector } from "@/src/components/ModelSelector";
+import { useModel } from "@/src/model-provider";
 
 type LocalMsg = Pick<ChatMessage, "role" | "content" | "image_path"> & { id: string };
 
@@ -38,6 +40,9 @@ export default function ChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const queryClient = useQueryClient();
+  const { provider } = useModel();
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
 
   const [convoId, setConvoId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMsg[]>([]);
@@ -148,6 +153,7 @@ export default function ChatScreen() {
           },
         },
         imagePath,
+        providerRef.current,
       );
     },
     [convoId, queryClient],
@@ -203,6 +209,9 @@ export default function ChatScreen() {
       >
         {showEmpty ? (
           <View style={[styles.flex, { paddingTop: headerHeight }]}>
+            <View style={styles.selectorBar}>
+              <ModelSelector />
+            </View>
             <ChatEmpty onPick={(p) => handleSend(p)} />
           </View>
         ) : (
@@ -280,6 +289,7 @@ export default function ChatScreen() {
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   flex: { flex: 1 },
+  selectorBar: { paddingHorizontal: 16, paddingTop: 12 },
   feed: { paddingHorizontal: 16, paddingBottom: 20 },
   header: {
     position: "absolute",

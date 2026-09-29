@@ -27,6 +27,25 @@ export type SavedLook = {
   created_at: string;
 };
 
+// Dev/testing model selector ------------------------------------------------
+export type ChatProvider = "claude" | "openai";
+
+export type ProviderInfo = {
+  id: string;
+  label: string;
+  model: string;
+};
+
+export type ModelsResponse = {
+  default: string;
+  providers: ProviderInfo[];
+};
+
+export async function getModels(): Promise<ModelsResponse> {
+  const res = await fetch(`${BASE}/api/models`);
+  return json<ModelsResponse>(res);
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -108,7 +127,7 @@ export async function deleteSaved(id: string): Promise<void> {
 
 export type StreamHandlers = {
   onDelta: (text: string) => void;
-  onDone: (payload: { message_id: string; title?: string | null }) => void;
+  onDone: (payload: { message_id: string; title?: string | null; provider?: string | null }) => void;
   onError: (message: string) => void;
 };
 
@@ -117,6 +136,7 @@ export function streamChat(
   message: string,
   handlers: StreamHandlers,
   imagePath?: string | null,
+  provider?: string | null,
 ): () => void {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", `${BASE}/api/conversations/${conversationId}/chat`);
@@ -144,7 +164,7 @@ export function streamChat(
         if (data.error) {
           handlers.onError(data.error);
         } else if (data.done) {
-          handlers.onDone({ message_id: data.message_id, title: data.title });
+          handlers.onDone({ message_id: data.message_id, title: data.title, provider: data.provider });
         } else if (typeof data.delta === "string") {
           handlers.onDelta(data.delta);
         }
@@ -160,7 +180,7 @@ export function streamChat(
     if (xhr.status >= 400) handlers.onError(`Request failed (${xhr.status})`);
   };
   xhr.onerror = () => handlers.onError("We lost connection to the styling desk.");
-  xhr.send(JSON.stringify({ message, image_path: imagePath ?? null }));
+  xhr.send(JSON.stringify({ message, image_path: imagePath ?? null, provider: provider ?? null }));
 
   return () => xhr.abort();
 }
@@ -187,6 +207,7 @@ export type SkinAnalysis = {
   statement_colours: ColorSwatch[];
   caution_colours: ColorSwatch[];
   analysis_quality?: AnalysisQuality | null;
+  analyzed_with?: string | null;
   image_path?: string | null;
   analyzed_at?: string | null;
 };
@@ -239,11 +260,11 @@ export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | 
   return json<Profile>(res);
 }
 
-export async function analyzeSkin(imagePath: string): Promise<SkinAnalysis> {
+export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
   const res = await fetch(`${BASE}/api/skin-analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_path: imagePath }),
+    body: JSON.stringify({ image_path: imagePath, provider: provider ?? null }),
   });
   return json<SkinAnalysis>(res);
 }

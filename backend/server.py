@@ -36,8 +36,30 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
-CHAT_MODEL = ("anthropic", "claude-sonnet-5")
+
+# Selectable chat / analysis providers. Claude remains the default so existing
+# behaviour is preserved; OpenAI (ChatGPT) is added ALONGSIDE it. The provider is
+# chosen per-request via an optional `provider` field (dev/testing selector).
+CHAT_MODELS: Dict[str, Dict[str, str]] = {
+    "claude": {"provider": "anthropic", "model": "claude-sonnet-5", "label": "Claude (Anthropic)"},
+    "openai": {"provider": "openai", "model": "gpt-5.6-sol", "label": "ChatGPT (OpenAI)"},
+}
+DEFAULT_CHAT_PROVIDER = "claude"
+# Backward-compatible default tuple used where no explicit provider is supplied.
+CHAT_MODEL = (CHAT_MODELS[DEFAULT_CHAT_PROVIDER]["provider"], CHAT_MODELS[DEFAULT_CHAT_PROVIDER]["model"])
 IMAGE_MODEL = ("gemini", "gemini-3.1-flash-image-preview")
+
+
+def resolve_provider_id(provider: Optional[str]) -> str:
+    """Normalise a requested provider id, falling back to the default."""
+    key = (provider or DEFAULT_CHAT_PROVIDER).strip().lower()
+    return key if key in CHAT_MODELS else DEFAULT_CHAT_PROVIDER
+
+
+def resolve_chat_model(provider: Optional[str]) -> tuple:
+    """Return the (provider, model) tuple for LlmChat.with_model()."""
+    entry = CHAT_MODELS[resolve_provider_id(provider)]
+    return (entry["provider"], entry["model"])
 
 # ----------------------------- Object storage -----------------------------
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -162,6 +184,7 @@ class SkinAnalysis(BaseModel):
     statement_colours: List[ColorSwatch] = []
     caution_colours: List[ColorSwatch] = []
     analysis_quality: Optional[AnalysisQuality] = None
+    analyzed_with: Optional[str] = None  # provider id used for this analysis (e.g. "claude" / "openai")
     image_path: Optional[str] = None
     analyzed_at: Optional[str] = None
 
@@ -204,6 +227,7 @@ class TryOn(BaseModel):
 class ChatRequest(BaseModel):
     message: str = ""
     image_path: Optional[str] = None
+    provider: Optional[str] = None  # "claude" (default) or "openai" — dev/testing selector
 
 
 class UpdateConversationRequest(BaseModel):
@@ -226,6 +250,7 @@ class ProfileUpdate(BaseModel):
 
 class SkinAnalysisRequest(BaseModel):
     image_path: str
+    provider: Optional[str] = None  # "claude" (default) or "openai" — dev/testing selector
 
 
 class TryOnRequest(BaseModel):
@@ -313,6 +338,18 @@ async def root():
 async def catalogue_providers():
     """Expose configured shopping sources without implying live inventory access."""
     return {"providers": list_providers(), "live_inventory_enabled": False}
+
+
+@api_router.get("/models")
+async def available_chat_models():
+    """List the selectable chat/analysis providers for the dev/testing model selector."""
+    return {
+        "default": DEFAULT_CHAT_PROVIDER,
+        "providers": [
+            {"id": pid, "label": entry["label"], "model": entry["model"]}
+            for pid, entry in CHAT_MODELS.items()
+        ],
+    }
 
 
 @api_router.post("/upload")
@@ -452,7 +489,7 @@ async def chat(conversation_id: str, req: ChatRequest):
         session_id=conversation_id,
         system_message=system_prompt,
         initial_messages=initial_messages,
-    ).with_model(*CHAT_MODEL)
+    ).with_model(*resolve_chat_model(req.provider))
 
     outgoing = UserMessage(text=user_text, file_contents=image_contents)
 
@@ -482,7 +519,12 @@ async def chat(conversation_id: str, req: ChatRequest):
             update["title"] = title
         await db.conversations.update_one({"id": conversation_id}, {"$set": update})
 
-        payload = {"done": True, "message_id": assistant_msg.id, "title": update.get("title")}
+        payload = {
+            "done": True,
+            "message_id": assistant_msg.id,
+            "title": update.get("title"),
+            "provider": resolve_provider_id(req.provider),
+        }
         yield f"data: {json.dumps(payload)}\n\n"
 
     return StreamingResponse(
@@ -575,7 +617,7 @@ async def skin_analysis(req: SkinAnalysisRequest):
         api_key=EMERGENT_LLM_KEY,
         session_id=f"skin-{uuid.uuid4()}",
         system_message=system,
-    ).with_model(*CHAT_MODEL)
+    ).with_model(*resolve_chat_model(req.provider))
     msg = UserMessage(
         text=(
             'Return exactly this schema: {"undertone":"warm|neutral_warm|neutral|neutral_cool|cool",'
@@ -616,6 +658,7 @@ async def skin_analysis(req: SkinAnalysisRequest):
         statement_colours=[ColorSwatch(**c) for c in palette["statement_colours"]],
         caution_colours=[ColorSwatch(**c) for c in palette["caution_colours"]],
         analysis_quality=quality,
+        analyzed_with=resolve_provider_id(req.provider),
         image_path=req.image_path,
         analyzed_at=now_iso(),
     )
