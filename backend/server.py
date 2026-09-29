@@ -6,7 +6,7 @@ import base64
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 
 import requests
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
+
+from services.palette_engine import build_palette
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -140,14 +142,40 @@ class ColorSwatch(BaseModel):
     hex: str
 
 
+class AnalysisQuality(BaseModel):
+    lighting_quality: Literal["poor", "fair", "good"] = "fair"
+    face_visibility: Literal["poor", "fair", "good"] = "fair"
+    confidence: Literal["low", "medium", "high"] = "medium"
+
+
 class SkinAnalysis(BaseModel):
-    undertone: str = ""
+    undertone: Literal["warm", "neutral_warm", "neutral", "neutral_cool", "cool"] = "neutral"
+    depth: Literal["light", "medium", "deep"] = "medium"
+    chroma: Literal["muted", "balanced", "clear"] = "balanced"
+    contrast: Literal["low", "medium", "high"] = "medium"
     season: Optional[str] = None
     summary: str = ""
     palette: List[ColorSwatch] = []
-    avoid: List[ColorSwatch] = []
+    best_neutrals: List[ColorSwatch] = []
+    best_accents: List[ColorSwatch] = []
+    statement_colours: List[ColorSwatch] = []
+    caution_colours: List[ColorSwatch] = []
+    analysis_quality: Optional[AnalysisQuality] = None
     image_path: Optional[str] = None
     analyzed_at: Optional[str] = None
+
+
+class Preferences(BaseModel):
+    budget_min: int = 0
+    budget_max: int = 500
+    occasion: str = "casual"
+    categories: List[str] = []
+    climate: Literal["hot", "mild", "cold"] = "mild"
+    style: str = "classic"
+    preferred_fit: str = "regular"
+    preferred_colours: List[str] = []
+    avoided_colours: List[str] = []
+    preferred_retailers: List[str] = ["zara", "hm", "uniqlo"]
 
 
 class Profile(BaseModel):
@@ -157,6 +185,7 @@ class Profile(BaseModel):
     sizes: Dict[str, str] = {}
     budget: Optional[str] = None
     notes: str = ""
+    preferences: Preferences = Field(default_factory=Preferences)
     skin: Optional[SkinAnalysis] = None
     updated_at: str = Field(default_factory=now_iso)
 
@@ -191,6 +220,7 @@ class ProfileUpdate(BaseModel):
     sizes: Optional[Dict[str, str]] = None
     budget: Optional[str] = None
     notes: Optional[str] = None
+    preferences: Optional[Preferences] = None
 
 
 class SkinAnalysisRequest(BaseModel):
@@ -490,7 +520,7 @@ async def get_profile():
 async def update_profile(req: ProfileUpdate):
     await get_or_create_profile()
     update: Dict[str, Any] = {"updated_at": now_iso()}
-    for field in ("favorite_colors", "styles", "sizes", "budget", "notes"):
+    for field in ("favorite_colors", "styles", "sizes", "budget", "notes", "preferences"):
         val = getattr(req, field)
         if val is not None:
             update[field] = val
@@ -519,14 +549,10 @@ async def skin_analysis(req: SkinAnalysisRequest):
         raise HTTPException(status_code=400, detail="Could not read image")
 
     system = (
-        "You are a professional color analyst. Analyze the person's skin tone from the selfie "
-        "and return ONLY valid JSON (no prose, no code fences) with this exact schema:\n"
-        '{"undertone": "warm|cool|neutral|olive", "season": "e.g. Warm Autumn", '
-        '"summary": "1-2 warm friendly sentences about their coloring", '
-        '"palette": [{"name": "Camel", "hex": "#C19A6B"}], '
-        '"avoid": [{"name": "Icy Blue", "hex": "#AFEEEE"}]}\n'
-        "Give 8 flattering palette colors and 4 colors to avoid, each with a realistic hex. "
-        "If you cannot see a face clearly, still give best-effort neutral guidance."
+        "You are a careful personal-colour analysis assistant. Assess only visible colour "
+        "relationships in the supplied face photo. Sample multiple visible facial areas where "
+        "possible and account for lighting and white-balance uncertainty. Never infer ethnicity, "
+        "health, age, identity, or other sensitive traits. Return ONLY valid JSON."
     )
     llm = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -534,22 +560,45 @@ async def skin_analysis(req: SkinAnalysisRequest):
         system_message=system,
     ).with_model(*CHAT_MODEL)
     msg = UserMessage(
-        text="Analyze my skin tone and give my color palette as JSON.",
+        text=(
+            'Return exactly this schema: {"undertone":"warm|neutral_warm|neutral|neutral_cool|cool",'
+            '"depth":"light|medium|deep","chroma":"muted|balanced|clear",'
+            '"contrast":"low|medium|high","season":"spring|summer|autumn|winter",'
+            '"lighting_quality":"poor|fair|good","face_visibility":"poor|fair|good",'
+            '"confidence":"low|medium|high","summary":"two concise sentences explaining visible '
+            'colour relationships and uncertainty"}. Do not invent a palette; the application '
+            'constructs it deterministically.'
+        ),
         file_contents=[ImageContent(image_base64=b64)],
     )
     try:
         resp = await llm.send_message(msg)
         data = _parse_json_block(resp)
+        palette = build_palette(
+            data["undertone"], data["depth"], data["chroma"], data["contrast"]
+        )
     except Exception:  # noqa: BLE001
         logger.exception("Skin analysis failed")
         raise HTTPException(status_code=502, detail="Analysis failed, please try again")
 
+    quality = AnalysisQuality(
+        lighting_quality=data.get("lighting_quality", "fair"),
+        face_visibility=data.get("face_visibility", "fair"),
+        confidence=data.get("confidence", "medium"),
+    )
     analysis = SkinAnalysis(
-        undertone=str(data.get("undertone", "")),
+        undertone=data.get("undertone", "neutral"),
+        depth=data.get("depth", "medium"),
+        chroma=data.get("chroma", "balanced"),
+        contrast=data.get("contrast", "medium"),
         season=data.get("season"),
         summary=str(data.get("summary", "")),
-        palette=[ColorSwatch(name=c.get("name", ""), hex=c.get("hex", "#000000")) for c in data.get("palette", [])],
-        avoid=[ColorSwatch(name=c.get("name", ""), hex=c.get("hex", "#000000")) for c in data.get("avoid", [])],
+        palette=[ColorSwatch(**c) for c in palette["best_neutrals"] + palette["best_accents"]],
+        best_neutrals=[ColorSwatch(**c) for c in palette["best_neutrals"]],
+        best_accents=[ColorSwatch(**c) for c in palette["best_accents"]],
+        statement_colours=[ColorSwatch(**c) for c in palette["statement_colours"]],
+        caution_colours=[ColorSwatch(**c) for c in palette["caution_colours"]],
+        analysis_quality=quality,
         image_path=req.image_path,
         analyzed_at=now_iso(),
     )
@@ -558,7 +607,6 @@ async def skin_analysis(req: SkinAnalysisRequest):
         {"id": "default"}, {"$set": {"skin": analysis.dict(), "updated_at": now_iso()}}
     )
     return analysis
-
 
 # ---- Virtual try-on ----
 @api_router.post("/tryon", response_model=TryOn)
@@ -584,15 +632,17 @@ async def create_tryon(req: TryOnRequest):
     if req.garment_image_path:
         prompt = (
             "Take the person in the FIRST image and edit the photo so they are wearing the "
-            "clothing item shown in the SECOND image. Keep the person's face, hair, body shape, "
-            "skin tone and pose exactly the same. Replace only their outfit with the garment. "
-            "Make it photorealistic with natural lighting, full clothing fit, clean background."
+            "clothing item shown in the SECOND image. Preserve the exact person: face, visible skin "
+            "appearance, hair, body proportions, pose, hands, camera angle, lighting and original "
+            "background. Change only the clothing. Do not beautify the face, reshape the body, "
+            "change identity, or move the person to a studio. Make the garment fit photorealistically."
         )
     else:
         prompt = (
             f"Edit the photo of this person so they are wearing: {req.garment_prompt}. "
-            "Keep their face, hair, body shape, skin tone and pose the same. Photorealistic, "
-            "natural lighting, realistic fit."
+            "Preserve the exact person's face, visible skin appearance, hair, body proportions, pose, "
+            "hands, camera angle, lighting and original background. Change only the clothing; "
+            "do not beautify, reshape, change identity, or move them to a studio. Photorealistic fit."
         )
 
     llm = LlmChat(
