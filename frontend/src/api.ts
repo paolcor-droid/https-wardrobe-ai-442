@@ -168,14 +168,40 @@ export function streamChat(
 // ----------------------------- Profile / Skin / Try-on -----------------------------
 export type ColorSwatch = { name: string; hex: string };
 
+export type AnalysisQuality = {
+  lighting_quality: "poor" | "fair" | "good";
+  face_visibility: "poor" | "fair" | "good";
+  confidence: "low" | "medium" | "high";
+};
+
 export type SkinAnalysis = {
-  undertone: string;
+  undertone: "warm" | "neutral_warm" | "neutral" | "neutral_cool" | "cool";
+  depth: "light" | "medium" | "deep";
+  chroma: "muted" | "balanced" | "clear";
+  contrast: "low" | "medium" | "high";
   season?: string | null;
   summary: string;
   palette: ColorSwatch[];
-  avoid: ColorSwatch[];
+  best_neutrals: ColorSwatch[];
+  best_accents: ColorSwatch[];
+  statement_colours: ColorSwatch[];
+  caution_colours: ColorSwatch[];
+  analysis_quality?: AnalysisQuality | null;
   image_path?: string | null;
   analyzed_at?: string | null;
+};
+
+export type Preferences = {
+  budget_min: number;
+  budget_max: number;
+  occasion: string;
+  categories: string[];
+  climate: "hot" | "mild" | "cold";
+  style: string;
+  preferred_fit: string;
+  preferred_colours: string[];
+  avoided_colours: string[];
+  preferred_retailers: string[];
 };
 
 export type Profile = {
@@ -185,6 +211,7 @@ export type Profile = {
   sizes: Record<string, string>;
   budget?: string | null;
   notes: string;
+  preferences: Preferences;
   skin?: SkinAnalysis | null;
   updated_at: string;
 };
