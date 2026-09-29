@@ -52,7 +52,7 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
         score += max(0, 10 * (1 - product.get("price", 0) / max(budget_max, 1)))
     return round(score, 1)
 
-def recommendation_reasons(product: dict, colour_profile: dict | None, occasion: str | None, climate: str | None, style: str | None = None) -> list[str]:
+def recommendation_reasons(product: dict, colour_profile: dict | None, occasion: str | None, climate: str | None, style: str | None = None, preferred_colours: list[str] | None = None, avoided_colours: list[str] | None = None) -> list[str]:
     reasons: list[str] = []
     if colour_profile:
         coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
@@ -62,7 +62,16 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
             reasons.append("Its neutral colour makes it versatile with your analysed palette.")
     if occasion and occasion in product.get("occasions", []):
         reasons.append(f"It is suitable for your {occasion} occasion.")
-    text = " ".join([product.get("name", ""), product.get("description", "")]).lower()
+    text = " ".join([
+        product.get("name", ""), product.get("description", ""),
+        " ".join(product.get("colour_names", product.get("color_names", []))),
+    ]).lower()
+    preferred_matches = [c for c in (preferred_colours or []) if c.lower() in text]
+    avoided_matches = [c for c in (avoided_colours or []) if c.lower() in text]
+    if preferred_matches:
+        reasons.append(f"It includes {preferred_matches[0]}, one of your preferred clothing colours.")
+    if avoided_matches:
+        reasons.append(f"Note: it includes {avoided_matches[0]}, which you asked StyleScan to avoid.")
     if climate == "hot" and is_hot_weather_suitable(product):
         if any(t in text for t in HOT_PREFER_TERMS):
             reasons.append("Its lightweight style is a stronger choice for hot weather.")
