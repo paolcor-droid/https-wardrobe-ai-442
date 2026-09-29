@@ -86,3 +86,6 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Platform-managed cron artefacts (not for GitHub save)
+.emergent/cron/
