@@ -22,7 +22,7 @@ export function ShareLookModal({ visible, text, imageUrl, onClose }: Props) {
 
   const shareText = async () => {
     try {
-      await Share.share({ message: `${text || "My look"}\n\n— via StyleScan` });
+      await Share.share({ message: `${text || "My look"}\n\n— via LUMIÈRE` });
     } catch {
       /* dismissed */
     }
@@ -62,15 +62,15 @@ export function ShareLookModal({ visible, text, imageUrl, onClose }: Props) {
             {imageUrl ? (
               <View style={styles.imageCard}>
                 <Image source={{ uri: imageUrl }} style={styles.shareImage} contentFit="cover" />
-                <Text style={styles.imageFooter}>Styled with StyleScan</Text>
+                <Text style={styles.imageFooter}>Styled with LUMIÈRE</Text>
               </View>
             ) : (
               <View style={styles.card}>
-                <Text style={styles.cardKicker}>STYLESCAN</Text>
+                <Text style={styles.cardKicker}>LUMIÈRE</Text>
                 <Text style={styles.cardText} numberOfLines={16}>
                   {text}
                 </Text>
-                <Text style={styles.cardFooter}>Styled with StyleScan</Text>
+                <Text style={styles.cardFooter}>Styled with LUMIÈRE</Text>
               </View>
             )}
           </ViewShot>

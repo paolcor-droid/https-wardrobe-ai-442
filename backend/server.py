@@ -276,7 +276,7 @@ async def get_or_create_profile() -> dict:
 
 def build_system_prompt(profile: Optional[dict]) -> str:
     base = (
-        "You are StyleScan, a warm, sharp personal wardrobe and fashion stylist. "
+        "You are LUMIÈRE, a warm, sharp personal wardrobe and fashion stylist. "
         "You help people build outfits, understand body shape and color palette, "
         "plan capsule wardrobes, pack for trips, and dress for occasions. "
         "When the user shares a photo of a clothing item, describe what you see and give "
@@ -579,10 +579,12 @@ async def get_profile():
 async def update_profile(req: ProfileUpdate):
     await get_or_create_profile()
     update: Dict[str, Any] = {"updated_at": now_iso()}
+    # Serialize the request (recursively converts nested Pydantic models such as
+    # `preferences` into plain dicts so MongoDB/BSON can encode them).
+    data = req.dict(exclude_none=True)
     for field in ("favorite_colors", "styles", "sizes", "budget", "notes", "preferences"):
-        val = getattr(req, field)
-        if val is not None:
-            update[field] = val
+        if field in data:
+            update[field] = data[field]
     await db.profiles.update_one({"id": "default"}, {"$set": update})
     doc = await db.profiles.find_one({"id": "default"})
     return Profile(**clean(doc))

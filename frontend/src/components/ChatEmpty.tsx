@@ -29,7 +29,7 @@ export function ChatEmpty({ onPick }: { onPick: (prompt: string) => void }) {
           style={styles.scrim}
         />
         <View style={styles.heroTextWrap}>
-          <Text style={styles.kicker}>STYLESCAN</Text>
+          <Text style={styles.kicker}>LUMIÈRE</Text>
           <Text style={styles.heroTitle}>How can I{"\n"}style you today?</Text>
         </View>
       </View>

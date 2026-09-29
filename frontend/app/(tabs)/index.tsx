@@ -266,7 +266,7 @@ export default function ChatScreen() {
         <Pressable testID="open-history-button" onPress={openHistory} style={styles.iconBtn}>
           <Feather name="menu" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.headerTitle}>StyleScan</Text>
+        <Text style={styles.headerTitle}>LUMIÈRE</Text>
         <View style={styles.headerRight}>
           <Pressable testID="open-saved-button" onPress={openSaved} style={styles.iconBtn}>
             <Feather name="bookmark" size={20} color={colors.onSurface} />

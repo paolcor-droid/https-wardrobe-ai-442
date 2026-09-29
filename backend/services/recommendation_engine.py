@@ -71,7 +71,7 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
     if preferred_matches:
         reasons.append(f"It includes {preferred_matches[0]}, one of your preferred clothing colours.")
     if avoided_matches:
-        reasons.append(f"Note: it includes {avoided_matches[0]}, which you asked StyleScan to avoid.")
+        reasons.append(f"Note: it includes {avoided_matches[0]}, which you asked LUMIÈRE to avoid.")
     if climate == "hot" and is_hot_weather_suitable(product):
         if any(t in text for t in HOT_PREFER_TERMS):
             reasons.append("Its lightweight style is a stronger choice for hot weather.")

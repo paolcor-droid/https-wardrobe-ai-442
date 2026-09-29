@@ -25,7 +25,7 @@ export default function DiscoverScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>What StyleScan is looking for</Text>
+          <Text style={styles.cardTitle}>What LUMIÈRE is looking for</Text>
           <Text style={styles.body}>
             {prefs?.climate ?? "mild"} climate · {prefs?.style ?? "classic"} style · {prefs?.occasion ?? "casual"}
           </Text>
@@ -34,7 +34,7 @@ export default function DiscoverScreen() {
         </View>
 
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
-        <Text style={styles.note}>These buttons open retailer searches or catalogues. StyleScan does not yet claim live price, stock or availability from these stores.</Text>
+        <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not yet claim live price, stock or availability from these stores.</Text>
         {selected.map((r) => (
           <Pressable key={r.id} style={styles.retailer} onPress={() => Linking.openURL(retailerUrl(r, query))}>
             <View style={styles.flex}>
