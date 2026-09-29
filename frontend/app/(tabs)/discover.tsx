@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
 import { getProfile } from "@/src/api";
-import { RETAILERS, retailerUrl } from "@/src/retailers";
+import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
 export default function DiscoverScreen() {
@@ -12,10 +12,22 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const prefs = profile?.preferences;
-  const selected = RETAILERS.filter((r) => (prefs?.preferred_retailers ?? ["zara", "hm", "uniqlo"]).includes(r.id));
+  const preferredIds = prefs?.preferred_retailers ?? DEFAULT_RETAILERS;
+  const preferred = RETAILERS.filter((r) => preferredIds.includes(r.id));
+  const others = RETAILERS.filter((r) => !preferredIds.includes(r.id));
   const bestColour = profile?.skin?.best_accents?.[0]?.name ?? prefs?.preferred_colours?.[0] ?? "";
   const climateTerm = prefs?.climate === "hot" ? "lightweight linen cotton" : prefs?.climate === "cold" ? "warm layering" : "";
   const query = [bestColour, prefs?.style, climateTerm, prefs?.occasion].filter(Boolean).join(" ");
+
+  const renderRetailer = (r: (typeof RETAILERS)[number]) => (
+    <Pressable key={r.id} style={styles.retailer} onPress={() => Linking.openURL(retailerUrl(r, query))}>
+      <View style={styles.flex}>
+        <Text style={styles.retailerName}>{r.name}</Text>
+        <Text style={styles.retailerMeta}>{r.kind === "wholesale" ? "Wholesale catalogue" : query || "Retail catalogue"}</Text>
+      </View>
+      <Feather name="external-link" size={18} />
+    </Pressable>
+  );
 
   return (
     <View style={styles.root}>
@@ -35,15 +47,10 @@ export default function DiscoverScreen() {
 
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
         <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not yet claim live price, stock or availability from these stores.</Text>
-        {selected.map((r) => (
-          <Pressable key={r.id} style={styles.retailer} onPress={() => Linking.openURL(retailerUrl(r, query))}>
-            <View style={styles.flex}>
-              <Text style={styles.retailerName}>{r.name}</Text>
-              <Text style={styles.retailerMeta}>{r.kind === "wholesale" ? "Wholesale catalogue" : query || "Retail catalogue"}</Text>
-            </View>
-            <Feather name="external-link" size={18} />
-          </Pressable>
-        ))}
+        {preferred.map(renderRetailer)}
+
+        {others.length > 0 ? <Text style={styles.section}>MORE RETAILERS</Text> : null}
+        {others.map(renderRetailer)}
 
         <View style={styles.info}>
           <Text style={styles.infoTitle}>Live products are the next data layer</Text>

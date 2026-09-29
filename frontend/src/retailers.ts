@@ -17,6 +17,8 @@ export const RETAILERS: Retailer[] = [
   { id: "country-road", name: "Country Road", homeUrl: "https://www.countryroad.com.au/" },
   { id: "massimo-dutti", name: "Massimo Dutti", homeUrl: "https://www.massimodutti.com/au/" },
   { id: "romanelli-b2b", name: "Romanelli B2B", homeUrl: "https://www.romanellib2b.com/en/catalog", kind: "wholesale" },
+  { id: "loro-piana", name: "Loro Piana", homeUrl: "https://www.loropiana.com/en-au/" },
+  { id: "armani", name: "Armani", homeUrl: "https://www.armani.com/en-au/" },
 ];
 
 export const DEFAULT_RETAILERS = ["zara", "hm", "uniqlo"];

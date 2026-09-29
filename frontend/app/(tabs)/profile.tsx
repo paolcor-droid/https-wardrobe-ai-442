@@ -118,8 +118,14 @@ export default function ProfileScreen() {
       await analyzeSkin(path, provider);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      setScanError("Couldn't analyze that photo. Try a clear, well-lit selfie.");
+    } catch (e) {
+      // Surface the real cause (upload/network/analysis) instead of masking it as a
+      // generic "poor selfie" message, which was misleading for diagnosis.
+      const detail = e instanceof Error && e.message ? e.message : "";
+      console.warn("[skin-analysis] flow failed:", detail || e);
+      setScanError(
+        detail || "Couldn't analyze that photo. Check your connection and try a clear, well-lit selfie.",
+      );
     } finally {
       setScanning(false);
     }
