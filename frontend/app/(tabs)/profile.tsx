@@ -134,38 +134,38 @@ export default function ProfileScreen() {
               ) : null}
               <View style={styles.flex}>
                 <Text style={styles.undertone}>
-                  {skin.undertone}
+                  {skin.undertone.replace("_", " ")}
                   {skin.season ? ` · ${skin.season}` : ""}
                 </Text>
+                <Text style={styles.skinDimensions}>
+                  {skin.depth} · {skin.chroma} · {skin.contrast} contrast
+                </Text>
+                {skin.analysis_quality ? (
+                  <Text style={styles.skinQuality}>
+                    {skin.analysis_quality.confidence} confidence · {skin.analysis_quality.lighting_quality} lighting
+                  </Text>
+                ) : null}
                 {skin.summary ? <Text style={styles.skinSummary}>{skin.summary}</Text> : null}
               </View>
             </View>
-            <Text style={styles.swatchLabel}>Your best colors</Text>
-            <View style={styles.swatchRow}>
-              {skin.palette.map((c, i) => (
-                <View key={i} style={styles.swatchItem}>
-                  <View style={[styles.swatch, { backgroundColor: c.hex }]} />
-                  <Text style={styles.swatchName} numberOfLines={1}>
-                    {c.name}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            {skin.avoid.length > 0 && (
-              <>
-                <Text style={styles.swatchLabel}>Colors to avoid</Text>
+            {[
+              ["Best neutrals", skin.best_neutrals],
+              ["Best accents", skin.best_accents],
+              ["Statement colours", skin.statement_colours],
+              ["Use carefully near the face", skin.caution_colours],
+            ].map(([label, swatches]) => (
+              <View key={label as string}>
+                <Text style={styles.swatchLabel}>{label as string}</Text>
                 <View style={styles.swatchRow}>
-                  {skin.avoid.map((c, i) => (
-                    <View key={i} style={styles.swatchItem}>
+                  {(swatches as typeof skin.palette).map((c, i) => (
+                    <View key={`${c.name}-${i}`} style={styles.swatchItem}>
                       <View style={[styles.swatch, { backgroundColor: c.hex }]} />
-                      <Text style={styles.swatchName} numberOfLines={1}>
-                        {c.name}
-                      </Text>
+                      <Text style={styles.swatchName} numberOfLines={2}>{c.name}</Text>
                     </View>
                   ))}
                 </View>
-              </>
-            )}
+              </View>
+            ))}
             <Pressable testID="rescan-button" style={styles.scanBtnSm} onPress={() => setSheetOpen(true)}>
               <Feather name="refresh-ccw" size={15} color={colors.onSurface} />
               <Text style={styles.scanBtnSmText}>Re-scan</Text>
@@ -291,7 +291,9 @@ const useStyles = makeStyles((c) => ({
   skinTop: { flexDirection: "row", gap: 14, alignItems: "center", marginBottom: 16 },
   skinAvatar: { width: 56, height: 56, borderRadius: 4, backgroundColor: c.surfaceTertiary },
   undertone: { fontFamily: fonts.display, fontSize: 20, fontWeight: "700", color: c.onSurface, textTransform: "capitalize" },
-  skinSummary: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.onSurfaceTertiary, marginTop: 4 },
+  skinDimensions: { fontFamily: fonts.text, fontSize: 12, color: c.onSurfaceSecondary, marginTop: 3, textTransform: "capitalize" },
+  skinQuality: { fontFamily: fonts.text, fontSize: 11, color: c.muted, marginTop: 3, textTransform: "capitalize" },
+  skinSummary: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.onSurfaceTertiary, marginTop: 6 },
   swatchLabel: {
     fontFamily: fonts.text,
     fontSize: 11,
