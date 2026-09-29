@@ -164,3 +164,82 @@ export function streamChat(
 
   return () => xhr.abort();
 }
+
+// ----------------------------- Profile / Skin / Try-on -----------------------------
+export type ColorSwatch = { name: string; hex: string };
+
+export type SkinAnalysis = {
+  undertone: string;
+  season?: string | null;
+  summary: string;
+  palette: ColorSwatch[];
+  avoid: ColorSwatch[];
+  image_path?: string | null;
+  analyzed_at?: string | null;
+};
+
+export type Profile = {
+  id: string;
+  favorite_colors: string[];
+  styles: string[];
+  sizes: Record<string, string>;
+  budget?: string | null;
+  notes: string;
+  skin?: SkinAnalysis | null;
+  updated_at: string;
+};
+
+export type TryOn = {
+  id: string;
+  person_image_path: string;
+  garment_image_path?: string | null;
+  garment_prompt?: string | null;
+  result_path: string;
+  created_at: string;
+};
+
+export async function getProfile(): Promise<Profile> {
+  const res = await fetch(`${BASE}/api/profile`);
+  return json<Profile>(res);
+}
+
+export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | "updated_at">>): Promise<Profile> {
+  const res = await fetch(`${BASE}/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return json<Profile>(res);
+}
+
+export async function analyzeSkin(imagePath: string): Promise<SkinAnalysis> {
+  const res = await fetch(`${BASE}/api/skin-analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_path: imagePath }),
+  });
+  return json<SkinAnalysis>(res);
+}
+
+export async function createTryOn(body: {
+  person_image_path: string;
+  garment_image_path?: string | null;
+  garment_prompt?: string | null;
+}): Promise<TryOn> {
+  const res = await fetch(`${BASE}/api/tryon`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return json<TryOn>(res);
+}
+
+export async function listTryOns(): Promise<TryOn[]> {
+  const res = await fetch(`${BASE}/api/tryons`);
+  return json<TryOn[]>(res);
+}
+
+export async function deleteTryOn(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/tryons/${id}`, { method: "DELETE" });
+  await json(res);
+}

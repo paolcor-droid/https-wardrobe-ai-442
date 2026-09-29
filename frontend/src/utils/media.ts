@@ -48,3 +48,12 @@ export async function pickFromLibrary(): Promise<PickResult | null> {
   });
   return toResult(r);
 }
+
+export type PickFlow = { status: "ok" | "blocked" | "cancelled"; asset?: PickResult };
+
+export async function pickWithPermission(kind: "camera" | "library"): Promise<PickFlow> {
+  const perm = kind === "camera" ? await ensureCameraPermission() : await ensureLibraryPermission();
+  if (!perm.granted) return { status: perm.canAskAgain ? "cancelled" : "blocked" };
+  const asset = kind === "camera" ? await takePhoto() : await pickFromLibrary();
+  return asset ? { status: "ok", asset } : { status: "cancelled" };
+}

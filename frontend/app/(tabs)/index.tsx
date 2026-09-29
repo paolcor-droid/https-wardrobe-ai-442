@@ -16,6 +16,7 @@ import Feather from "@react-native-vector-icons/feather";
 import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
+import { usesNativeTabs } from "@/src/navigation";
 import {
   createConversation,
   getMessages,
@@ -53,6 +54,7 @@ export default function ChatScreen() {
   const abortRef = useRef<null | (() => void)>(null);
 
   const headerHeight = 56 + insets.top;
+  const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   useEffect(() => {
     const pid = params.id ? String(params.id) : null;
@@ -244,7 +246,7 @@ export default function ChatScreen() {
           </ScrollView>
         )}
 
-        <Composer onSend={handleSend} disabled={streaming} bottomInset={insets.bottom} />
+        <Composer onSend={handleSend} disabled={streaming} bottomInset={bottomChrome} />
       </KeyboardAvoidingView>
 
       <BlurView
