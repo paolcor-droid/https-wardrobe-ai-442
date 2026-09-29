@@ -19,11 +19,15 @@ import {
   type SkinAnalysis,
 } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
+import { RETAILERS } from "@/src/retailers";
 import type { PickResult } from "@/src/utils/media";
 
 const COLORS = ["Black", "White", "Navy", "Beige", "Olive", "Burgundy", "Camel", "Grey", "Blush", "Emerald", "Rust", "Denim"];
 const STYLES = ["Minimal", "Classic", "Streetwear", "Boho", "Smart casual", "Formal", "Athleisure", "Vintage", "Edgy", "Preppy"];
 const BUDGETS = ["Budget", "Mid-range", "Premium", "Luxury"];
+const CLIMATES = ["hot", "mild", "cold"];
+const FITS = ["slim", "regular", "relaxed"];
+const PREF_STYLES = ["classic", "relaxed", "minimal", "romantic", "bold"];
 
 export default function ProfileScreen() {
   const styles = useStyles();
@@ -42,6 +46,12 @@ export default function ProfileScreen() {
   const [sizeShoe, setSizeShoe] = useState("");
   const [budget, setBudget] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [climate, setClimate] = useState("mild");
+  const [prefStyle, setPrefStyle] = useState("classic");
+  const [preferredFit, setPreferredFit] = useState("regular");
+  const [likedColours, setLikedColours] = useState<string[]>([]);
+  const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>(["zara", "hm", "uniqlo"]);
   const [seeded, setSeeded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -56,6 +66,12 @@ export default function ProfileScreen() {
       setSizeShoe(profile.sizes?.shoe ?? "");
       setBudget(profile.budget ?? null);
       setNotes(profile.notes ?? "");
+      setClimate(profile.preferences?.climate ?? "mild");
+      setPrefStyle(profile.preferences?.style ?? "classic");
+      setPreferredFit(profile.preferences?.preferred_fit ?? "regular");
+      setLikedColours(profile.preferences?.preferred_colours ?? []);
+      setAvoidedColours(profile.preferences?.avoided_colours ?? []);
+      setRetailers(profile.preferences?.preferred_retailers ?? ["zara", "hm", "uniqlo"]);
       setSeeded(true);
     }
   }, [profile, seeded]);
@@ -82,6 +98,11 @@ export default function ProfileScreen() {
       sizes: { top: sizeTop, bottom: sizeBottom, shoe: sizeShoe },
       budget: budget ?? undefined,
       notes,
+      preferences: {
+        ...(profile?.preferences ?? { budget_min: 0, budget_max: 500, occasion: "casual", categories: [] }),
+        climate: climate as "hot" | "mild" | "cold", style: prefStyle, preferred_fit: preferredFit,
+        preferred_colours: likedColours, avoided_colours: avoidedColours, preferred_retailers: retailers,
+      },
     });
   };
 
@@ -204,6 +225,29 @@ export default function ProfileScreen() {
             <Chip key={s} label={s} active={stylesSel.includes(s)} onPress={() => toggle(stylesSel, setStylesSel, s)} />
           ))}
         </View>
+
+        <Text style={styles.sectionTitle}>Climate</Text>
+        <View style={styles.chipWrap}>{CLIMATES.map((v) => <Chip key={v} label={v} active={climate === v} onPress={() => setClimate(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Preferred style</Text>
+        <View style={styles.chipWrap}>{PREF_STYLES.map((v) => <Chip key={v} label={v} active={prefStyle === v} onPress={() => setPrefStyle(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Preferred fit</Text>
+        <View style={styles.chipWrap}>{FITS.map((v) => <Chip key={v} label={v} active={preferredFit === v} onPress={() => setPreferredFit(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Colours you like</Text>
+        <View style={styles.chipWrap}>{COLORS.map((v) => <Chip key={v} label={v} active={likedColours.includes(v.toLowerCase())} onPress={() => {
+          const x = v.toLowerCase(); setLikedColours(likedColours.includes(x) ? likedColours.filter(c => c !== x) : [...likedColours, x]); setAvoidedColours(avoidedColours.filter(c => c !== x));
+        }} />)}</View>
+
+        <Text style={styles.sectionTitle}>Colours to avoid</Text>
+        <Text style={styles.helper}>Selecting a colour here automatically removes it from your liked colours.</Text>
+        <View style={styles.chipWrap}>{COLORS.map((v) => <Chip key={v} label={v} active={avoidedColours.includes(v.toLowerCase())} onPress={() => {
+          const x = v.toLowerCase(); setAvoidedColours(avoidedColours.includes(x) ? avoidedColours.filter(c => c !== x) : [...avoidedColours, x]); setLikedColours(likedColours.filter(c => c !== x));
+        }} />)}</View>
+
+        <Text style={styles.sectionTitle}>Favourite retailers</Text>
+        <View style={styles.chipWrap}>{RETAILERS.map((r) => <Chip key={r.id} label={r.name} active={retailers.includes(r.id)} onPress={() => toggle(retailers, setRetailers, r.id)} />)}</View>
 
         {/* Sizes */}
         <Text style={styles.sectionTitle}>Sizes</Text>
@@ -368,5 +412,6 @@ const useStyles = makeStyles((c) => ({
   },
   saveBtnText: { fontFamily: fonts.text, fontSize: 16, color: c.onBrandPrimary },
   savedNote: { fontFamily: fonts.text, fontSize: 13, color: c.success, textAlign: "center", marginTop: 12 },
+  helper: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted, marginTop: -8, marginBottom: 12 },
   error: { fontFamily: fonts.text, fontSize: 13, color: c.error, marginTop: 12 },
 }));
