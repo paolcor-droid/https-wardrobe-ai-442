@@ -39,3 +39,22 @@ def test_reasons_explain_active_context():
         product, {"undertone": "warm"}, "casual", "hot", "relaxed"
     )
     assert reasons
+
+
+def test_personal_colour_preferences_change_score():
+    product = {
+        "name": "Navy cotton shirt", "description": "light cotton shirt", "price": 80,
+        "colour_names": ["navy"], "palette_tags": ["neutral"], "occasions": ["casual"]
+    }
+    liked = recommendation_score(product, {"undertone": "neutral"}, "casual", 150, "hot", "classic", ["navy"], [])
+    avoided = recommendation_score(product, {"undertone": "neutral"}, "casual", 150, "hot", "classic", [], ["navy"])
+    assert liked > avoided
+
+
+def test_colour_preference_reason_is_visible():
+    product = {
+        "name": "Navy cotton shirt", "description": "light cotton shirt", "price": 80,
+        "colour_names": ["navy"], "palette_tags": ["neutral"], "occasions": ["casual"]
+    }
+    reasons = recommendation_reasons(product, {"undertone": "neutral"}, "casual", "hot", "classic", ["navy"], [])
+    assert any("preferred clothing colours" in reason for reason in reasons)
