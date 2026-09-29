@@ -275,10 +275,20 @@ def build_system_prompt(profile: Optional[dict]) -> str:
         facts.append("Budget preference: " + profile["budget"])
     if profile.get("notes"):
         facts.append("Notes: " + profile["notes"])
+    prefs = profile.get("preferences") or {}
+    if prefs:
+        facts.append(
+            f"Current styling context: {prefs.get('climate', 'mild')} climate; "
+            f"{prefs.get('style', 'classic')} style; {prefs.get('occasion', 'casual')} occasion"
+        )
+        if prefs.get("preferred_colours"):
+            facts.append("Preferred clothing colours: " + ", ".join(prefs["preferred_colours"]))
+        if prefs.get("avoided_colours"):
+            facts.append("Avoided clothing colours: " + ", ".join(prefs["avoided_colours"]))
     skin = profile.get("skin")
     if skin and skin.get("undertone"):
         pal = ", ".join(c["name"] for c in skin.get("palette", [])[:8])
-        avoid = ", ".join(c["name"] for c in skin.get("avoid", [])[:6])
+        avoid = ", ".join(c["name"] for c in skin.get("caution_colours", [])[:6])
         line = f"Skin undertone: {skin['undertone']}"
         if skin.get("season"):
             line += f" ({skin['season']})"
