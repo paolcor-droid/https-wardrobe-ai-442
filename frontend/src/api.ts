@@ -98,12 +98,32 @@ export async function uploadImage(uri: string, name: string, type: string): Prom
     const blob = await (await fetch(uri)).blob();
     form.append("file", blob, name);
   } else {
+    // React Native native file part.
     // @ts-expect-error React Native FormData file shape
     form.append("file", { uri, name, type });
   }
-  const res = await fetch(`${BASE}/api/upload`, { method: "POST", body: form });
-  const data = await json<{ path: string }>(res);
-  return data.path;
+  // Upload via XMLHttpRequest (React Native's built-in networking, and standard on web)
+  // rather than the global fetch. In Expo SDK 54+ the global `fetch` is `expo/fetch`
+  // (WinterCG), whose convertFormData rejects the RN `{ uri, name, type }` part with
+  // "Unsupported FormDataPart implementation". XHR handles that part natively on Android/iOS.
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api/upload`);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as { path: string };
+          resolve(data.path);
+        } catch {
+          reject(new Error("Upload succeeded but the response was invalid"));
+        }
+      } else {
+        reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Upload failed: network error"));
+    xhr.send(form);
+  });
 }
 
 export async function saveLook(messageId: string): Promise<SavedLook> {
