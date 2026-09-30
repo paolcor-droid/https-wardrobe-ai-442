@@ -193,3 +193,15 @@ def test_rank_accepts_in_stock_verified_wholesale_product():
     )
     ranked = rank_verified_products([product], _profile())
     assert ranked and ranked[0]["external_id"] == "mh-stock"
+
+
+def test_customer_storefront_never_falls_back_to_wholesale_cost():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-cost-private",
+        source_url=None,
+        price=20.90,
+        colour_names=["olive"],
+    )
+    public = customer_product_view(product)
+    assert public["price"] is None
