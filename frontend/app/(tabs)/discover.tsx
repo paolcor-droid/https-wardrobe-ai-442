@@ -74,7 +74,7 @@ export default function DiscoverScreen() {
         {product.colour_names.length ? <Text style={styles.productMeta}>Colour · {product.colour_names.join(", ")}</Text> : null}
         {product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
-        <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "LUMIÈRE price not set yet"}</Text>
+        <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
         <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
           {product.recommendation_reasons.map((reason) => (
@@ -112,7 +112,7 @@ export default function DiscoverScreen() {
         </View>
 
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
-        <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. Current stock and selling prices are not claimed live.</Text>
+        <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text>
         {catalogueLoading ? <ActivityIndicator style={styles.loading} /> : null}
         {catalogueError ? <Text style={styles.note}>The trial catalogue could not be loaded. Retailer discovery remains available below.</Text> : null}
         {!catalogueLoading && !catalogueError && catalogue?.recommendations.length === 0 ? (
