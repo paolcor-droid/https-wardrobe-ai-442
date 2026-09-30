@@ -41,6 +41,12 @@ PROVIDERS = [
     CatalogueProvider("loro-piana", "Loro Piana", "retail", "https://www.loropiana.com/en-au/"),
     CatalogueProvider("armani", "Armani", "retail", "https://www.armani.com/en-au/"),
     CatalogueProvider(
+        "matterhorn", "Matterhorn Wholesale", "wholesale",
+        "https://matterhorn-wholesale.com/",
+        False,
+        "XML catalogue integration available for development; REST API remains disabled until authorised credentials are configured.",
+    ),
+    CatalogueProvider(
         "brandsdistribution", "Brandsdistribution", "wholesale",
         "https://www.brandsdistribution.com/",
         False,
