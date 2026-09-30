@@ -1,4 +1,4 @@
-"""Provider-neutral catalogue contracts for StyleScan.
+"""Provider-neutral catalogue contracts for LUMIÈRE.
 
 No retailer is scraped here. Live providers must return normalized, source-backed
 products; demo or generated items must never be presented as live inventory.
@@ -6,6 +6,7 @@ products; demo or generated items must never be presented as live inventory.
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Optional
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -37,19 +38,48 @@ PROVIDERS = [
         False,
         "Provider slot reserved for an authenticated catalogue/API integration; no live inventory is assumed.",
     ),
+    CatalogueProvider("loro-piana", "Loro Piana", "retail", "https://www.loropiana.com/en-au/"),
+    CatalogueProvider("armani", "Armani", "retail", "https://www.armani.com/en-au/"),
 ]
+
+_PROVIDER_BY_ID = {provider.id: provider for provider in PROVIDERS}
 
 
 def list_providers() -> list[dict]:
     return [p.public_dict() for p in PROVIDERS]
 
 
+def get_provider(provider_id: str) -> CatalogueProvider:
+    provider = _PROVIDER_BY_ID.get(provider_id)
+    if not provider:
+        raise ValueError(f"Unknown catalogue provider: {provider_id}")
+    return provider
+
+
+def _is_http_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
 def normalize_product(provider_id: str, raw: dict) -> dict:
     """Normalize a verified provider record without inventing missing commerce data."""
+    get_provider(provider_id)
     required = ("external_id", "name", "source_url")
     missing = [key for key in required if not raw.get(key)]
     if missing:
         raise ValueError(f"Missing source-backed product fields: {', '.join(missing)}")
+    if not _is_http_url(str(raw["source_url"])):
+        raise ValueError("source_url must be an absolute http(s) URL")
+
+    price = raw.get("price")
+    if price is not None:
+        try:
+            price = float(price)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("price must be numeric when supplied") from exc
+        if price < 0:
+            raise ValueError("price cannot be negative")
+
     return {
         "provider_id": provider_id,
         "external_id": str(raw["external_id"]),
@@ -57,7 +87,7 @@ def normalize_product(provider_id: str, raw: dict) -> dict:
         "brand": raw.get("brand"),
         "category": raw.get("category"),
         "description": raw.get("description", ""),
-        "price": raw.get("price"),
+        "price": price,
         "currency": raw.get("currency"),
         "image_url": raw.get("image_url"),
         "source_url": str(raw["source_url"]),
