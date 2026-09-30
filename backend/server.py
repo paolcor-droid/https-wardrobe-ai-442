@@ -18,7 +18,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette
-from services.catalogue_providers import list_providers
+from services.catalogue_providers import list_providers, normalize_product
+from services.product_recommendations import rank_verified_products
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -259,6 +260,30 @@ class TryOnRequest(BaseModel):
     garment_prompt: Optional[str] = None
 
 
+class CatalogueProductInput(BaseModel):
+    provider_id: str
+    external_id: str
+    name: str
+    source_url: str
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    description: str = ""
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    image_url: Optional[str] = None
+    colour_names: List[str] = []
+    sizes: List[str] = []
+    materials: List[str] = []
+    occasions: List[str] = []
+    palette_tags: List[str] = []
+    availability: Optional[str] = None
+
+
+class RecommendationPreviewRequest(BaseModel):
+    products: List[CatalogueProductInput]
+    limit: int = 20
+
+
 def clean(doc: dict) -> dict:
     doc.pop("_id", None)
     return doc
@@ -338,6 +363,34 @@ async def root():
 async def catalogue_providers():
     """Expose configured shopping sources without implying live inventory access."""
     return {"providers": list_providers(), "live_inventory_enabled": False}
+
+
+@api_router.post("/catalogue/recommendations/preview")
+async def catalogue_recommendations_preview(req: RecommendationPreviewRequest):
+    """Rank caller-supplied verified catalogue records against the saved profile.
+
+    This is an integration seam for authorised providers. It does not fetch,
+    scrape, fabricate, cache, or claim retailer inventory.
+    """
+    if req.limit < 1 or req.limit > 100:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
+
+    normalized = []
+    for item in req.products:
+        raw = item.dict(exclude={"provider_id"})
+        try:
+            normalized.append(normalize_product(item.provider_id, raw))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    profile = await get_or_create_profile()
+    ranked = rank_verified_products(normalized, profile, req.limit)
+    return {
+        "recommendations": ranked,
+        "count": len(ranked),
+        "live_inventory_enabled": False,
+        "source": "caller_supplied_verified_catalogue",
+    }
 
 
 @api_router.get("/models")
