@@ -38,7 +38,15 @@ def _colour_match(product_names: set[str], palette_names: set[str]) -> set[str]:
     matches: set[str] = set()
     for product_name in product_names:
         for palette_name in palette_names:
-            if product_name == palette_name or product_name in palette_name or palette_name in product_name:
+            product_tokens = set(product_name.split())
+            palette_tokens = set(palette_name.split())
+            shared_specific = (product_tokens & palette_tokens) - {"soft", "deep", "light", "dark"}
+            if (
+                product_name == palette_name
+                or product_name in palette_name
+                or palette_name in product_name
+                or bool(shared_specific)
+            ):
                 matches.add(palette_name)
     return matches
 
