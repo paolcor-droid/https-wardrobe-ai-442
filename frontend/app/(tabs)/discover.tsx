@@ -1,15 +1,19 @@
+import { useState } from "react";
+import { useRouter } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const {
     data: catalogue,
@@ -39,6 +43,24 @@ export default function DiscoverScreen() {
     </Pressable>
   );
 
+  const openTryOn = async (product: ProductRecommendation) => {
+    if (!product.image_url || preparingTryOn) return;
+    setPreparingTryOn(product.product_id);
+    try {
+      const garment = await prepareCatalogueGarment(product.product_id);
+      router.push({
+        pathname: "/(tabs)/tryon",
+        params: {
+          garmentPath: garment.path,
+          garmentPreview: garment.preview_url,
+          garmentName: garment.name,
+        },
+      });
+    } finally {
+      setPreparingTryOn(null);
+    }
+  };
+
   const renderProduct = (product: ProductRecommendation) => (
     <View key={product.product_id} style={styles.productCard}>
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : null}
@@ -55,6 +77,16 @@ export default function DiscoverScreen() {
             <Text key={reason} style={styles.reason}>• {reason}</Text>
           ))}
         </View>
+        {product.image_url ? (
+          <Pressable
+            style={styles.tryOnButton}
+            onPress={() => openTryOn(product)}
+            disabled={preparingTryOn !== null}
+          >
+            {preparingTryOn === product.product_id ? <ActivityIndicator size="small" /> : <Feather name="zap" size={16} />}
+            <Text style={styles.tryOnText}>{preparingTryOn === product.product_id ? "Preparing…" : "Try this on"}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -121,6 +153,8 @@ const useStyles = makeStyles((c) => ({
   price: { fontFamily: fonts.text, fontSize: 14, fontWeight: "600", color: c.onSurface, marginTop: 10 },
   why: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
   whyTitle: { fontFamily: fonts.text, fontSize: 10, letterSpacing: 1.2, color: c.muted },
+  tryOnButton: { marginTop: 14, height: 46, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  tryOnText: { fontFamily: fonts.text, fontSize: 14, fontWeight: "600", color: c.onSurface },
   retailer: { flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 16 },
   retailerName: { fontFamily: fonts.text, fontSize: 16, fontWeight: "600", color: c.onSurface },
   retailerMeta: { fontFamily: fonts.text, fontSize: 12, color: c.muted, marginTop: 3, textTransform: "capitalize" },
