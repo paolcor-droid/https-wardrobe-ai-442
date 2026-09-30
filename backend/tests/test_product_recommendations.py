@@ -170,3 +170,26 @@ def test_customer_storefront_strips_supplier_identity_and_source_metadata():
     assert "source_url" not in public
     assert "availability" not in public
     assert "_matterhorn" not in public
+
+
+def test_rank_excludes_out_of_stock_verified_product():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-oos",
+        source_url=None,
+        colour_names=["olive"],
+        availability="0",
+    )
+    assert rank_verified_products([product], _profile()) == []
+
+
+def test_rank_accepts_in_stock_verified_wholesale_product():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-stock",
+        source_url=None,
+        colour_names=["olive"],
+        availability="4",
+    )
+    ranked = rank_verified_products([product], _profile())
+    assert ranked and ranked[0]["external_id"] == "mh-stock"
