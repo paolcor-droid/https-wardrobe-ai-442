@@ -98,6 +98,7 @@ def normalize_product(provider_id: str, raw: dict) -> dict:
 
     return {
         "provider_id": provider_id,
+        "provider_kind": provider.kind,
         "external_id": str(raw["external_id"]),
         "name": str(raw["name"]),
         "brand": raw.get("brand"),
