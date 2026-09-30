@@ -47,15 +47,19 @@ def rank_verified_products(
             except (TypeError, ValueError):
                 pass
 
-        price = product.get("price")
+        # Budget filters must use the price the customer would actually pay.
+        # Wholesale supplier cost is private and is not a valid budget signal.
+        price = product.get("customer_price") if product.get("provider_kind") == "wholesale" else product.get("price")
         if budget_min is not None and price is not None and price < budget_min:
             continue
 
         if categories and product.get("category") and product["category"] not in categories:
             continue
 
+        scoring_product = dict(product)
+        scoring_product["price"] = price
         score = recommendation_score(
-            product,
+            scoring_product,
             colour_profile,
             prefs.get("occasion"),
             budget_max,
@@ -73,7 +77,7 @@ def rank_verified_products(
             score += 5
 
         reasons = recommendation_reasons(
-            product,
+            scoring_product,
             colour_profile,
             prefs.get("occasion"),
             prefs.get("climate"),
