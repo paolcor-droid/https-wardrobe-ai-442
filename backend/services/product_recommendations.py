@@ -1,0 +1,80 @@
+"""Provider-neutral ranking pipeline for verified catalogue products.
+
+This module never retrieves, fabricates, or labels products as live. It only
+ranks already-normalized, source-backed records supplied by catalogue providers.
+"""
+from __future__ import annotations
+
+from typing import Iterable
+
+from services.recommendation_engine import recommendation_reasons, recommendation_score
+
+
+def rank_verified_products(
+    products: Iterable[dict],
+    profile: dict,
+    limit: int = 20,
+) -> list[dict]:
+    """Rank verified catalogue records against the active LUMIÈRE profile.
+
+    Products must already have been normalized by catalogue_providers.normalize_product.
+    Records that fail hard filters (score < 0) are excluded.
+    """
+    prefs = profile.get("preferences") or {}
+    colour_profile = profile.get("skin")
+    ranked: list[dict] = []
+
+    preferred_retailers = set(prefs.get("preferred_retailers") or [])
+    categories = set(prefs.get("categories") or [])
+    budget_min = prefs.get("budget_min")
+    budget_max = prefs.get("budget_max")
+
+    for product in products:
+        if not product.get("live"):
+            continue
+        if not product.get("external_id") or not product.get("source_url") or not product.get("name"):
+            continue
+
+        price = product.get("price")
+        if budget_min is not None and price is not None and price < budget_min:
+            continue
+
+        if categories and product.get("category") and product["category"] not in categories:
+            continue
+
+        score = recommendation_score(
+            product,
+            colour_profile,
+            prefs.get("occasion"),
+            budget_max,
+            prefs.get("climate"),
+            prefs.get("style"),
+            prefs.get("preferred_colours"),
+            prefs.get("avoided_colours"),
+        )
+        if score < 0:
+            continue
+
+        # Preference, not a hard filter: verified products from other providers
+        # can still surface when they are a substantially better wardrobe match.
+        if preferred_retailers and product.get("provider_id") in preferred_retailers:
+            score += 5
+
+        reasons = recommendation_reasons(
+            product,
+            colour_profile,
+            prefs.get("occasion"),
+            prefs.get("climate"),
+            prefs.get("style"),
+            prefs.get("preferred_colours"),
+            prefs.get("avoided_colours"),
+        )
+
+        ranked.append({
+            **product,
+            "recommendation_score": round(score, 1),
+            "recommendation_reasons": reasons,
+        })
+
+    ranked.sort(key=lambda item: item["recommendation_score"], reverse=True)
+    return ranked[: max(0, limit)]
