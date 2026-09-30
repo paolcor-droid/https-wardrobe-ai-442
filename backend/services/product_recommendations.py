@@ -78,3 +78,31 @@ def rank_verified_products(
 
     ranked.sort(key=lambda item: item["recommendation_score"], reverse=True)
     return ranked[: max(0, limit)]
+
+
+def customer_product_view(product: dict) -> dict:
+    """Return only fields safe for a LUMIÈRE-owned storefront.
+
+    Upstream supplier identity, provider IDs, wholesale source URLs and internal
+    availability metadata stay server-side. This projection is for products
+    sold by LUMIÈRE, not referral/affiliate retailer links.
+    """
+    return {
+        "product_id": product.get("external_id"),
+        "name": product.get("name"),
+        "brand": product.get("brand"),
+        "category": product.get("category"),
+        "description": product.get("description", ""),
+        "price": product.get("customer_price", product.get("price")),
+        "currency": product.get("currency"),
+        "image_url": product.get("image_url"),
+        "colour_names": product.get("colour_names", []),
+        "sizes": product.get("sizes", []),
+        "materials": product.get("materials", []),
+        "recommendation_score": product.get("recommendation_score"),
+        "recommendation_reasons": product.get("recommendation_reasons", []),
+    }
+
+
+def customer_recommendations(products: Iterable[dict]) -> list[dict]:
+    return [customer_product_view(product) for product in products]
