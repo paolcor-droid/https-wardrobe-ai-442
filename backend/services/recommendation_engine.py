@@ -17,8 +17,41 @@ def is_hot_weather_suitable(product: dict) -> bool:
 def _coarse_undertone(undertone: str) -> str:
     return "warm" if "warm" in undertone else "cool" if "cool" in undertone else "neutral"
 
+def _norm_colour(value: str) -> str:
+    return " ".join(value.lower().replace("_", " ").replace("-", " ").split())
+
+def _swatch_names(colour_profile: dict, key: str) -> set[str]:
+    return {
+        _norm_colour(item.get("name", ""))
+        for item in (colour_profile.get(key) or [])
+        if isinstance(item, dict) and item.get("name")
+    }
+
+def _product_colour_names(product: dict) -> set[str]:
+    values = product.get("colour_names", product.get("color_names", [])) or []
+    return {_norm_colour(str(value)) for value in values if value}
+
+def _colour_match(product_names: set[str], palette_names: set[str]) -> set[str]:
+    matches: set[str] = set()
+    for product_name in product_names:
+        for palette_name in palette_names:
+            if product_name == palette_name or product_name in palette_name or palette_name in product_name:
+                matches.add(palette_name)
+    return matches
+
+def scan_colour_evidence(product: dict, colour_profile: dict | None) -> dict:
+    """Return named-colour evidence from the actual saved Your Scan palette."""
+    if not colour_profile:
+        return {"best_neutrals": set(), "best_accents": set(), "statement_colours": set(), "caution_colours": set()}
+    product_names = _product_colour_names(product)
+    return {
+        key: _colour_match(product_names, _swatch_names(colour_profile, key))
+        for key in ("best_neutrals", "best_accents", "statement_colours", "caution_colours")
+    }
+
 def recommendation_score(product: dict, colour_profile: dict | None, occasion: str | None, budget_max: float | None, climate: str | None, style: str | None = None, preferred_colours: list[str] | None = None, avoided_colours: list[str] | None = None) -> float:
-    if budget_max is not None and product.get("price", 0) > budget_max:
+    price = product.get("price")
+    if budget_max is not None and price is not None and price > budget_max:
         return -1
     if occasion and occasion not in product.get("occasions", []):
         return -1
@@ -26,12 +59,26 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
         return -1
 
     score = 0.0
+    evidence = scan_colour_evidence(product, colour_profile)
     if colour_profile:
-        coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
-        tags = product.get("palette_tags", [])
-        score += 40 if coarse in tags else 18 if "neutral" in tags else 0
+        # Named colours produced by Your Scan are stronger evidence than broad undertone tags.
+        if evidence["best_accents"]:
+            score += 34
+        if evidence["best_neutrals"]:
+            score += 28
+        if evidence["statement_colours"]:
+            score += 10
+        if evidence["caution_colours"]:
+            score -= 30
+
+        # Fallback for provider records whose colour name is too generic to match a scan swatch.
+        if not any(evidence.values()):
+            coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
+            tags = product.get("palette_tags", [])
+            score += 18 if coarse in tags else 8 if "neutral" in tags else 0
     else:
         score += 20
+
     score += 25 if not occasion or occasion in product.get("occasions", []) else 0
     score += 15 if climate != "hot" or is_hot_weather_suitable(product) else 0
     text = " ".join([
@@ -48,18 +95,33 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
         score += 8
     if style and any(t in text for t in STYLE_TERMS.get(style, ())):
         score += 10
-    if budget_max:
-        score += max(0, 10 * (1 - product.get("price", 0) / max(budget_max, 1)))
+    if budget_max and price is not None:
+        score += max(0, 10 * (1 - price / max(budget_max, 1)))
     return round(score, 1)
 
 def recommendation_reasons(product: dict, colour_profile: dict | None, occasion: str | None, climate: str | None, style: str | None = None, preferred_colours: list[str] | None = None, avoided_colours: list[str] | None = None) -> list[str]:
     reasons: list[str] = []
+    evidence = scan_colour_evidence(product, colour_profile)
     if colour_profile:
-        coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
-        if coarse in product.get("palette_tags", []):
-            reasons.append(f"Its colour family harmonises with your {colour_profile.get('undertone', 'neutral').replace('_', '-')} colour profile.")
-        elif "neutral" in product.get("palette_tags", []):
-            reasons.append("Its neutral colour makes it versatile with your analysed palette.")
+        if evidence["best_accents"]:
+            colour = sorted(evidence["best_accents"])[0].title()
+            reasons.append(f"{colour} is one of the accent colours recommended by your skin analysis.")
+        elif evidence["best_neutrals"]:
+            colour = sorted(evidence["best_neutrals"])[0].title()
+            reasons.append(f"{colour} is one of the neutrals recommended by your skin analysis.")
+        elif evidence["statement_colours"]:
+            colour = sorted(evidence["statement_colours"])[0].title()
+            reasons.append(f"{colour} is one of the statement colours recommended by your skin analysis.")
+        elif evidence["caution_colours"]:
+            colour = sorted(evidence["caution_colours"])[0].title()
+            reasons.append(f"Note: {colour} appears in the caution colours from your skin analysis.")
+        else:
+            coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
+            if coarse in product.get("palette_tags", []):
+                reasons.append(f"Its colour family harmonises with your {colour_profile.get('undertone', 'neutral').replace('_', '-')} colour profile.")
+            elif "neutral" in product.get("palette_tags", []):
+                reasons.append("Its neutral colour is compatible with your analysed palette.")
+
     if occasion and occasion in product.get("occasions", []):
         reasons.append(f"It is suitable for your {occasion} occasion.")
     text = " ".join([
