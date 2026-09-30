@@ -366,6 +366,32 @@ async def catalogue_providers():
     return {"providers": list_providers(), "live_inventory_enabled": False}
 
 
+@api_router.post("/catalogue/products/{product_id}/prepare-tryon")
+async def prepare_catalogue_tryon(product_id: str):
+    """Copy a trusted snapshot garment image into app storage for Try-On.
+
+    The client cannot supply an arbitrary URL: the image URL is resolved only
+    from the server-side genuine Matterhorn snapshot.
+    """
+    raw = next((item for item in MATTERHORN_TRIAL_SNAPSHOT if item["external_id"] == product_id), None)
+    if not raw or not raw.get("image_url"):
+        raise HTTPException(status_code=404, detail="Catalogue garment image not found")
+    try:
+        resp = await run_in_threadpool(
+            lambda: requests.get(raw["image_url"], timeout=30)
+        )
+        resp.raise_for_status()
+        content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]
+        if not content_type.startswith("image/"):
+            raise ValueError("Catalogue asset is not an image")
+        ext = "png" if "png" in content_type else "webp" if "webp" in content_type else "jpg"
+        path = await run_in_threadpool(store_bytes, resp.content, ext, content_type)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Could not prepare catalogue garment for try-on")
+        raise HTTPException(status_code=502, detail="Could not prepare this garment for try-on") from exc
+    return {"path": path, "preview_url": raw["image_url"], "name": raw["name"]}
+
+
 @api_router.get("/catalogue/recommendations")
 async def catalogue_recommendations():
     """Return customer-safe recommendations from the genuine trial snapshot.
