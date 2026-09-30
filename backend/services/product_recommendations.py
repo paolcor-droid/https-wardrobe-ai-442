@@ -32,7 +32,9 @@ def rank_verified_products(
     for product in products:
         if not product.get("live"):
             continue
-        if not product.get("external_id") or not product.get("source_url") or not product.get("name"):
+        if not product.get("source_verified"):
+            continue
+        if not product.get("external_id") or not product.get("name"):
             continue
 
         price = product.get("price")
