@@ -205,3 +205,37 @@ def test_customer_storefront_never_falls_back_to_wholesale_cost():
     )
     public = customer_product_view(product)
     assert public["price"] is None
+
+
+def test_missing_supplier_occasion_metadata_is_not_false_mismatch():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-unknown-occasion",
+        source_url=None,
+        occasions=[],
+        availability="2",
+        colour_names=["olive"],
+    )
+    ranked = rank_verified_products([product], _profile(occasion="casual"))
+    assert ranked and ranked[0]["external_id"] == "mh-unknown-occasion"
+
+
+def test_supplier_navy_blue_matches_soft_navy_scan_colour():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-navy",
+        source_url=None,
+        occasions=[],
+        availability="2",
+        colour_names=["navy blue"],
+        palette_tags=[],
+    )
+    ranked = rank_verified_products([product], _profile(preferred_colours=[]))
+    assert ranked
+    assert any("neutral" in reason.lower() for reason in ranked[0]["recommendation_reasons"])
+
+
+def test_customer_storefront_strips_provider_kind_too():
+    product = _product(provider_id="matterhorn", source_url=None, availability="2")
+    public = customer_product_view(product)
+    assert "provider_kind" not in public
