@@ -362,6 +362,14 @@ export async function getCatalogueRecommendations(): Promise<CatalogueRecommenda
   return json<CatalogueRecommendationsResponse>(res);
 }
 
+
+export async function prepareCatalogueGarment(productId: string): Promise<{ path: string; preview_url: string; name: string }> {
+  const res = await fetch(`${BASE}/api/catalogue/products/${encodeURIComponent(productId)}/prepare-tryon`, {
+    method: "POST",
+  });
+  return json<{ path: string; preview_url: string; name: string }>(res);
+}
+
 export type RecommendationPreviewResponse = {
   recommendations: ProductRecommendation[];
   count: number;
