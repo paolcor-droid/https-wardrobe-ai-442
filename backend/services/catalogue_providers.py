@@ -40,6 +40,12 @@ PROVIDERS = [
     ),
     CatalogueProvider("loro-piana", "Loro Piana", "retail", "https://www.loropiana.com/en-au/"),
     CatalogueProvider("armani", "Armani", "retail", "https://www.armani.com/en-au/"),
+    CatalogueProvider(
+        "brandsdistribution", "Brandsdistribution", "wholesale",
+        "https://www.brandsdistribution.com/",
+        False,
+        "Official catalogue/API integration candidate. Public sample exports are available; authenticated live API access is not enabled.",
+    ),
 ]
 
 _PROVIDER_BY_ID = {provider.id: provider for provider in PROVIDERS}
