@@ -37,6 +37,16 @@ def rank_verified_products(
         if not product.get("external_id") or not product.get("name"):
             continue
 
+        # Wholesale feeds may contain genuine products that are currently out of
+        # stock. Keep them out of recommendations until at least one unit exists.
+        availability = product.get("availability")
+        if availability is not None:
+            try:
+                if float(availability) <= 0:
+                    continue
+            except (TypeError, ValueError):
+                pass
+
         price = product.get("price")
         if budget_min is not None and price is not None and price < budget_min:
             continue
