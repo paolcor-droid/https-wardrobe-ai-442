@@ -1,5 +1,5 @@
 from services.catalogue_providers import normalize_product
-from services.product_recommendations import rank_verified_products
+from services.product_recommendations import rank_verified_products, customer_product_view
 
 
 def _profile(**overrides):
@@ -139,3 +139,34 @@ def test_scan_caution_colour_is_penalised():
     assert ranked[0]["external_id"] == "recommended"
     caution_result = next(item for item in ranked if item["external_id"] == "caution")
     assert any("caution" in reason.lower() for reason in caution_result["recommendation_reasons"])
+
+
+def test_wholesale_product_can_be_verified_without_public_supplier_url():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-1",
+        source_url=None,
+        colour_names=["olive"],
+    )
+    assert product["source_verified"] is True
+    assert product["source_url"] is None
+    ranked = rank_verified_products([product], _profile())
+    assert ranked and ranked[0]["external_id"] == "mh-1"
+
+
+def test_customer_storefront_strips_supplier_identity_and_source_metadata():
+    product = _product(
+        provider_id="matterhorn",
+        external_id="mh-private",
+        source_url=None,
+        colour_names=["olive"],
+    )
+    product["_matterhorn"] = {"ean": "private", "stock": 4}
+    product["recommendation_score"] = 80
+    product["recommendation_reasons"] = ["Olive suits your skin analysis."]
+    public = customer_product_view(product)
+    assert public["product_id"] == "mh-private"
+    assert "provider_id" not in public
+    assert "source_url" not in public
+    assert "availability" not in public
+    assert "_matterhorn" not in public
