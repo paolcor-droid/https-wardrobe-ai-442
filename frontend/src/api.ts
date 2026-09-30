@@ -318,7 +318,7 @@ export type CatalogueProduct = {
   provider_id: string;
   external_id: string;
   name: string;
-  source_url: string;
+  source_url?: string | null;
   brand?: string | null;
   category?: string | null;
   description?: string;
@@ -333,11 +333,34 @@ export type CatalogueProduct = {
   availability?: string | null;
 };
 
-export type ProductRecommendation = CatalogueProduct & {
-  live: true;
+export type ProductRecommendation = {
+  product_id: string;
+  name: string;
+  brand?: string | null;
+  category?: string | null;
+  description: string;
+  price?: number | null;
+  currency?: string | null;
+  image_url?: string | null;
+  colour_names: string[];
+  sizes: string[];
+  materials: string[];
   recommendation_score: number;
   recommendation_reasons: string[];
 };
+
+export type CatalogueRecommendationsResponse = {
+  recommendations: ProductRecommendation[];
+  count: number;
+  live_inventory_enabled: false;
+  source: string;
+  notice?: string;
+};
+
+export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
+  const res = await fetch(`${BASE}/api/catalogue/recommendations`);
+  return json<CatalogueRecommendationsResponse>(res);
+}
 
 export type RecommendationPreviewResponse = {
   recommendations: ProductRecommendation[];
