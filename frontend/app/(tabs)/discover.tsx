@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
@@ -14,6 +14,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
+  const [tryOnError, setTryOnError] = useState<string | null>(null);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const {
     data: catalogue,
@@ -46,6 +47,7 @@ export default function DiscoverScreen() {
   const openTryOn = async (product: ProductRecommendation) => {
     if (!product.image_url || preparingTryOn) return;
     setPreparingTryOn(product.product_id);
+    setTryOnError(null);
     try {
       const garment = await prepareCatalogueGarment(product.product_id);
       router.push({
@@ -56,6 +58,8 @@ export default function DiscoverScreen() {
           garmentName: garment.name,
         },
       });
+    } catch (error) {
+      setTryOnError(error instanceof Error ? error.message : "Could not prepare this garment for try-on.");
     } finally {
       setPreparingTryOn(null);
     }
@@ -117,6 +121,7 @@ export default function DiscoverScreen() {
             <Text style={styles.body}>Your current filters did not match the trial snapshot. The full XML catalogue will provide a much wider selection.</Text>
           </View>
         ) : null}
+        {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
         {catalogue?.recommendations.map(renderProduct)}
 
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
@@ -144,6 +149,7 @@ const useStyles = makeStyles((c) => ({
   section: { fontFamily: fonts.text, fontSize: 12, letterSpacing: 1.5, color: c.muted, marginTop: 28, marginBottom: 8 },
   note: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, marginBottom: 12 },
   loading: { marginVertical: 28 },
+  error: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.error, marginBottom: 12 },
   productCard: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, borderRadius: 6, overflow: "hidden", marginBottom: 18 },
   productImage: { width: "100%", aspectRatio: 0.82, backgroundColor: c.surfaceTertiary },
   productBody: { padding: 16 },
