@@ -10,7 +10,6 @@ from html import unescape
 from xml.etree import ElementTree as ET
 
 PROVIDER_ID = "matterhorn"
-_PRODUCT_URL_BASE = "https://matterhorn-wholesale.com/product/"
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _MATERIAL_RE = re.compile(r"<strong>\s*([^<]+?)\s*</strong>\s*([0-9]+(?:[.,][0-9]+)?)\s*%", re.I)
@@ -88,7 +87,9 @@ def map_product_element(product: ET.Element) -> dict:
         "price": price,
         "currency": "AUD",
         "image_url": images[0] if images else None,
-        "source_url": f"{_PRODUCT_URL_BASE}{external_id}",
+        # The XML does not provide a verified customer product URL. Do not
+        # manufacture one; wholesale provenance is tracked by provider + ID.
+        "source_url": None,
         "colour_names": [colour] if colour else [],
         "sizes": sizes,
         "materials": _materials(description_html),
