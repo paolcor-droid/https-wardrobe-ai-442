@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette
 from services.catalogue_providers import list_providers, normalize_product
-from services.product_recommendations import rank_verified_products
+from services.product_recommendations import rank_verified_products, customer_recommendations
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -386,7 +386,7 @@ async def catalogue_recommendations_preview(req: RecommendationPreviewRequest):
     profile = await get_or_create_profile()
     ranked = rank_verified_products(normalized, profile, req.limit)
     return {
-        "recommendations": ranked,
+        "recommendations": customer_recommendations(ranked),
         "count": len(ranked),
         "live_inventory_enabled": False,
         "source": "caller_supplied_verified_catalogue",
