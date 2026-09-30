@@ -105,7 +105,8 @@ def customer_product_view(product: dict) -> dict:
         "brand": product.get("brand"),
         "category": product.get("category"),
         "description": product.get("description", ""),
-        "price": product.get("customer_price", product.get("price")),
+        # Never fall back to supplier cost in a LUMIÈRE-owned storefront.
+        "price": product.get("customer_price"),
         "currency": product.get("currency"),
         "image_url": product.get("image_url"),
         "colour_names": product.get("colour_names", []),
