@@ -76,12 +76,16 @@ def _is_http_url(value: str) -> bool:
 def normalize_product(provider_id: str, raw: dict) -> dict:
     """Normalize a verified provider record without inventing missing commerce data."""
     get_provider(provider_id)
-    required = ("external_id", "name", "source_url")
+    provider = get_provider(provider_id)
+    required = ("external_id", "name")
     missing = [key for key in required if not raw.get(key)]
     if missing:
         raise ValueError(f"Missing source-backed product fields: {', '.join(missing)}")
-    if not _is_http_url(str(raw["source_url"])):
-        raise ValueError("source_url must be an absolute http(s) URL")
+    source_url = raw.get("source_url")
+    if source_url and not _is_http_url(str(source_url)):
+        raise ValueError("source_url must be an absolute http(s) URL when supplied")
+    if provider.kind == "retail" and not source_url:
+        raise ValueError("Retail catalogue products require a verified source_url")
 
     price = raw.get("price")
     if price is not None:
@@ -102,12 +106,15 @@ def normalize_product(provider_id: str, raw: dict) -> dict:
         "price": price,
         "currency": raw.get("currency"),
         "image_url": raw.get("image_url"),
-        "source_url": str(raw["source_url"]),
+        "source_url": str(source_url) if source_url else None,
         "colour_names": raw.get("colour_names", []),
         "sizes": raw.get("sizes", []),
         "materials": raw.get("materials", []),
         "occasions": raw.get("occasions", []),
         "palette_tags": raw.get("palette_tags", []),
         "availability": raw.get("availability"),
+        "source_verified": True,
+        # Compatibility flag: this means a source-backed catalogue record, not
+        # real-time inventory. live_inventory_enabled remains provider-specific.
         "live": True,
     }
