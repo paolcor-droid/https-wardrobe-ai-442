@@ -11,7 +11,10 @@ STYLE_TERMS = {
 }
 
 def is_hot_weather_suitable(product: dict) -> bool:
-    text = " ".join([product.get("name", ""), product.get("description", ""), product.get("category", "")]).lower()
+    text = " ".join([
+        product.get("name", ""), product.get("description", ""), product.get("category", ""),
+        " ".join(product.get("materials", []) or []),
+    ]).lower()
     return not any(term in text for term in HOT_EXCLUDE_TERMS)
 
 def _coarse_undertone(undertone: str) -> str:
@@ -53,7 +56,10 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
     price = product.get("price")
     if budget_max is not None and price is not None and price > budget_max:
         return -1
-    if occasion and occasion not in product.get("occasions", []):
+    product_occasions = product.get("occasions", []) or []
+    # Missing occasion metadata means unknown, not unsuitable. Reject only when
+    # the source explicitly classifies the product for other occasions.
+    if occasion and product_occasions and occasion not in product_occasions:
         return -1
     if climate == "hot" and not is_hot_weather_suitable(product):
         return -1
@@ -79,11 +85,12 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
     else:
         score += 20
 
-    score += 25 if not occasion or occasion in product.get("occasions", []) else 0
+    score += 25 if not occasion or occasion in product_occasions else 0
     score += 15 if climate != "hot" or is_hot_weather_suitable(product) else 0
     text = " ".join([
         product.get("name", ""), product.get("description", ""),
         " ".join(product.get("colour_names", product.get("color_names", []))),
+        " ".join(product.get("materials", []) or []),
     ]).lower()
     preferred = [c.lower() for c in (preferred_colours or [])]
     avoided = [c.lower() for c in (avoided_colours or [])]
