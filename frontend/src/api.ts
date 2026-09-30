@@ -311,3 +311,49 @@ export async function deleteTryOn(id: string): Promise<void> {
   const res = await fetch(`${BASE}/api/tryons/${id}`, { method: "DELETE" });
   await json(res);
 }
+
+
+// ----------------------------- Verified catalogue recommendations -----------------------------
+export type CatalogueProduct = {
+  provider_id: string;
+  external_id: string;
+  name: string;
+  source_url: string;
+  brand?: string | null;
+  category?: string | null;
+  description?: string;
+  price?: number | null;
+  currency?: string | null;
+  image_url?: string | null;
+  colour_names?: string[];
+  sizes?: string[];
+  materials?: string[];
+  occasions?: string[];
+  palette_tags?: string[];
+  availability?: string | null;
+};
+
+export type ProductRecommendation = CatalogueProduct & {
+  live: true;
+  recommendation_score: number;
+  recommendation_reasons: string[];
+};
+
+export type RecommendationPreviewResponse = {
+  recommendations: ProductRecommendation[];
+  count: number;
+  live_inventory_enabled: false;
+  source: "caller_supplied_verified_catalogue";
+};
+
+export async function previewCatalogueRecommendations(
+  products: CatalogueProduct[],
+  limit = 20,
+): Promise<RecommendationPreviewResponse> {
+  const res = await fetch(`${BASE}/api/catalogue/recommendations/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ products, limit }),
+  });
+  return json<RecommendationPreviewResponse>(res);
+}
