@@ -32,7 +32,10 @@ def test_real_snapshot_produces_customer_safe_personalised_cards():
     public = customer_recommendations(ranked)
     assert public
     assert any(item["product_id"] == "111506" for item in public)
-    assert all(item["price"] is None for item in public)
+    by_id = {item["product_id"]: item for item in public}
+    # Genuine supplier snapshot 12.90 -> LUMIÈRE trial price 16.13 at +25%.
+    assert by_id["111506"]["price"] == 16.13
+    assert by_id["111506"]["currency"] == "AUD"
     for item in public:
         assert "provider_id" not in item
         assert "provider_kind" not in item
