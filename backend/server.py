@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from services.palette_engine import build_palette
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
+from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 
 from emergentintegrations.llm.chat import (
     LlmChat,
@@ -264,7 +265,7 @@ class CatalogueProductInput(BaseModel):
     provider_id: str
     external_id: str
     name: str
-    source_url: str
+    source_url: Optional[str] = None
     brand: Optional[str] = None
     category: Optional[str] = None
     description: str = ""
@@ -363,6 +364,26 @@ async def root():
 async def catalogue_providers():
     """Expose configured shopping sources without implying live inventory access."""
     return {"providers": list_providers(), "live_inventory_enabled": False}
+
+
+@api_router.get("/catalogue/recommendations")
+async def catalogue_recommendations():
+    """Return customer-safe recommendations from the genuine trial snapshot.
+
+    This endpoint exists so the Emergent build can exercise the complete
+    personalization UI before a production catalogue sync/API is configured.
+    Snapshot stock is historical catalogue data and is never labelled live.
+    """
+    profile = await get_or_create_profile()
+    normalized = [normalize_product("matterhorn", raw) for raw in MATTERHORN_TRIAL_SNAPSHOT]
+    ranked = rank_verified_products(normalized, profile, limit=12)
+    return {
+        "recommendations": customer_recommendations(ranked),
+        "count": len(ranked),
+        "live_inventory_enabled": False,
+        "source": "matterhorn_xml_trial_snapshot",
+        "notice": "Trial catalogue snapshot; price and current stock are not claimed live.",
+    }
 
 
 @api_router.post("/catalogue/recommendations/preview")
