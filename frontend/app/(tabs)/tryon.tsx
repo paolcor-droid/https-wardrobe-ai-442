@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import {
   View,
   Text,
@@ -27,6 +28,11 @@ export default function TryOnScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{
+    garmentPath?: string;
+    garmentPreview?: string;
+    garmentName?: string;
+  }>();
 
   const [personPath, setPersonPath] = useState<string | null>(null);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
@@ -38,6 +44,17 @@ export default function TryOnScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TryOn | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params.garmentPath) {
+      setGarmentPath(params.garmentPath);
+      setGarmentPreview(params.garmentPreview || null);
+      setGarmentPrompt("");
+      setResult(null);
+      setError(null);
+    }
+  }, [params.garmentPath, params.garmentPreview]);
+
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 32;
 
@@ -143,6 +160,7 @@ export default function TryOnScreen() {
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
         </View>
 
+        {params.garmentName && garmentPath ? <Text style={styles.catalogueItem}>Selected from Discover · {params.garmentName}</Text> : null}
         <Text style={styles.orText}>or describe the item</Text>
         <TextInput
           testID="garment-prompt-input"
@@ -255,6 +273,7 @@ const useStyles = makeStyles((c) => ({
   },
   slotEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   slotLabel: { fontFamily: fonts.text, fontSize: 13, color: c.muted },
+  catalogueItem: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: "center", marginTop: 12 },
   orText: {
     fontFamily: fonts.text,
     fontSize: 12,
