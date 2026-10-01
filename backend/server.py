@@ -389,7 +389,9 @@ async def prepare_catalogue_tryon(product_id: str):
     except Exception as exc:  # noqa: BLE001
         logger.exception("Could not prepare catalogue garment for try-on")
         raise HTTPException(status_code=502, detail="Could not prepare this garment for try-on") from exc
-    return {"path": path, "preview_url": raw["image_url"], "name": raw["name"]}
+    # Return only the LUMIÈRE-hosted copy. The original supplier URL is never
+    # exposed to the client; the preview is served via GET /api/files/{path}.
+    return {"path": path, "name": raw["name"]}
 
 
 @api_router.get("/catalogue/recommendations")
@@ -682,6 +684,18 @@ async def update_profile(req: ProfileUpdate):
     # Serialize the request (recursively converts nested Pydantic models such as
     # `preferences` into plain dicts so MongoDB/BSON can encode them).
     data = req.dict(exclude_none=True)
+    # A colour can never be both preferred and avoided. The UI already prevents
+    # this; enforce the same invariant for any direct API caller.
+    prefs = data.get("preferences")
+    if prefs is not None:
+        preferred = prefs.get("preferred_colours") or []
+        avoided = set(prefs.get("avoided_colours") or [])
+        conflicts = [c for c in preferred if c in avoided]
+        if conflicts:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Colours cannot be both preferred and avoided: {', '.join(conflicts)}",
+            )
     for field in ("favorite_colors", "styles", "sizes", "budget", "notes", "preferences"):
         if field in data:
             update[field] = data[field]

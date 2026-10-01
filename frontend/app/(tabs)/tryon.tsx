@@ -30,7 +30,6 @@ export default function TryOnScreen() {
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{
     garmentPath?: string;
-    garmentPreview?: string;
     garmentName?: string;
   }>();
 
@@ -48,12 +47,13 @@ export default function TryOnScreen() {
   useEffect(() => {
     if (params.garmentPath) {
       setGarmentPath(params.garmentPath);
-      setGarmentPreview(params.garmentPreview || null);
+      // Preview the LUMIÈRE-hosted copy via /api/files, never the supplier URL.
+      setGarmentPreview(fileUrl(params.garmentPath));
       setGarmentPrompt("");
       setResult(null);
       setError(null);
     }
-  }, [params.garmentPath, params.garmentPreview]);
+  }, [params.garmentPath]);
 
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 32;

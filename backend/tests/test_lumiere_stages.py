@@ -99,14 +99,16 @@ class TestStage1YourScan:
                 "preferred_retailers": ["zara"],
             }
         }
+        # Backend must reject a colour that is both preferred and avoided.
         r = api_client.put(f"{API}/profile", json=payload, timeout=30)
-        assert r.status_code == 200, r.text
-        prefs = r.json()["preferences"]
-        # Backend stores as-is; frontend enforces exclusivity. Verify the server
-        # at minimum echoes what was sent so a UI-side exclusion is possible.
-        assert "navy" in prefs["preferred_colours"]
-        assert "navy" in prefs["avoided_colours"]
-        # Clear overlap so Stage-2 ranking isn't polluted by test state.
+        assert r.status_code == 400, r.text
+        assert "navy" in r.json().get("detail", "")
+        # Confirm the conflicting state did not persist.
+        prof = api_client.get(f"{API}/profile", timeout=30).json()
+        prefs = prof["preferences"]
+        overlap = set(prefs["preferred_colours"]) & set(prefs["avoided_colours"])
+        assert not overlap, f"Conflicting colours persisted: {overlap}"
+        # A non-conflicting save still succeeds.
         r2 = api_client.put(
             f"{API}/profile",
             json={"preferences": {**payload["preferences"],
@@ -114,7 +116,9 @@ class TestStage1YourScan:
                                   "avoided_colours": ["mustard"]}},
             timeout=30,
         )
-        assert r2.status_code == 200
+        assert r2.status_code == 200, r2.text
+        prefs2 = r2.json()["preferences"]
+        assert not (set(prefs2["preferred_colours"]) & set(prefs2["avoided_colours"]))
 
 
 # ============================================================
@@ -182,8 +186,10 @@ class TestStage3TryOn:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["path"]
-        assert body["preview_url"].startswith("http")
         assert body["name"]
+        # The supplier URL must never be exposed in the customer handoff.
+        assert "preview_url" not in body
+        assert "matterhorn" not in r.text.lower()
         pytest.garment_path = body["path"]  # type: ignore[attr-defined]
 
     def test_prepare_tryon_unknown_product_404(self, api_client):

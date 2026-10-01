@@ -54,7 +54,6 @@ export default function DiscoverScreen() {
         pathname: "/(tabs)/tryon",
         params: {
           garmentPath: garment.path,
-          garmentPreview: garment.preview_url,
           garmentName: garment.name,
         },
       });
