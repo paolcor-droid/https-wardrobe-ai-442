@@ -7,7 +7,12 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from services.customer_pricing import PricingPolicy, apply_customer_price
 from services.recommendation_engine import recommendation_reasons, recommendation_score
+
+# LUMIÈRE retails wholesale-sourced trial products at a fixed +25% markup.
+# Supplier cost stays private; the customer only ever sees this derived price.
+LUMIERE_WHOLESALE_POLICY = PricingPolicy(markup_percent=25)
 
 
 def rank_verified_products(
@@ -46,6 +51,11 @@ def rank_verified_products(
                     continue
             except (TypeError, ValueError):
                 pass
+
+        # Derive the LUMIÈRE customer price from wholesale supplier cost (+25%)
+        # so supplier cost is never surfaced and budget filters use a real price.
+        if product.get("provider_kind") == "wholesale" and product.get("customer_price") is None:
+            product = apply_customer_price(product, LUMIERE_WHOLESALE_POLICY)
 
         # Budget filters must use the price the customer would actually pay.
         # Wholesale supplier cost is private and is not a valid budget signal.

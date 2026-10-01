@@ -1,0 +1,38 @@
+{
+  "summary": "All 4 LUMIÈRE stages PASS end-to-end. Backend: 14/14 pytest cases in test_lumiere_stages.py pass. STAGE 1 (Your Scan): POST /api/upload → path; POST /api/skin-analysis returns full schema (undertone/depth/chroma/contrast/season/confidence + named palette groups best_neutrals/best_accents/statement_colours/caution_colours); GET /api/profile persists skin.image_path, analyzed_at, and both palette groups. Preferences PUT echoes both preferred_colours and avoided_colours (mutual-exclusion is UI-enforced only — flagged as minor). STAGE 2 (Discover): GET /api/catalogue/recommendations returns source='matterhorn_xml_trial_snapshot', live_inventory_enabled=false, notice correctly states stock is NOT claimed live. All recs expose product_id/name/brand/image_url/colour_names/sizes/materials and non-empty recommendation_reasons that reference personalisation axes (climate/style/colour/palette). CRITICAL PRICING VERIFIED: product_id 111506 price == 16.13 (12.90 × 1.25). No supplier metadata leak: provider_id, provider_kind, source_url, availability, supplier_cost, wholesale_cost, customer_price are all absent from every customer payload. STAGE 3 (Try-On): POST /api/catalogue/products/111506/prepare-tryon returns stored path + preview + name; unknown product → 404; POST /api/upload for person photo → path; ONE POST /api/tryon generated a result image (gemini-3.1-flash-image-preview), stored in object storage, retrievable via /api/files/{path}, and listed by /api/tryons. STAGE 4 (Regression - static): frontend/src/api.ts uploadImage still uses XMLHttpRequest with xhr.open('POST', .../api/upload) and keeps the WinterCG FormData comment (verified in-test). Frontend UI (Playwright, 390×844): Discover tab renders 'Your personalised shopping edit', the 'What LUMIÈRE is looking for' context card, the 'YOUR LUMIÈRE EDIT' disclosure that correctly states '25% markup on the supplier price; current stock is not claimed live', product cards with image, brand, name, colour, sizes 'Available in snapshot', materials, price '16.13' (verified in DOM for 111506), 'WHY THIS SUITS YOU' with bullet reasons, and 'Try this on' CTA. Tapping 'Try this on' calls /prepare-tryon and routes to /(tabs)/tryon with garmentPath + garmentPreview + garmentName query params; the Try-On screen shows the garment thumbnail, 'Selected from Discover · Blouse model 111506 Fig…' label, 'Your photo' placeholder, 'Try it on' button, and a 'Past try-ons' row (the earlier backend-generated try-on appears there — proves end-to-end wiring). No red screens, no console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "discover → tryon handoff", "issues": ["prepare_catalogue_tryon returns preview_url pointing at the raw supplier CDN (matterhorn-wholesale.com) and discover.tsx forwards it as a URL query param (garmentPreview=…matterhorn-wholesale.com…). The URL is visible in the browser address bar / router state. Consider returning only the already-stored app path (and resolving it via fileUrl) so the supplier domain never surfaces client-side. Non-blocking — the customer /api/catalogue/recommendations payload itself is clean."]},
+      {"screen": "discover product card", "issues": ["No testIDs on product card, 'Try this on' button, or price field — makes future UI regression testing fragile. Suggest adding testID={`product-${product.product_id}`}, testID={`try-on-${product.product_id}`}, testID={`price-${product.product_id}`}."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_lumiere_stages.py",
+    "/app/test_reports/pytest/lumiere_stages.xml"
+  ],
+  "action_items": [
+    "(Optional, minor) Avoid leaking supplier CDN domain in the Discover → Try-On deeplink: either drop preview_url from the response, or have discover.tsx forward the app-stored path only (resolve via fileUrl) and keep preview_url server-internal.",
+    "(Optional) Enforce preferred_colours ∩ avoided_colours = ∅ on the backend PUT /api/profile (currently relies on UI). Prevents a direct-API caller from poisoning the ranking.",
+    "(Optional) Add testIDs to Discover product card, Try-this-on button, and price in /app/frontend/app/(tabs)/discover.tsx for stable automated regression.",
+    "(Optional, housekeeping) Pytest 10 will drop class-scoped instance-method fixtures; convert TestStage2Discover.recs_payload to @classmethod when touched."
+  ],
+  "critical_code_review_comments": [
+    "product_recommendations.rank_verified_products correctly gates markup on provider_kind=='wholesale' AND customer_price is None (idempotent — re-ranking won't compound the 25%).",
+    "customer_product_view is a strict allow-list projection (no **product spread) so adding new internal fields upstream can't accidentally leak to clients.",
+    "prepare_catalogue_tryon resolves image_url from server-side MATTERHORN_TRIAL_SNAPSHOT only — the client can't pass an arbitrary URL for SSRF.",
+    "server.store_bytes + object storage put is re-initialised on 503 and run in threadpool — unchanged from prior iteration, still correct.",
+    "/api/catalogue/recommendations response explicitly carries live_inventory_enabled=false and a notice saying 'current stock is not claimed live' — matches the trial-snapshot narrative.",
+    "api.ts uploadImage uses XHR for both platforms (web via blob, native via {uri,name,type}) with explanatory comment — the Expo SDK 54 WinterCG FormData workaround is preserved."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Test suite uploaded 2 synthetic PNGs (selfie + person), ran one skin-analysis (persisted to default profile), prepared one try-on garment (product 111506), and generated ONE /api/tryon result (as instructed). Default profile's preferences were updated to include a few colours during Stage-1 exclusivity test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL is EXPO_PUBLIC_BACKEND_URL in /app/frontend/.env (https://style-scan-v3.preview.emergentagent.com). Reuse /app/backend/tests/test_lumiere_stages.py — the _png_bytes helper synthesises a solid-colour PNG that the skin-analysis LLM accepts and returns valid JSON for. Important: product 111506's supplier price is 12.90 and LUMIÈRE markup is +25% → expected customer price is exactly 16.13 (asserted with ==). Only ONE /api/tryon call per run — generation is slow and credit-metered. Discover deep-links to Try-On via query string ?garmentPath=…&garmentPreview=…&garmentName=…; frontend reads them in tryon.tsx. The default profile already has a persisted skin analysis after this run, so recommendation_reasons will reference 'your analysed palette' — if a future test wants a cold-start, delete the profiles collection row for id='default' first.",
+  "rca_of_issue": "N/A — the main-agent fix (LUMIERE_WHOLESALE_POLICY applied in rank_verified_products) is verified: product 111506 → 16.13 at the API layer AND rendered as '16.13' in the Discover UI, with no supplier metadata leak in the recommendations payload."
+}
