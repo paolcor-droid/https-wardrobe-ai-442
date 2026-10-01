@@ -19,17 +19,24 @@ import {
   type SkinAnalysis,
 } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
+import { ModelSelector } from "@/src/components/ModelSelector";
+import { useModel } from "@/src/model-provider";
+import { RETAILERS } from "@/src/retailers";
 import type { PickResult } from "@/src/utils/media";
 
 const COLORS = ["Black", "White", "Navy", "Beige", "Olive", "Burgundy", "Camel", "Grey", "Blush", "Emerald", "Rust", "Denim"];
 const STYLES = ["Minimal", "Classic", "Streetwear", "Boho", "Smart casual", "Formal", "Athleisure", "Vintage", "Edgy", "Preppy"];
 const BUDGETS = ["Budget", "Mid-range", "Premium", "Luxury"];
+const CLIMATES = ["hot", "mild", "cold"];
+const FITS = ["slim", "regular", "relaxed"];
+const PREF_STYLES = ["classic", "relaxed", "minimal", "romantic", "bold"];
 
 export default function ProfileScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { provider } = useModel();
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 40;
 
@@ -42,6 +49,12 @@ export default function ProfileScreen() {
   const [sizeShoe, setSizeShoe] = useState("");
   const [budget, setBudget] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [climate, setClimate] = useState("mild");
+  const [prefStyle, setPrefStyle] = useState("classic");
+  const [preferredFit, setPreferredFit] = useState("regular");
+  const [likedColours, setLikedColours] = useState<string[]>([]);
+  const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
+  const [retailers, setRetailers] = useState<string[]>(["zara", "hm", "uniqlo"]);
   const [seeded, setSeeded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -56,6 +69,12 @@ export default function ProfileScreen() {
       setSizeShoe(profile.sizes?.shoe ?? "");
       setBudget(profile.budget ?? null);
       setNotes(profile.notes ?? "");
+      setClimate(profile.preferences?.climate ?? "mild");
+      setPrefStyle(profile.preferences?.style ?? "classic");
+      setPreferredFit(profile.preferences?.preferred_fit ?? "regular");
+      setLikedColours(profile.preferences?.preferred_colours ?? []);
+      setAvoidedColours(profile.preferences?.avoided_colours ?? []);
+      setRetailers(profile.preferences?.preferred_retailers ?? ["zara", "hm", "uniqlo"]);
       setSeeded(true);
     }
   }, [profile, seeded]);
@@ -82,6 +101,11 @@ export default function ProfileScreen() {
       sizes: { top: sizeTop, bottom: sizeBottom, shoe: sizeShoe },
       budget: budget ?? undefined,
       notes,
+      preferences: {
+        ...(profile?.preferences ?? { budget_min: 0, budget_max: 500, occasion: "casual", categories: [] }),
+        climate: climate as "hot" | "mild" | "cold", style: prefStyle, preferred_fit: preferredFit,
+        preferred_colours: likedColours, avoided_colours: avoidedColours, preferred_retailers: retailers,
+      },
     });
   };
 
@@ -91,11 +115,17 @@ export default function ProfileScreen() {
     setScanning(true);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
-      await analyzeSkin(path);
+      await analyzeSkin(path, provider);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      setScanError("Couldn't analyze that photo. Try a clear, well-lit selfie.");
+    } catch (e) {
+      // Surface the real cause (upload/network/analysis) instead of masking it as a
+      // generic "poor selfie" message, which was misleading for diagnosis.
+      const detail = e instanceof Error && e.message ? e.message : "";
+      console.warn("[skin-analysis] flow failed:", detail || e);
+      setScanError(
+        detail || "Couldn't analyze that photo. Check your connection and try a clear, well-lit selfie.",
+      );
     } finally {
       setScanning(false);
     }
@@ -126,6 +156,9 @@ export default function ProfileScreen() {
       >
         {/* Skin tone */}
         <Text style={styles.sectionTitle}>Skin tone & colors</Text>
+        <View style={styles.modelSelectorWrap}>
+          <ModelSelector />
+        </View>
         {skin && skin.undertone ? (
           <View style={styles.skinCard} testID="skin-result">
             <View style={styles.skinTop}>
@@ -134,38 +167,43 @@ export default function ProfileScreen() {
               ) : null}
               <View style={styles.flex}>
                 <Text style={styles.undertone}>
-                  {skin.undertone}
+                  {skin.undertone.replace("_", " ")}
                   {skin.season ? ` · ${skin.season}` : ""}
                 </Text>
+                <Text style={styles.skinDimensions}>
+                  {skin.depth} · {skin.chroma} · {skin.contrast} contrast
+                </Text>
+                {skin.analysis_quality ? (
+                  <Text style={styles.skinQuality}>
+                    {skin.analysis_quality.confidence} confidence · {skin.analysis_quality.lighting_quality} lighting
+                  </Text>
+                ) : null}
+                {skin.analyzed_with ? (
+                  <Text style={styles.skinQuality}>
+                    Analysed with {skin.analyzed_with === "openai" ? "ChatGPT" : "Claude"}
+                  </Text>
+                ) : null}
                 {skin.summary ? <Text style={styles.skinSummary}>{skin.summary}</Text> : null}
               </View>
             </View>
-            <Text style={styles.swatchLabel}>Your best colors</Text>
-            <View style={styles.swatchRow}>
-              {skin.palette.map((c, i) => (
-                <View key={i} style={styles.swatchItem}>
-                  <View style={[styles.swatch, { backgroundColor: c.hex }]} />
-                  <Text style={styles.swatchName} numberOfLines={1}>
-                    {c.name}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            {skin.avoid.length > 0 && (
-              <>
-                <Text style={styles.swatchLabel}>Colors to avoid</Text>
+            {[
+              ["Best neutrals", skin.best_neutrals],
+              ["Best accents", skin.best_accents],
+              ["Statement colours", skin.statement_colours],
+              ["Use carefully near the face", skin.caution_colours],
+            ].map(([label, swatches]) => (
+              <View key={label as string}>
+                <Text style={styles.swatchLabel}>{label as string}</Text>
                 <View style={styles.swatchRow}>
-                  {skin.avoid.map((c, i) => (
-                    <View key={i} style={styles.swatchItem}>
+                  {(swatches as typeof skin.palette).map((c, i) => (
+                    <View key={`${c.name}-${i}`} style={styles.swatchItem}>
                       <View style={[styles.swatch, { backgroundColor: c.hex }]} />
-                      <Text style={styles.swatchName} numberOfLines={1}>
-                        {c.name}
-                      </Text>
+                      <Text style={styles.swatchName} numberOfLines={2}>{c.name}</Text>
                     </View>
                   ))}
                 </View>
-              </>
-            )}
+              </View>
+            ))}
             <Pressable testID="rescan-button" style={styles.scanBtnSm} onPress={() => setSheetOpen(true)}>
               <Feather name="refresh-ccw" size={15} color={colors.onSurface} />
               <Text style={styles.scanBtnSmText}>Re-scan</Text>
@@ -204,6 +242,29 @@ export default function ProfileScreen() {
             <Chip key={s} label={s} active={stylesSel.includes(s)} onPress={() => toggle(stylesSel, setStylesSel, s)} />
           ))}
         </View>
+
+        <Text style={styles.sectionTitle}>Climate</Text>
+        <View style={styles.chipWrap}>{CLIMATES.map((v) => <Chip key={v} label={v} active={climate === v} onPress={() => setClimate(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Preferred style</Text>
+        <View style={styles.chipWrap}>{PREF_STYLES.map((v) => <Chip key={v} label={v} active={prefStyle === v} onPress={() => setPrefStyle(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Preferred fit</Text>
+        <View style={styles.chipWrap}>{FITS.map((v) => <Chip key={v} label={v} active={preferredFit === v} onPress={() => setPreferredFit(v)} />)}</View>
+
+        <Text style={styles.sectionTitle}>Colours you like</Text>
+        <View style={styles.chipWrap}>{COLORS.map((v) => <Chip key={v} label={v} active={likedColours.includes(v.toLowerCase())} onPress={() => {
+          const x = v.toLowerCase(); setLikedColours(likedColours.includes(x) ? likedColours.filter(c => c !== x) : [...likedColours, x]); setAvoidedColours(avoidedColours.filter(c => c !== x));
+        }} />)}</View>
+
+        <Text style={styles.sectionTitle}>Colours to avoid</Text>
+        <Text style={styles.helper}>Selecting a colour here automatically removes it from your liked colours.</Text>
+        <View style={styles.chipWrap}>{COLORS.map((v) => <Chip key={v} label={v} active={avoidedColours.includes(v.toLowerCase())} onPress={() => {
+          const x = v.toLowerCase(); setAvoidedColours(avoidedColours.includes(x) ? avoidedColours.filter(c => c !== x) : [...avoidedColours, x]); setLikedColours(likedColours.filter(c => c !== x));
+        }} />)}</View>
+
+        <Text style={styles.sectionTitle}>Favourite retailers</Text>
+        <View style={styles.chipWrap}>{RETAILERS.map((r) => <Chip key={r.id} label={r.name} active={retailers.includes(r.id)} onPress={() => toggle(retailers, setRetailers, r.id)} />)}</View>
 
         {/* Sizes */}
         <Text style={styles.sectionTitle}>Sizes</Text>
@@ -277,6 +338,7 @@ const useStyles = makeStyles((c) => ({
     marginTop: 28,
     marginBottom: 14,
   },
+  modelSelectorWrap: { marginBottom: 16 },
   scanCard: {
     borderWidth: 1,
     borderColor: c.borderStrong,
@@ -291,7 +353,9 @@ const useStyles = makeStyles((c) => ({
   skinTop: { flexDirection: "row", gap: 14, alignItems: "center", marginBottom: 16 },
   skinAvatar: { width: 56, height: 56, borderRadius: 4, backgroundColor: c.surfaceTertiary },
   undertone: { fontFamily: fonts.display, fontSize: 20, fontWeight: "700", color: c.onSurface, textTransform: "capitalize" },
-  skinSummary: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.onSurfaceTertiary, marginTop: 4 },
+  skinDimensions: { fontFamily: fonts.text, fontSize: 12, color: c.onSurfaceSecondary, marginTop: 3, textTransform: "capitalize" },
+  skinQuality: { fontFamily: fonts.text, fontSize: 11, color: c.muted, marginTop: 3, textTransform: "capitalize" },
+  skinSummary: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.onSurfaceTertiary, marginTop: 6 },
   swatchLabel: {
     fontFamily: fonts.text,
     fontSize: 11,
@@ -366,5 +430,6 @@ const useStyles = makeStyles((c) => ({
   },
   saveBtnText: { fontFamily: fonts.text, fontSize: 16, color: c.onBrandPrimary },
   savedNote: { fontFamily: fonts.text, fontSize: 13, color: c.success, textAlign: "center", marginTop: 12 },
+  helper: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted, marginTop: -8, marginBottom: 12 },
   error: { fontFamily: fonts.text, fontSize: 13, color: c.error, marginTop: 12 },
 }));

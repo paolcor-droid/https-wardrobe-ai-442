@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { View, Text, Pressable, Modal, Platform, Share, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import ViewShot, { captureRef } from "react-native-view-shot";
+import ViewShot, { captureRef, type ViewShotRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import Feather from "@react-native-vector-icons/feather";
 
@@ -17,12 +17,12 @@ type Props = {
 export function ShareLookModal({ visible, text, imageUrl, onClose }: Props) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const shotRef = useRef<ViewShot>(null);
+  const shotRef = useRef<ViewShotRef>(null);
   const [busy, setBusy] = useState(false);
 
   const shareText = async () => {
     try {
-      await Share.share({ message: `${text || "My look"}\n\n— via StyleScan` });
+      await Share.share({ message: `${text || "My look"}\n\n— via LUMIÈRE` });
     } catch {
       /* dismissed */
     }
@@ -62,15 +62,15 @@ export function ShareLookModal({ visible, text, imageUrl, onClose }: Props) {
             {imageUrl ? (
               <View style={styles.imageCard}>
                 <Image source={{ uri: imageUrl }} style={styles.shareImage} contentFit="cover" />
-                <Text style={styles.imageFooter}>Styled with StyleScan</Text>
+                <Text style={styles.imageFooter}>Styled with LUMIÈRE</Text>
               </View>
             ) : (
               <View style={styles.card}>
-                <Text style={styles.cardKicker}>STYLESCAN</Text>
+                <Text style={styles.cardKicker}>LUMIÈRE</Text>
                 <Text style={styles.cardText} numberOfLines={16}>
                   {text}
                 </Text>
-                <Text style={styles.cardFooter}>Styled with StyleScan</Text>
+                <Text style={styles.cardFooter}>Styled with LUMIÈRE</Text>
               </View>
             )}
           </ViewShot>

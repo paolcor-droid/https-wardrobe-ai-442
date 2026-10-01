@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
+import { ModelProvider } from "@/src/model-provider";
 import { useTheme } from "@/src/theme";
 
 // Disable logbox errors etc so that users can see the app
@@ -25,14 +26,16 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <KeyboardProvider>
-          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-          {ready ? (
-            <Stack screenOptions={{ headerShown: false }} />
-          ) : (
-            <View style={{ flex: 1, backgroundColor: colors.surface }} />
-          )}
-        </KeyboardProvider>
+        <ModelProvider>
+          <KeyboardProvider>
+            <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+            {ready ? (
+              <Stack screenOptions={{ headerShown: false }} />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: colors.surface }} />
+            )}
+          </KeyboardProvider>
+        </ModelProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
