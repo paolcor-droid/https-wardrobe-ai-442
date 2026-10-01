@@ -30,6 +30,11 @@ const BUDGETS = ["Budget", "Mid-range", "Premium", "Luxury"];
 const CLIMATES = ["hot", "mild", "cold"];
 const FITS = ["slim", "regular", "relaxed"];
 const PREF_STYLES = ["classic", "relaxed", "minimal", "romantic", "bold"];
+const SHOP_FOR: { value: "mens" | "womens" | "all"; label: string }[] = [
+  { value: "mens", label: "Men" },
+  { value: "womens", label: "Women" },
+  { value: "all", label: "All" },
+];
 
 export default function ProfileScreen() {
   const styles = useStyles();
@@ -55,6 +60,7 @@ export default function ProfileScreen() {
   const [likedColours, setLikedColours] = useState<string[]>([]);
   const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>(["zara", "hm", "uniqlo"]);
+  const [shopFor, setShopFor] = useState<"mens" | "womens" | "all">("all");
   const [seeded, setSeeded] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -75,6 +81,7 @@ export default function ProfileScreen() {
       setLikedColours(profile.preferences?.preferred_colours ?? []);
       setAvoidedColours(profile.preferences?.avoided_colours ?? []);
       setRetailers(profile.preferences?.preferred_retailers ?? ["zara", "hm", "uniqlo"]);
+      setShopFor(profile.preferences?.shop_for ?? "all");
       setSeeded(true);
     }
   }, [profile, seeded]);
@@ -105,6 +112,7 @@ export default function ProfileScreen() {
         ...(profile?.preferences ?? { budget_min: 0, budget_max: 500, occasion: "casual", categories: [] }),
         climate: climate as "hot" | "mild" | "cold", style: prefStyle, preferred_fit: preferredFit,
         preferred_colours: likedColours, avoided_colours: avoidedColours, preferred_retailers: retailers,
+        shop_for: shopFor,
       },
     });
   };
@@ -226,6 +234,14 @@ export default function ProfileScreen() {
           </Pressable>
         )}
         {scanError && <Text style={styles.error}>{scanError}</Text>}
+
+        {/* Shop for */}
+        <Text style={styles.sectionTitle}>Shop for</Text>
+        <View style={styles.chipWrap}>
+          {SHOP_FOR.map((s) => (
+            <Chip key={s.value} label={s.label} active={shopFor === s.value} onPress={() => setShopFor(s.value)} />
+          ))}
+        </View>
 
         {/* Favorite colors */}
         <Text style={styles.sectionTitle}>Favorite colors</Text>

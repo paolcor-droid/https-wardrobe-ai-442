@@ -73,6 +73,34 @@ def _is_http_url(value: str) -> bool:
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
+_VALID_DEPARTMENTS = ("mens", "womens", "unisex")
+
+
+def derive_department(category_path: str | None, category: str | None = None) -> str:
+    """Derive mens/womens/unisex strictly from the genuine source taxonomy.
+
+    Matterhorn category_path always leads with the department segment, e.g.
+    "/MEN/..." or "/WOMEN/...". We read that genuine segment rather than guessing
+    from loose substrings (so "WOMEN`S" is never misread as men's). Never inferred
+    from images or the customer's selfie; unknown heads stay "unisex" so a gendered
+    department is never fabricated.
+    """
+    text = " ".join([category_path or "", category or ""]).upper()
+    if "UNISEX" in text:
+        return "unisex"
+    parts = [p.strip().upper() for p in (category_path or "").split("/") if p.strip()]
+    head = parts[0] if parts else ""
+    if head == "MEN":
+        return "mens"
+    if head.startswith("WOMEN") or head == "DRESSES":
+        return "womens"
+    return "unisex"
+
+
+def _normalize_department(value: str | None) -> str:
+    return value if value in _VALID_DEPARTMENTS else "unisex"
+
+
 def normalize_product(provider_id: str, raw: dict) -> dict:
     """Normalize a verified provider record without inventing missing commerce data."""
     get_provider(provider_id)
@@ -114,6 +142,12 @@ def normalize_product(provider_id: str, raw: dict) -> dict:
         "occasions": raw.get("occasions", []),
         "palette_tags": raw.get("palette_tags", []),
         "availability": raw.get("availability"),
+        # Normalized shopping department (mens/womens/unisex). Explicit values
+        # from source-backed records win; otherwise derived from the genuine
+        # category taxonomy. Retail records without a department stay "unisex".
+        "department": _normalize_department(
+            raw.get("department") or derive_department(raw.get("category_path"), raw.get("category"))
+        ),
         "source_verified": True,
         # Compatibility flag: this means a source-backed catalogue record, not
         # real-time inventory. live_inventory_enabled remains provider-specific.

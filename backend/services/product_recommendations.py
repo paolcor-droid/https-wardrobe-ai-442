@@ -33,6 +33,7 @@ def rank_verified_products(
     categories = set(prefs.get("categories") or [])
     budget_min = prefs.get("budget_min")
     budget_max = prefs.get("budget_max")
+    shop_for = prefs.get("shop_for") or "all"
 
     for product in products:
         if not product.get("live"):
@@ -40,6 +41,12 @@ def rank_verified_products(
         if not product.get("source_verified"):
             continue
         if not product.get("external_id") or not product.get("name"):
+            continue
+
+        # Department is a HARD filter applied before scoring: a Men preference
+        # can never surface Women products (and vice versa). Genuine unisex items
+        # are allowed for either. "all" imposes no department restriction.
+        if shop_for in ("mens", "womens") and product.get("department") not in (shop_for, "unisex"):
             continue
 
         # Wholesale feeds may contain genuine products that are currently out of

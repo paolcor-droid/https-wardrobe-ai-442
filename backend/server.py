@@ -202,6 +202,9 @@ class Preferences(BaseModel):
     preferred_colours: List[str] = []
     avoided_colours: List[str] = []
     preferred_retailers: List[str] = ["zara", "hm", "uniqlo"]
+    # Catalogue department the customer wants to shop. "all" (default) keeps
+    # existing profiles compatible. Never inferred from the selfie.
+    shop_for: Literal["mens", "womens", "all"] = "all"
 
 
 class Profile(BaseModel):

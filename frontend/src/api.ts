@@ -243,6 +243,7 @@ export type Preferences = {
   preferred_colours: string[];
   avoided_colours: string[];
   preferred_retailers: string[];
+  shop_for: "mens" | "womens" | "all";
 };
 
 export type Profile = {

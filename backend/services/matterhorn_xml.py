@@ -78,11 +78,15 @@ def map_product_element(product: ET.Element) -> dict:
     category_path = _text(product.find("category_path"))
     garment_type = _text(product.find("type"))
 
+    from services.catalogue_providers import derive_department
+
     return {
         "external_id": external_id,
         "name": name,
         "brand": _text(product.find("brand")) or None,
         "category": category or garment_type or None,
+        "category_path": category_path or None,
+        "department": derive_department(category_path, category),
         "description": _clean_description(description_html),
         "price": price,
         "currency": "AUD",
