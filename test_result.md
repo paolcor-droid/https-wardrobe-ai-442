@@ -755,7 +755,7 @@ test_plan:
         DETAILED TEST RESULTS:
         
         STEP 1 (Load app): ✅ PASS
-        - App loaded successfully at https://stylescan-v3.preview.emergentagent.com
+        - App loaded successfully at https://style-scan-v3.preview.emergentagent.com
         - JS bundle initialized within 10s
         - Bottom navigation visible with all 4 tabs (Stylist, Discover, Try-On, You)
         

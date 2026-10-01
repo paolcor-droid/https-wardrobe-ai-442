@@ -12,7 +12,7 @@ import requests
 from pathlib import Path
 
 # Base URL from frontend/.env
-BASE_URL = "https://stylescan-v3.preview.emergentagent.com"
+BASE_URL = "https://style-scan-v3.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test image
