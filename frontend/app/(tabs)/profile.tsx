@@ -90,6 +90,9 @@ export default function ProfileScreen() {
     mutationFn: (body: Partial<Profile>) => updateProfile(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Preferences (e.g. Shop for) drive Discover; force the catalogue to
+      // refetch from the now-updated server so stale results never linger.
+      queryClient.invalidateQueries({ queryKey: ["catalogue-recommendations"] });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });

@@ -1,0 +1,35 @@
+{
+  "summary": "PASS — Discover Shop-for caching bug fix VERIFIED end-to-end in the visible UI (no app reload). The frontend fix is confirmed effective: (a) discover.tsx query key now includes profile.preferences.shop_for and (b) profile.tsx save onSuccess invalidates ['catalogue-recommendations']. Executed the exact Women→Men→Women→Men sequence in a single app session at 390x844 against https://style-scan-v3.preview.emergentagent.com with brand-mention counts asserted against the rendered Discover DOM AND the backend /api/profile.preferences.shop_for after each save. Results: [1:Women] backend=womens, Figl=8 mentions, men brands (Henderson/Pierre Cardin/Anais/Obsessive)=0 — PASS. [2:Men] backend=mens, Figl=0, men brand mentions = {Henderson:12, Pierre Cardin:2, Anais:4, Obsessive:2} — PASS. [3:Women] backend=womens, Figl=8, men brands=0 — PASS. [4:Men] backend=mens, Figl=0, men brands total=20 — PASS. ZERO cross-department leakage after each switch. Also re-ran the full live backend regression suite (backend/tests/test_shop_for_e2e.py) — 11/11 passed in 12s: mens-only, womens-only, all-mode, pricing (113679==11.13, 111506==16.13), no metadata leak (department/provider_id/provider_kind/source_url/availability absent), full product field payload with non-empty recommendation_reasons, budget filter still applies (budget_max=15 under shop_for=all keeps every item ≤15), prepare-tryon(113679) no 'matterhorn'/no preview_url, colour conflict → 400, and ONE men's tryon generation (listed by /api/tryons). Profile was reset to shop_for='all' at the end of the UI run (verified by GET /api/profile).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "profile+discover", "issues": ["Harness-level only (not a product bug): the floating bottom tab bar occasionally lets a Discover product image intercept clicks on the Save button and tab labels. Mitigation used: scroll ScrollView to top before tapping a tab, scroll the Save button into view before clicking with retries + JS click fallback. Consider adding testID='tab-you' / testID='tab-discover' / testID='tab-stylist' / testID='tab-tryon' on the Tabs.Screen so future UI tests can click tabs directly without relying on visible text."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_shop_for_e2e.py",
+    "/app/backend/tests/test_department_filter.py",
+    "/app/test_reports/pytest/iter5_backend.xml"
+  ],
+  "action_items": [
+    "(Optional, QA only) Add testID attributes to the bottom tab labels (tab-you, tab-discover, tab-stylist, tab-tryon) so future Playwright scripts don't rely on get_by_text / don't contend with overlapping Discover images.",
+    "(Already noted in iter_4, non-blocking) product image_url still points at matterhorn-wholesale.com CDN hosts in the rendered DOM — image_url is not in the task's forbidden-keys list, left as-is."
+  ],
+  "critical_code_review_comments": [
+    "discover.tsx L24: query key is now ['catalogue-recommendations', profile?.preferences?.shop_for, profile?.updated_at] — any shop_for change forces a brand-new query and remount of the result, so stale men's/women's cards cannot linger across a department switch.",
+    "profile.tsx L91-97: save.onSuccess invalidates BOTH ['profile'] and ['catalogue-recommendations']. This belt-and-braces approach guarantees Discover refetches even if Discover is already mounted (the previous bug: Discover was never invalidated when Shop-for changed).",
+    "Backend hard department filter (product_recommendations.rank_verified_products) applies BEFORE scoring — unit + E2E suites green; no leakage path.",
+    "customer_recommendations payload remains allow-list projected — department/provider_id/provider_kind/source_url/availability absent across every item under all three shop_for modes.",
+    "No new deprecated expo packages detected on files-of-reference; no SafeAreaView regressions; no raw text outside <Text>."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (11/11 live E2E + 8/8 unit from prior iter still green)", "frontend": "100% (4/4 switches in visible UI Women→Men→Women→Men without reload, zero cross-department leakage)"},
+  "seed_data_creation": "Live profile preferences were cycled through womens→mens→womens→mens during UI testing and womens/mens/all during backend testing. Default profile reset to shop_for='all', budget_min=0, budget_max=500 at the end (verified by GET /api/profile at end of UI run). Did NOT generate any additional tryon in this iteration beyond the single one produced by the backend E2E suite (per the one-generation instruction).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live backend base URL = EXPO_PUBLIC_BACKEND_URL (https://style-scan-v3.preview.emergentagent.com). The Shop-for caching bug is RESOLVED and verified in the visible UI without reload. Regression suite: /app/backend/tests/test_shop_for_e2e.py (11 tests) + /app/backend/tests/test_department_filter.py (8 unit). For future UI tests: scroll ScrollView to top before tapping tabs, scroll the Save button into view before clicking (overlapping Discover images can intercept), and keep a JS .click() fallback. Chip test IDs: chip-Men, chip-Women, chip-All. Save button: save-profile-button. Only run ONE /api/tryon per iteration — generation is credit-metered.",
+  "rca_of_issue": "Root cause confirmed: Discover's useQuery key was ['catalogue-recommendations', profile?.updated_at] — it was not keyed on preferences.shop_for AND profile.tsx's save.onSuccess invalidated only ['profile'], never ['catalogue-recommendations']. When profile.updated_at did refresh after a save, the cached (previous department's) recommendations stayed in RAM because React Query treats same-key cached data as fresh for the configured staleTime, and the Discover screen rendered the stale list → user perceived a 'mixture'. Fix applied by main agent: (1) include profile?.preferences?.shop_for in the Discover query key so any department switch produces a different cache entry and forces a refetch, (2) invalidate ['catalogue-recommendations'] inside profile.tsx save.onSuccess as belt-and-braces. Verified in this iteration: four consecutive in-UI switches without reload show the correct department-only brands at each step (Women→Men→Women→Men) with ZERO cross-department leakage, and the backend profile.preferences.shop_for value echoes the chip chosen."
+}

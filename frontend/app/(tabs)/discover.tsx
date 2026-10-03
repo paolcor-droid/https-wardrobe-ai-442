@@ -21,7 +21,7 @@ export default function DiscoverScreen() {
     isLoading: catalogueLoading,
     isError: catalogueError,
   } = useQuery({
-    queryKey: ["catalogue-recommendations", profile?.updated_at],
+    queryKey: ["catalogue-recommendations", profile?.preferences?.shop_for, profile?.updated_at],
     queryFn: getCatalogueRecommendations,
     enabled: Boolean(profile),
   });
