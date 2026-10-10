@@ -454,8 +454,19 @@ async def catalogue_recommendations():
     Snapshot stock is historical catalogue data and is never labelled live.
     """
     profile = await get_or_create_profile()
-    normalized = [normalize_product("matterhorn", raw) for raw in MATTERHORN_TRIAL_SNAPSHOT]
-    ranked = rank_verified_products(normalized, profile, limit=12)
+    # Prefer a locally imported genuine XML snapshot; it is not live stock.
+    catalogue_path = ROOT_DIR / ".lumiere-private-catalogue" / "matterhorn_products.json"
+    raw_products = MATTERHORN_TRIAL_SNAPSHOT
+    if catalogue_path.is_file():
+        try:
+            with catalogue_path.open("r", encoding="utf-8") as handle:
+                imported = json.load(handle)
+            if isinstance(imported, list):
+                raw_products = imported
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not read imported Matterhorn catalogue: %s", exc)
+    normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
+    ranked = rank_verified_products(normalized, profile, limit=60)
     return {
         "recommendations": customer_recommendations(ranked),
         "count": len(ranked),
