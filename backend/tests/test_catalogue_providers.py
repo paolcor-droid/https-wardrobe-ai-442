@@ -17,7 +17,7 @@ def test_normalizer_requires_source_backing():
 
 
 def test_normalizer_preserves_verified_source_url():
-    item = normalize_product("test", {
+    item = normalize_product("matterhorn", {
         "external_id": "abc", "name": "Verified shirt",
         "source_url": "https://example.com/product/abc", "price": 99,
     })
