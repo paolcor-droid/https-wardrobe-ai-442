@@ -71,10 +71,24 @@ def parse_product(element):
     }
 
 
+class SanitizedXML:
+    """Filter XML-forbidden control bytes in supplier exports while streaming."""
+    def __init__(self, path):
+        self.handle = open(path, "rb")
+
+    def read(self, size=-1):
+        chunk = self.handle.read(size)
+        return chunk.translate(None, bytes(list(range(0, 9)) + [11, 12] + list(range(14, 32))))
+
+    def close(self):
+        self.handle.close()
+
+
 def import_xml(source, destination=OUTPUT):
     products = {}
     # Stream rather than loading a potentially very large supplier feed into memory.
-    context = ET.iterparse(source, events=("start", "end"))
+    stream = SanitizedXML(source)
+    context = ET.iterparse(stream, events=("start", "end"))
     _, root = next(context)
     for event, element in context:
         if event == "end" and element.tag == "product":
@@ -82,6 +96,7 @@ def import_xml(source, destination=OUTPUT):
             if record:
                 products[record["external_id"]] = record
             root.clear()
+    stream.close()
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=destination.parent, prefix=".catalogue-", suffix=".json")
     try:
