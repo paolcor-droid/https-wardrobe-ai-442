@@ -310,3 +310,48 @@ def test_v2_multicolor_without_component_colours_is_not_verified():
     )
     profile = _profile(preferred_colours=[], avoided_colours=[])
     assert rank_verified_products([product], profile) == []
+
+
+def test_colour_reason_does_not_use_description_only():
+    from services.recommendation_engine import recommendation_reasons
+
+    product = {
+        "name": "Navy shirt",
+        "description": "Features black buttons",
+        "colour_names": ["navy blue"],
+        "palette_tags": [],
+    }
+
+    reasons = recommendation_reasons(
+        product,
+        colour_profile=None,
+        occasion=None,
+        climate=None,
+        preferred_colours=["black"],
+    )
+
+    assert not any("preferred clothing colours" in reason for reason in reasons)
+
+
+def test_preferred_colour_reason_uses_verified_colour():
+    from services.recommendation_engine import recommendation_reasons
+
+    product = {
+        "name": "Olive blouse",
+        "description": "",
+        "colour_names": ["olive"],
+        "palette_tags": [],
+    }
+
+    reasons = recommendation_reasons(
+        product,
+        colour_profile=None,
+        occasion=None,
+        climate=None,
+        preferred_colours=["olive"],
+    )
+
+    assert any(
+        "Olive" in reason and "preferred clothing colours" in reason
+        for reason in reasons
+    )

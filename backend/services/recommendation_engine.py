@@ -123,48 +123,60 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
     return round(score, 1)
 
 def recommendation_reasons(product: dict, colour_profile: dict | None, occasion: str | None, climate: str | None, style: str | None = None, preferred_colours: list[str] | None = None, avoided_colours: list[str] | None = None) -> list[str]:
+    """Explain recommendations using verified garment colour evidence."""
     reasons: list[str] = []
+    product_colours = _product_colour_names(product)
     evidence = scan_colour_evidence(product, colour_profile)
-    if colour_profile:
-        if evidence["best_accents"]:
-            colour = sorted(evidence["best_accents"])[0].title()
-            reasons.append(f"{colour} is one of the accent colours recommended by your skin analysis.")
-        elif evidence["best_neutrals"]:
-            colour = sorted(evidence["best_neutrals"])[0].title()
-            reasons.append(f"{colour} is one of the neutrals recommended by your skin analysis.")
-        elif evidence["statement_colours"]:
-            colour = sorted(evidence["statement_colours"])[0].title()
-            reasons.append(f"{colour} is one of the statement colours recommended by your skin analysis.")
-        elif evidence["caution_colours"]:
-            colour = sorted(evidence["caution_colours"])[0].title()
-            reasons.append(f"Note: {colour} appears in the caution colours from your skin analysis.")
-        else:
-            coarse = _coarse_undertone(colour_profile.get("undertone", "neutral"))
-            if coarse in product.get("palette_tags", []):
-                reasons.append(f"Its colour family harmonises with your {colour_profile.get('undertone', 'neutral').replace('_', '-')} colour profile.")
-            elif "neutral" in product.get("palette_tags", []):
-                reasons.append("Its neutral colour is compatible with your analysed palette.")
 
-    if occasion and occasion in product.get("occasions", []):
-        reasons.append(f"It is suitable for your {occasion} occasion.")
-    text = " ".join([
-        product.get("name", ""), product.get("description", ""),
-        " ".join(product.get("colour_names", product.get("color_names", []))),
-    ]).lower()
-    preferred_matches = [c for c in (preferred_colours or []) if c.lower() in text]
-    avoided_matches = [c for c in (avoided_colours or []) if c.lower() in text]
+    preferred = {
+        _norm_colour(str(c))
+        for c in (preferred_colours or [])
+        if c
+    }
+    preferred_matches = _colour_match(product_colours, preferred)
+
     if preferred_matches:
-        reasons.append(f"It includes {preferred_matches[0]}, one of your preferred clothing colours.")
-    if avoided_matches:
-        reasons.append(f"Note: it includes {avoided_matches[0]}, which you asked LUMIÈRE to avoid.")
+        colour = sorted(preferred_matches)[0].title()
+        reasons.append(
+            f"This garment matches {colour}, one of your preferred clothing colours."
+        )
+
+    for key, label in (
+        ("best_accents", "accent"),
+        ("best_neutrals", "neutral"),
+        ("statement_colours", "statement"),
+    ):
+        matches = evidence[key]
+        if matches:
+            colour = sorted(matches)[0].title()
+            article = "an" if label == "accent" else "a"
+            reasons.append(
+                f"Its verified colour matches {colour}, {article} {label} colour recommended by your skin analysis."
+            )
+            break
+
+    if occasion and occasion in (product.get("occasions") or []):
+        reasons.append(f"It is suitable for your {occasion} occasion.")
+
+    text = " ".join([
+        product.get("name", ""),
+        product.get("description", ""),
+        " ".join(product.get("colour_names", product.get("color_names", [])) or []),
+    ]).lower()
+
     if climate == "hot" and is_hot_weather_suitable(product):
-        if any(t in text for t in HOT_PREFER_TERMS):
-            reasons.append("Its lightweight style is a stronger choice for hot weather.")
+        if any(term in text for term in HOT_PREFER_TERMS):
+            reasons.append("Its product description indicates a lightweight option for hot weather.")
         else:
-            reasons.append("It avoids the heavy layers excluded from your hot-weather edit.")
-    if style and any(t in text for t in STYLE_TERMS.get(style, ())):
+            reasons.append("It passes your hot-weather clothing filters.")
+
+    if style and any(term in text for term in STYLE_TERMS.get(style, ())):
         reasons.append(f"It also aligns with your {style} style preference.")
-    return reasons[:3] or ["This piece fits the active wardrobe filters."]
+
+    return reasons[:3] or [
+        "This garment meets your selected colour and shopping filters."
+    ]
+
 
 def is_colour_eligible(
     product: dict,
