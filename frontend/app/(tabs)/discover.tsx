@@ -193,7 +193,7 @@ const useStyles = makeStyles((c) => ({
   note: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, marginBottom: 12 },
   loading: { marginVertical: 28 },
   error: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.error, marginBottom: 12 },
-  productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start" },
+  productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", alignItems: "flex-start", columnGap: "2%", rowGap: 16 },
   productCard: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, borderRadius: 6, overflow: "hidden", marginBottom: 18 },
   productImage: { width: "100%", aspectRatio: 0.82, backgroundColor: c.surfaceTertiary },
   productBody: { padding: 16 },
