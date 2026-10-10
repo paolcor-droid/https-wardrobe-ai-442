@@ -87,6 +87,10 @@ def resolve_chat_model(provider: Optional[str]) -> tuple:
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 APP_NAME = "stylescan"
+# Codespaces development uses a local private directory when Emergent is unavailable.
+# Production deployments must provide authenticated persistent object storage.
+LOCAL_IMAGE_STORAGE = os.environ.get("LUMIERE_LOCAL_IMAGE_STORAGE", "1" if not EMERGENT_LLM_KEY else "0") == "1"
+LOCAL_IMAGE_DIR = ROOT_DIR / ".lumiere-private-images"
 _storage_key: Optional[str] = None
 
 app = FastAPI()
@@ -129,6 +133,15 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def get_object(path: str) -> tuple[bytes, str]:
+    if path.startswith("local/"):
+        if not LOCAL_IMAGE_STORAGE:
+            raise ValueError("Local image storage is disabled")
+        name = path.removeprefix("local/")
+        if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+            raise ValueError("Invalid local image path")
+        file_path = LOCAL_IMAGE_DIR / name
+        mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[file_path.suffix.lstrip(".")]
+        return file_path.read_bytes(), mime
     key = init_storage()
     resp = requests.get(
         f"{STORAGE_URL}/objects/{path}",
@@ -140,6 +153,19 @@ def get_object(path: str) -> tuple[bytes, str]:
 
 
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
+    if LOCAL_IMAGE_STORAGE:
+        if ext not in ("jpg", "jpeg", "png", "webp"):
+            raise ValueError("Local storage supports JPEG, PNG and WebP only")
+        if len(data) > 8 * 1024 * 1024:
+            raise ValueError("Photograph exceeds 8 MB limit")
+        LOCAL_IMAGE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(LOCAL_IMAGE_DIR, 0o700)
+        name = f"{uuid.uuid4().hex}.{ext}"
+        target = LOCAL_IMAGE_DIR / name
+        with target.open("xb") as output:
+            os.chmod(target, 0o600)
+            output.write(data)
+        return f"local/{name}"
     path = f"{APP_NAME}/uploads/anon/{uuid.uuid4()}.{ext}"
     result = put_object(path, data, content_type)
     return result["path"]
@@ -484,6 +510,11 @@ async def upload(file: UploadFile = File(...)):
     if ext not in ("jpg", "jpeg", "png", "webp", "heic"):
         ext = "jpg"
     content_type = file.content_type or "image/jpeg"
+    if LOCAL_IMAGE_STORAGE:
+        if ext not in ("jpg", "jpeg", "png", "webp") or content_type not in ("image/jpeg", "image/png", "image/webp"):
+            raise HTTPException(status_code=415, detail="Use a JPEG, PNG or WebP photograph")
+        if len(data) > 8 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Photograph exceeds 8 MB limit")
     try:
         path = await run_in_threadpool(store_bytes, data, ext, content_type)
     except Exception as e:  # noqa: BLE001
