@@ -78,24 +78,34 @@ else
   fi
 fi
 
-if curl -fsS --max-time 3 http://127.0.0.1:8081/ >/dev/null 2>&1; then
-  echo "Expo already running."
+# Check the listening port independently of whether the web root returns HTTP 200.
+# Expo may occupy port 8081 while still bundling, or the root may redirect.
+port_occupied() {
+  "$ROOT/backend/.venv/bin/python" -c 'import socket; s=socket.socket(); s.settimeout(2); result=s.connect_ex(("127.0.0.1", 8081)); s.close(); raise SystemExit(0 if result == 0 else 1)'
+}
+
+if port_occupied; then
+  echo "Port 8081 is already in use; not launching another Expo process."
 else
-  echo "Starting Expo web preview..."
-  (cd "$ROOT/frontend" && nohup ./node_modules/.bin/expo start --web --host localhost \
+  echo "Starting Expo web preview on port 8081..."
+  (cd "$ROOT/frontend" && nohup ./node_modules/.bin/expo start --web --host localhost --port 8081 \
     >"$LOG_DIR/expo.log" 2>&1 </dev/null &)
-  expo_ready=false
-  for _ in $(seq 1 90); do
-    if curl -fsS --max-time 3 http://127.0.0.1:8081/ >/dev/null 2>&1; then
-      expo_ready=true
-      break
-    fi
-    sleep 2
-  done
-  if [[ "$expo_ready" != true ]]; then
-    echo "Expo did not become ready. See $LOG_DIR/expo.log" >&2
-    exit 1
+fi
+
+echo "Checking the LUMIÈRE web proxy..."
+expo_ready=false
+for _ in $(seq 1 90); do
+  if curl -fsS --max-time 3 http://127.0.0.1:8081/api/profile >/dev/null 2>&1; then
+    expo_ready=true
+    break
   fi
+  sleep 2
+done
+if [[ "$expo_ready" != true ]]; then
+  echo "Port 8081 did not serve the expected LUMIÈRE API proxy." >&2
+  echo "Check the existing Expo terminal or $LOG_DIR/expo.log." >&2
+  echo "The script will not change ports or stop an existing process automatically." >&2
+  exit 1
 fi
 
 echo
