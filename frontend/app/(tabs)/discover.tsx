@@ -121,7 +121,7 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
         {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
-        {catalogue?.recommendations.map(renderProduct)}
+        {!catalogueLoading && !catalogueError ? catalogue?.recommendations.map(renderProduct) : null}
 
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
         <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not claim live price, stock or availability from these stores.</Text>
