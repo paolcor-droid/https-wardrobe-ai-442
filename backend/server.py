@@ -56,6 +56,8 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_SKIN_MODEL = os.environ.get("OPENAI_SKIN_MODEL", "gpt-4.1-mini")
 
 # Selectable chat / analysis providers. Claude remains the default so existing
 # behaviour is preserved; OpenAI (ChatGPT) is added ALONGSIDE it. The provider is
@@ -735,14 +737,75 @@ def _parse_json_block(text: str) -> dict:
     return json.loads(cleaned)
 
 
+def _openai_skin_vision(image_bytes: bytes, mime_type: str) -> dict:
+    """Direct OpenAI vision request. Secret is read only by the backend."""
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured; restart Codespaces after adding its secret")
+    if len(image_bytes) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Photograph exceeds the 8 MB analysis limit")
+    if mime_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=415, detail="Please upload a JPEG, PNG, or WebP photograph")
+    prompt = (
+        "Assess visible facial colour relationships for clothing recommendations only. "
+        "Ignore clothing and background; consider multiple visible skin regions, hair and eyes "
+        "only for contrast. Do not infer identity, ethnicity, age, health, or other sensitive traits. "
+        "If the face is unclear or lighting makes colour unreliable, mark quality poor and confidence low. "
+        "Return a JSON object with exactly these keys: "
+        "undertone (warm, neutral_warm, neutral, neutral_cool, cool), "
+        "depth (light, medium, deep), chroma (muted, balanced, clear), "
+        "contrast (low, medium, high), season (spring, summer, autumn, winter), "
+        "lighting_quality (poor, fair, good), face_visibility (poor, fair, good), "
+        "confidence (low, medium, high), summary (two concise sentences about observed "
+        "colour relationships and uncertainty). No palette."
+    )
+    payload = {
+        "model": OPENAI_SKIN_MODEL,
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {
+                "url": f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode('ascii')}",
+                "detail": "high",
+            }},
+        ]}],
+        "max_completion_tokens": 500,
+    }
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=90,
+        )
+        if response.status_code in (401, 403):
+            raise HTTPException(status_code=502, detail="OpenAI API authentication or model access failed")
+        if response.status_code == 429:
+            raise HTTPException(status_code=503, detail="OpenAI rate limit or API credits reached")
+        response.raise_for_status()
+        return _parse_json_block(response.json()["choices"][0]["message"]["content"])
+    except HTTPException:
+        raise
+    except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+        logger.warning("OpenAI skin analysis request failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="OpenAI skin analysis request failed") from exc
+
+
 @api_router.post("/skin-analysis", response_model=SkinAnalysis)
 async def skin_analysis(req: SkinAnalysisRequest):
-    if not EMERGENT_LLM_KEY:
-        raise HTTPException(status_code=500, detail="LLM key not configured")
+    direct_openai = req.provider == "openai" or (req.provider is None and bool(OPENAI_API_KEY))
+    if not direct_openai and not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=503, detail="No AI provider configured")
     try:
-        b64 = await run_in_threadpool(image_to_b64, req.image_path)
+        image_bytes, mime_type = await run_in_threadpool(get_object, req.image_path)
     except Exception:  # noqa: BLE001
         raise HTTPException(status_code=400, detail="Could not read image")
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    if direct_openai:
+        data = await run_in_threadpool(_openai_skin_vision, image_bytes, mime_type)
+    else:
+        data = None
 
     system = (
         "You are a careful personal-colour analysis assistant. Assess only visible colour "
@@ -750,14 +813,15 @@ async def skin_analysis(req: SkinAnalysisRequest):
         "possible and account for lighting and white-balance uncertainty. Never infer ethnicity, "
         "health, age, identity, or other sensitive traits. Return ONLY valid JSON."
     )
-    llm = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"skin-{uuid.uuid4()}",
-        system_message=system,
-    ).with_model(*resolve_chat_model(req.provider))
-    msg = UserMessage(
-        text=(
-            'Return exactly this schema: {"undertone":"warm|neutral_warm|neutral|neutral_cool|cool",'
+    if not direct_openai:
+        llm = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"skin-{uuid.uuid4()}",
+            system_message=system,
+        ).with_model(*resolve_chat_model(req.provider))
+        msg = UserMessage(
+            text=(
+                'Return exactly this schema: {"undertone":"warm|neutral_warm|neutral|neutral_cool|cool",'
             '"depth":"light|medium|deep","chroma":"muted|balanced|clear",'
             '"contrast":"low|medium|high","season":"spring|summer|autumn|winter",'
             '"lighting_quality":"poor|fair|good","face_visibility":"poor|fair|good",'
@@ -768,8 +832,17 @@ async def skin_analysis(req: SkinAnalysisRequest):
         file_contents=[ImageContent(image_base64=b64)],
     )
     try:
-        resp = await llm.send_message(msg)
-        data = _parse_json_block(resp)
+        if not direct_openai:
+            resp = await llm.send_message(msg)
+            data = _parse_json_block(resp)
+        allowed = {
+            "undertone": {"warm", "neutral_warm", "neutral", "neutral_cool", "cool"},
+            "depth": {"light", "medium", "deep"},
+            "chroma": {"muted", "balanced", "clear"},
+            "contrast": {"low", "medium", "high"},
+        }
+        if any(data.get(key) not in choices for key, choices in allowed.items()):
+            raise ValueError("AI returned invalid palette dimensions")
         palette = build_palette(
             data["undertone"], data["depth"], data["chroma"], data["contrast"]
         )
@@ -795,7 +868,7 @@ async def skin_analysis(req: SkinAnalysisRequest):
         statement_colours=[ColorSwatch(**c) for c in palette["statement_colours"]],
         caution_colours=[ColorSwatch(**c) for c in palette["caution_colours"]],
         analysis_quality=quality,
-        analyzed_with=resolve_provider_id(req.provider),
+        analyzed_with="openai" if direct_openai else resolve_provider_id(req.provider),
         image_path=req.image_path,
         analyzed_at=now_iso(),
     )
