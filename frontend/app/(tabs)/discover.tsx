@@ -106,7 +106,7 @@ export default function DiscoverScreen() {
           <Text style={styles.body}>
             {prefs?.climate ?? "mild"} climate · {prefs?.style ?? "classic"} style · {prefs?.occasion ?? "casual"}
           </Text>
-          {bestColour ? <Text style={styles.body}>Starting with {bestColour} and your analysed palette.</Text> : null}
+          {bestColour ? <Text style={styles.body}>{profile?.skin ? `Starting with ${bestColour} and your analysed palette.` : `Starting with ${bestColour}, one of your preferred clothing colours.`}</Text> : null}
           {prefs?.climate === "hot" ? <Text style={styles.reason}>Why: lightweight pieces are prioritised and heavy layers are excluded for hot weather.</Text> : null}
         </View>
 
