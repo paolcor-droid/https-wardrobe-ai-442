@@ -17,7 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
-from services.palette_engine import build_palette
+from services.palette_engine import build_palette, suggested_season
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
@@ -891,7 +891,7 @@ async def skin_analysis(req: SkinAnalysisRequest):
         depth=data.get("depth", "medium"),
         chroma=data.get("chroma", "balanced"),
         contrast=data.get("contrast", "medium"),
-        season=data.get("season"),
+        season=suggested_season(data["undertone"], data["depth"], data["chroma"], data["contrast"]),
         summary=str(data.get("summary", "")),
         palette=[ColorSwatch(**c) for c in palette["best_neutrals"] + palette["best_accents"]],
         best_neutrals=[ColorSwatch(**c) for c in palette["best_neutrals"]],
