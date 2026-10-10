@@ -137,9 +137,15 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
 
     if preferred_matches:
         colour = sorted(preferred_matches)[0].title()
-        reasons.append(
-            f"This garment matches {colour}, one of your preferred clothing colours."
-        )
+        palette_matches = set().union(evidence["best_neutrals"], evidence["best_accents"], evidence["statement_colours"])
+        if colour_profile and not palette_matches:
+            reasons.append(
+                f"{colour} is one of your preferred clothing colours, but is not a verified match to your saved skin-analysis palette."
+            )
+        else:
+            reasons.append(
+                f"This garment matches {colour}, one of your preferred clothing colours."
+            )
 
     for key, label in (
         ("best_accents", "accent"),
@@ -174,7 +180,7 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
         reasons.append(f"It also aligns with your {style} style preference.")
 
     return reasons[:3] or [
-        "This garment meets your selected colour and shopping filters."
+        "This garment passes the current shopping filters; a skin-palette colour match has not been verified."
     ]
 
 
