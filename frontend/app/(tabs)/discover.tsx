@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
@@ -13,6 +13,8 @@ export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
   const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
@@ -146,7 +148,15 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
         {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
-        {!catalogueLoading && !catalogueError ? catalogue?.recommendations.map(renderProduct) : null}
+        {!catalogueLoading && !catalogueError ? (
+          <View style={styles.productGrid}>
+            {catalogue?.recommendations.map((product) => (
+              <View key={product.product_id} style={{ width: gridColumns === 1 ? "100%" : gridColumns === 2 ? "48%" : "31.5%" }}>
+                {renderProduct(product)}
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
         <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not claim live price, stock or availability from these stores.</Text>
@@ -183,6 +193,7 @@ const useStyles = makeStyles((c) => ({
   note: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, marginBottom: 12 },
   loading: { marginVertical: 28 },
   error: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.error, marginBottom: 12 },
+  productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start" },
   productCard: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, borderRadius: 6, overflow: "hidden", marginBottom: 18 },
   productImage: { width: "100%", aspectRatio: 0.82, backgroundColor: c.surfaceTertiary },
   productBody: { padding: 16 },
