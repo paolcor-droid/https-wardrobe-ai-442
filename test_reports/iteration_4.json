@@ -1,0 +1,40 @@
+{
+  "summary": "SHOP-FOR department filter PASSES end-to-end. Backend unit tests 8/8 (tests/test_department_filter.py) + live E2E 11/11 (tests/test_shop_for_e2e.py) green against https://style-scan-v3.preview.emergentagent.com. (1) PUT /api/profile persists preferences.shop_for; the subsequent GET /api/catalogue/recommendations is HARD-filtered by department BEFORE scoring. shop_for=mens returned all 10 genuine men's IDs: ['211659','118360','116219','116327','181810','116218','230084','181797','113679','157060'] with ZERO Figl women's leak. shop_for=womens returned only Figl women's {111506,135767,150432} and NO men's IDs (Note: Figl 8411 is legitimately excluded by the already-persisted analysed palette's avoid-colour filter — ranking signals still operate AFTER the hard department filter, which is the intended behaviour). shop_for=all returns both departments. (2) GENUINE UNISEX unit test (test_genuine_unisex_allowed_for_either_preference) PASSES — a /UNISEX/ product shows under both mens and womens. (3) PRICING: product 113679 (Pierre Cardin, supplier 8.90) returned price==11.13 (8.90×1.25 HALF_UP) under shop_for=mens; product 111506 returned 16.13 under shop_for=womens — both asserted with ==. (4) NO METADATA LEAK: department, provider_id, provider_kind, source_url, availability, supplier_cost, wholesale_cost, customer_price are ALL absent from every item in the customer recommendations payload (verified across the live mens list). (5) FIELD COMPLETENESS: every men's item exposes product_id, name, brand, image_url, colour_names, sizes, materials, price and non-empty recommendation_reasons. (6) RANKING STILL OPERATES: setting budget_max=15 under shop_for=all keeps every returned item at price<=15 — proving budget still filters after the department hard filter. recommendation_reasons continue to reference colour/palette/climate/style axes. (7) TRY-ON HANDOFF (men's): POST /api/catalogue/products/113679/prepare-tryon returns a stored path + name, response contains NO preview_url and NO 'matterhorn' substring (prior Try-On leak-fix still intact). (8) ONE men's try-on generated end-to-end — POST /api/upload (person) + POST /api/tryon with person_image_path + garment_image_path (113679) returned a result_path and GET /api/tryons lists it. (9) PRIOR REGRESSION: PUT /api/profile with 'red' in both preferred_colours and avoided_colours returns HTTP 400 and does NOT persist the conflict. FRONTEND (390x844 mobile viewport): the Profile/You screen renders 'Shop for' section with chips Men | Women | All; tapping Men and reloading persists preferences.shop_for='mens' in GET /api/profile; the Discover screen then renders a men's product (Pierre Cardin visible in DOM, no 'Figl' substring anywhere). No red screens, no console errors. Profile has been reset to shop_for='all' at the end. One pre-existing non-blocking cosmetic: 'matterhorn-wholesale.com' still appears in rendered Discover DOM via product image_url hosts (same observation as iteration_3; image_url is NOT in the task's forbidden-keys list, left as-is).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "profile", "issues": ["No testID on the 'Shop for' chips (Men/Women/All) or on the Save button — the Playwright run had to rely on get_by_text, and get_by_role('button', name='Save') timed out (persistence was confirmed only via backend GET /api/profile). Suggest testID='shop-for-men|women|all' and testID='profile-save' for stable automated regression."]},
+      {"screen": "discover", "issues": ["Product image_url still points at matterhorn-wholesale.com CDN hosts, so the supplier domain is observable in the rendered DOM. The task's leak list is department/provider_id/provider_kind/source_url/availability (all correctly absent) — image_url is not forbidden, so this is NOT a regression, but if end-to-end supplier anonymity is desired, proxy images through /api/files or a signed route."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_department_filter.py",
+    "/app/backend/tests/test_shop_for_e2e.py",
+    "/app/test_reports/pytest/shop_for_e2e.xml"
+  ],
+  "action_items": [
+    "(Optional, cosmetic) Add testID attributes to the Shop-for chips (shop-for-men|women|all) and the profile Save button for stable future UI regression tests.",
+    "(Optional) If supplier anonymity is a product requirement, proxy product image_url through an app-owned route so matterhorn-wholesale.com never surfaces in the rendered DOM.",
+    "(Informational, not a bug) Under shop_for=womens the live default profile returns 3 of 4 Figl products because the persisted analysed palette avoids one colour on 8411 — this is correct 'ranking still operates after filter' behaviour; the unit test asserts all 4 only on a fresh/no-skin profile (verified)."
+  ],
+  "critical_code_review_comments": [
+    "derive_department correctly disambiguates WOMEN`S COATS vs MEN/... (unit test test_department_derived_from_genuine_category_path passes) — the apostrophe/possessive edge case is handled.",
+    "rank_verified_products applies the department filter via a hard exclusion BEFORE scoring (not merely a weight), so a department mismatch can never surface via tie-breaking.",
+    "customer_recommendations projection remains an allow-list (iteration_3 observation holds) — new internal fields on raw products cannot accidentally leak.",
+    "Pricing idempotency: markup is gated on customer_price being None, so re-ranking after persistence cannot double-apply the 1.25x factor.",
+    "profile.tsx reads/writes preferences.shop_for via PUT /api/profile and reflects the server echo on reload — persistence confirmed via live GET after chip tap.",
+    "prepare_catalogue_tryon response for product 113679 does not include preview_url and contains no 'matterhorn' substring — the earlier Try-On handoff leak fix is intact."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_shop_for_e2e.py (new live E2E suite — 11 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (8/8 unit + 11/11 live E2E)", "frontend": "100% (Shop-for selector renders, persists, and Discover reflects the saved department)"},
+  "seed_data_creation": "Live profile preferences were mutated during tests (shop_for cycled through mens/womens/all; budget briefly set to 15 then restored to 500). Default profile has been reset to shop_for='all', budget_min=0, budget_max=500 at the end. Uploaded one synthetic PNG person photo and generated exactly ONE /api/tryon result (as instructed) for product 113679 — appears in GET /api/tryons.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live backend base URL = EXPO_PUBLIC_BACKEND_URL (https://style-scan-v3.preview.emergentagent.com). Reuse /app/backend/tests/test_shop_for_e2e.py as the regression suite for the shop_for feature — it exercises PUT /api/profile → GET /api/catalogue/recommendations in all three modes, pricing (113679=11.13, 111506=16.13), metadata-leak absence, prepare-tryon (113679, no matterhorn / no preview_url), budget-still-filters, colour conflict → 400, and a one-shot /api/tryon generation. Note: the live default profile already has a persisted skin palette (ivory/warm-beige/camel/soft-navy/olive/deep-teal/terracotta/dusty-coral/charcoal/icy-blue), so avoid-colour filtering legitimately drops Figl 8411 from the womens list — this is EXPECTED after a palette scan; a fresh profile (no skin.analyzed_at) returns all 4. shop_for=mens limit=12 returns 10 (= all genuine men's snapshot IDs). Only run ONE /api/tryon per iteration — generation is credit-metered.",
+  "rca_of_issue": "N/A — no bugs. All listed features and prior regressions verified green."
+}

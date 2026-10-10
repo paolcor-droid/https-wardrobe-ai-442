@@ -17,6 +17,10 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right.fill" />
           <NativeTabs.Trigger.Label>Stylist</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="discover">
+          <NativeTabs.Trigger.Icon sf="bag.fill" />
+          <NativeTabs.Trigger.Label>Discover</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="tryon">
           <NativeTabs.Trigger.Icon sf="camera.fill" />
           <NativeTabs.Trigger.Label>Try-On</NativeTabs.Trigger.Label>
@@ -49,6 +53,13 @@ export default function TabsLayout() {
         options={{
           title: "Stylist",
           tabBarIcon: ({ color, size }) => <Feather name="message-circle" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: "Discover",
+          tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
