@@ -3,6 +3,7 @@ import re
 import uuid
 import json
 import base64
+import hashlib
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
@@ -302,6 +303,7 @@ class ProfileUpdate(BaseModel):
 class SkinAnalysisRequest(BaseModel):
     image_path: str
     provider: Optional[str] = None  # "claude" (default) or "openai" — dev/testing selector
+    force_refresh: bool = False  # explicitly request a fresh paid AI analysis
 
 
 class TryOnRequest(BaseModel):
@@ -780,6 +782,10 @@ def _openai_skin_vision(image_bytes: bytes, mime_type: str) -> dict:
         "Assess visible facial colour relationships for clothing recommendations only. "
         "Ignore clothing and background; consider multiple visible skin regions, hair and eyes "
         "only for contrast. Do not infer identity, ethnicity, age, health, or other sensitive traits. "
+        "Evaluate chroma as the clarity versus softness of visible colouring, not clothing saturation. "
+        "Evaluate contrast from relative light-dark differences between visible skin, hair and eyes, "
+        "not from background or clothing. Use balanced chroma or medium contrast when borderline; "
+        "do not overstate certainty. Treat warm indoor lighting and white-balance shifts as uncertainty. "
         "If the face is unclear or lighting makes colour unreliable, mark quality poor and confidence low. "
         "Return a JSON object with exactly these keys: "
         "undertone (warm, neutral_warm, neutral, neutral_cool, cool), "
@@ -831,6 +837,32 @@ async def skin_analysis(req: SkinAnalysisRequest):
         image_bytes, mime_type = await run_in_threadpool(get_object, req.image_path)
     except Exception:  # noqa: BLE001
         raise HTTPException(status_code=400, detail="Could not read image")
+    # Cache by actual image bytes, provider, model and prompt revision (not by file path).
+    provider_id = "openai" if direct_openai else resolve_provider_id(req.provider)
+    model_id = OPENAI_SKIN_MODEL if direct_openai else resolve_chat_model(req.provider)[1]
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    cache_key = f"skin-v2:{provider_id}:{model_id}:{image_hash}"
+    if not req.force_refresh:
+        cached = await db.skin_analysis_cache.find_one({"key": cache_key})
+        if cached:
+            stored = dict(cached["analysis"])
+            # Recompute palette in case the deterministic engine was upgraded.
+            palette = build_palette(stored["undertone"], stored["depth"], stored["chroma"], stored["contrast"])
+            stored.update(
+                palette=[*palette["best_neutrals"], *palette["best_accents"]],
+                best_neutrals=palette["best_neutrals"],
+                best_accents=palette["best_accents"],
+                statement_colours=palette["statement_colours"],
+                caution_colours=palette["caution_colours"],
+                season=suggested_season(stored["undertone"], stored["depth"], stored["chroma"], stored["contrast"]),
+                image_path=req.image_path,
+            )
+            analysis = SkinAnalysis(**stored)
+            await get_or_create_profile()
+            await db.profiles.update_one(
+                {"id": "default"}, {"$set": {"skin": analysis.dict(), "updated_at": now_iso()}}
+            )
+            return analysis
     b64 = base64.b64encode(image_bytes).decode("ascii")
 
     if direct_openai:
@@ -906,6 +938,11 @@ async def skin_analysis(req: SkinAnalysisRequest):
     await get_or_create_profile()
     await db.profiles.update_one(
         {"id": "default"}, {"$set": {"skin": analysis.dict(), "updated_at": now_iso()}}
+    )
+    await db.skin_analysis_cache.update_one(
+        {"key": cache_key},
+        {"$set": {"key": cache_key, "analysis": analysis.dict(), "updated_at": now_iso()}},
+        upsert=True,
     )
     return analysis
 
