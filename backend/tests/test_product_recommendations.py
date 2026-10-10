@@ -280,3 +280,33 @@ def test_v2_without_scan_requires_preferred_colour():
 
     profile["preferences"]["preferred_colours"] = ["navy"]
     assert len(rank_verified_products([product], profile)) == 1
+
+
+def test_v2_generic_blue_does_not_claim_soft_navy_match():
+    product = _product(
+        external_id="generic-blue",
+        colour_names=["blue"],
+        palette_tags=[],
+    )
+    profile = _profile(preferred_colours=[], avoided_colours=[])
+    assert rank_verified_products([product], profile) == []
+
+
+def test_v2_navy_blue_remains_compatible_with_soft_navy():
+    product = _product(
+        external_id="navy-blue",
+        colour_names=["navy blue"],
+        palette_tags=[],
+    )
+    profile = _profile(preferred_colours=[], avoided_colours=[])
+    assert len(rank_verified_products([product], profile)) == 1
+
+
+def test_v2_multicolor_without_component_colours_is_not_verified():
+    product = _product(
+        external_id="unknown-multicolor",
+        colour_names=["multicolor"],
+        palette_tags=[],
+    )
+    profile = _profile(preferred_colours=[], avoided_colours=[])
+    assert rank_verified_products([product], profile) == []

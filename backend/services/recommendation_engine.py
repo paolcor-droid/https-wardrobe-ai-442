@@ -34,21 +34,29 @@ def _product_colour_names(product: dict) -> set[str]:
     values = product.get("colour_names", product.get("color_names", [])) or []
     return {_norm_colour(str(value)) for value in values if value}
 
+COLOUR_EQUIVALENTS = {
+    "navy blue": {"soft navy", "navy"},
+    "navy": {"navy blue", "soft navy"},
+    "soft navy": {"navy", "navy blue"},
+    "rose": {"soft rose"},
+    "soft rose": {"rose"},
+}
+
+
 def _colour_match(product_names: set[str], palette_names: set[str]) -> set[str]:
+    """Match exact colour names or explicitly recognised equivalents."""
     matches: set[str] = set()
+
     for product_name in product_names:
         for palette_name in palette_names:
-            product_tokens = set(product_name.split())
-            palette_tokens = set(palette_name.split())
-            shared_specific = (product_tokens & palette_tokens) - {"soft", "deep", "light", "dark"}
             if (
                 product_name == palette_name
-                or product_name in palette_name
-                or palette_name in product_name
-                or bool(shared_specific)
+                or palette_name in COLOUR_EQUIVALENTS.get(product_name, set())
             ):
                 matches.add(palette_name)
+
     return matches
+
 
 def scan_colour_evidence(product: dict, colour_profile: dict | None) -> dict:
     """Return named-colour evidence from the actual saved Your Scan palette."""
