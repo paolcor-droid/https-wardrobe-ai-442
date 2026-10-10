@@ -89,3 +89,7 @@ credentials.json
 
 # Platform-managed cron artefacts (not for GitHub save)
 .emergent/cron/
+
+# Private development photographs and local service logs
+backend/.lumiere-private-images/
+.lumiere-dev-logs/
