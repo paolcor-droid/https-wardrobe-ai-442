@@ -22,13 +22,31 @@ from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 
-from emergentintegrations.llm.chat import (
-    LlmChat,
-    UserMessage,
-    ImageContent,
-    TextDelta,
-    StreamDone,
-)
+try:
+    from emergentintegrations.llm.chat import (
+        LlmChat,
+        UserMessage,
+        ImageContent,
+        TextDelta,
+        StreamDone,
+    )
+except ImportError:
+    # Local catalogue/profile development does not require the optional AI SDK.
+    # AI endpoints remain unavailable until the real integration is installed.
+    class _UnavailableAIIntegration:
+        def __init__(self, *args, **kwargs):
+            raise HTTPException(
+                status_code=503,
+                detail="AI integration is not configured in this environment",
+            )
+
+    LlmChat = UserMessage = ImageContent = _UnavailableAIIntegration
+
+    class TextDelta:
+        pass
+
+    class StreamDone:
+        pass
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
