@@ -137,7 +137,7 @@ def get_object(path: str) -> tuple[bytes, str]:
         if not LOCAL_IMAGE_STORAGE:
             raise ValueError("Local image storage is disabled")
         name = path.removeprefix("local/")
-        if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+        if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
             raise ValueError("Invalid local image path")
         file_path = LOCAL_IMAGE_DIR / name
         mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[file_path.suffix.lstrip(".")]
