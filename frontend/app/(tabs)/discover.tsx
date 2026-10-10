@@ -116,8 +116,8 @@ export default function DiscoverScreen() {
         {catalogueError ? <Text style={styles.note}>The trial catalogue could not be loaded. Retailer discovery remains available below.</Text> : null}
         {!catalogueLoading && !catalogueError && catalogue?.recommendations.length === 0 ? (
           <View style={styles.info}>
-            <Text style={styles.infoTitle}>No catalogue match yet</Text>
-            <Text style={styles.body}>Your current filters did not match the trial snapshot. The full XML catalogue will provide a much wider selection.</Text>
+            <Text style={styles.infoTitle}>No suitable products found yet</Text>
+            <Text style={styles.body}>LUMIÈRE couldn't find products in the current trial catalogue that meet your colour profile and shopping preferences. We won't recommend unsuitable colours just to fill your results. You can explore your preferred retailers below.</Text>
           </View>
         ) : null}
         {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
