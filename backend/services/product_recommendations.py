@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from services.customer_pricing import PricingPolicy, apply_customer_price
-from services.recommendation_engine import recommendation_reasons, recommendation_score
+from services.recommendation_engine import is_colour_eligible, recommendation_reasons, recommendation_score
 
 # LUMIÈRE retails wholesale-sourced trial products at a fixed +25% markup.
 # Supplier cost stays private; the customer only ever sees this derived price.
@@ -41,6 +41,16 @@ def rank_verified_products(
         if not product.get("source_verified"):
             continue
         if not product.get("external_id") or not product.get("name"):
+            continue
+
+        # Strict colour eligibility: scan palette or preferred colours,
+        # with avoided colours always excluded.
+        if not is_colour_eligible(
+            product,
+            colour_profile,
+            prefs.get("preferred_colours"),
+            prefs.get("avoided_colours"),
+        ):
             continue
 
         # Department is a HARD filter applied before scoring: a Men preference

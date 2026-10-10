@@ -92,7 +92,7 @@ def test_rank_prefers_matching_verified_product():
         price=100,
     )
     ranked = rank_verified_products([less_matching, matching], _profile())
-    assert [item["external_id"] for item in ranked] == ["match", "other"]
+    assert [item["external_id"] for item in ranked] == ["match"]
     assert ranked[0]["recommendation_reasons"]
 
 
@@ -114,7 +114,7 @@ def test_scan_named_palette_outranks_generic_undertone_match():
         price=100,
     )
     ranked = rank_verified_products([generic, scan_match], _profile(preferred_colours=[]))
-    assert [item["external_id"] for item in ranked][:2] == ["scan-match", "generic"]
+    assert [item["external_id"] for item in ranked] == ["scan-match"]
     assert "skin analysis" in ranked[0]["recommendation_reasons"][0].lower()
 
 
@@ -137,8 +137,7 @@ def test_scan_caution_colour_is_penalised():
     )
     ranked = rank_verified_products([caution, recommended], _profile(preferred_colours=[]))
     assert ranked[0]["external_id"] == "recommended"
-    caution_result = next(item for item in ranked if item["external_id"] == "caution")
-    assert any("caution" in reason.lower() for reason in caution_result["recommendation_reasons"])
+    assert all(item["external_id"] != "caution" for item in ranked)
 
 
 def test_wholesale_product_can_be_verified_without_public_supplier_url():
@@ -239,3 +238,45 @@ def test_customer_storefront_strips_provider_kind_too():
     product = _product(provider_id="matterhorn", source_url=None, availability="2")
     public = customer_product_view(product)
     assert "provider_kind" not in public
+
+
+def test_v2_excludes_explicitly_avoided_palette_colour():
+    product = _product(
+        external_id="avoid-navy",
+        colour_names=["navy"],
+    )
+    profile = _profile(avoided_colours=["navy"])
+    assert rank_verified_products([product], profile) == []
+
+
+def test_v2_accepts_preferred_colour_outside_scan_palette():
+    product = _product(
+        external_id="preferred-coral",
+        name="Coral Linen Shirt",
+        colour_names=["coral"],
+    )
+    profile = _profile(preferred_colours=["coral"], avoided_colours=[])
+    ranked = rank_verified_products([product], profile)
+    assert len(ranked) == 1
+    assert ranked[0]["external_id"] == "preferred-coral"
+
+
+def test_v2_excludes_product_without_verified_colour_names():
+    product = _product(
+        external_id="unknown-colour",
+        colour_names=[],
+    )
+    assert rank_verified_products([product], _profile()) == []
+
+
+def test_v2_without_scan_requires_preferred_colour():
+    product = _product(
+        external_id="no-scan",
+        colour_names=["navy"],
+    )
+    profile = _profile(preferred_colours=[], avoided_colours=[])
+    profile["skin"] = None
+    assert rank_verified_products([product], profile) == []
+
+    profile["preferences"]["preferred_colours"] = ["navy"]
+    assert len(rank_verified_products([product], profile)) == 1

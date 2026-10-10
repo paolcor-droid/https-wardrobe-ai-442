@@ -157,3 +157,40 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
     if style and any(t in text for t in STYLE_TERMS.get(style, ())):
         reasons.append(f"It also aligns with your {style} style preference.")
     return reasons[:3] or ["This piece fits the active wardrobe filters."]
+
+def is_colour_eligible(
+    product: dict,
+    colour_profile: dict | None,
+    preferred_colours: list[str] | None = None,
+    avoided_colours: list[str] | None = None,
+) -> bool:
+    """Apply strict colour eligibility using verified garment colour names."""
+    product_colours = _product_colour_names(product)
+    if not product_colours:
+        return False
+
+    avoided = {
+        _norm_colour(str(c))
+        for c in (avoided_colours or [])
+        if c
+    }
+    if avoided and _colour_match(product_colours, avoided):
+        return False
+
+    preferred = {
+        _norm_colour(str(c))
+        for c in (preferred_colours or [])
+        if c
+    }
+    if preferred and _colour_match(product_colours, preferred):
+        return True
+
+    if colour_profile:
+        evidence = scan_colour_evidence(product, colour_profile)
+        return any(
+            evidence[key]
+            for key in ("best_neutrals", "best_accents", "statement_colours")
+        )
+
+    # Without a scan or explicit preferred colours, no colour match is verified.
+    return False

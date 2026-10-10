@@ -7,7 +7,23 @@ FIGL_WOMENS = {"111506", "135767", "150432", "8411"}
 
 
 def _profile(shop_for):
-    return {"preferences": {"budget_min": 0, "budget_max": 500, "shop_for": shop_for}}
+    # Department tests use broad colour preferences so they test
+    # department eligibility independently of strict scan matching.
+    colours = sorted({
+        str(colour).lower()
+        for product in MATTERHORN_TRIAL_SNAPSHOT
+        for colour in (product.get("colour_names") or [])
+        if colour
+    })
+    colours.append("grey")  # Synthetic unisex scarf test.
+    return {
+        "preferences": {
+            "budget_min": 0,
+            "budget_max": 500,
+            "shop_for": shop_for,
+            "preferred_colours": colours,
+        }
+    }
 
 
 def _normalized():
