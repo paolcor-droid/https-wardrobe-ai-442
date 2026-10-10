@@ -31,6 +31,11 @@ export default function DiscoverScreen() {
   const preferred = RETAILERS.filter((r) => preferredIds.includes(r.id));
   const others = RETAILERS.filter((r) => !preferredIds.includes(r.id));
   const bestColour = profile?.skin?.best_accents?.[0]?.name ?? prefs?.preferred_colours?.[0] ?? "";
+  const paletteGroups = profile?.skin ? [
+    { label: "Best neutrals", colours: profile.skin.best_neutrals ?? [] },
+    { label: "Best accents", colours: profile.skin.best_accents ?? [] },
+    { label: "Statement colours", colours: profile.skin.statement_colours ?? [] },
+  ] : [];
   const climateTerm = prefs?.climate === "hot" ? "lightweight linen cotton" : prefs?.climate === "cold" ? "warm layering" : "";
   const query = [bestColour, prefs?.style, climateTerm, prefs?.occasion].filter(Boolean).join(" ");
 
@@ -108,6 +113,26 @@ export default function DiscoverScreen() {
           </Text>
           {bestColour ? <Text style={styles.body}>{profile?.skin ? `Starting with ${bestColour} and your analysed palette.` : `Starting with ${bestColour}, one of your preferred clothing colours.`}</Text> : null}
           {prefs?.climate === "hot" ? <Text style={styles.reason}>Why: lightweight pieces are prioritised and heavy layers are excluded for hot weather.</Text> : null}
+          {profile?.skin ? (
+            <View style={styles.paletteSection}>
+              <Text style={styles.paletteHeading}>YOUR SAVED COLOUR ANALYSIS</Text>
+              <Text style={styles.body}>{profile.skin.undertone?.replace(/_/g, " ")} undertone · {profile.skin.depth} depth · {profile.skin.chroma} chroma · {profile.skin.contrast} contrast</Text>
+              {paletteGroups.map((group) => group.colours.length > 0 ? (
+                <View key={group.label} style={styles.paletteGroup}>
+                  <Text style={styles.paletteLabel}>{group.label}</Text>
+                  <View style={styles.swatchRow}>
+                    {group.colours.map((colour) => (
+                      <View key={colour.name} style={styles.swatchItem}>
+                        <View style={[styles.swatch, { backgroundColor: colour.hex }]} />
+                        <Text style={styles.swatchName}>{colour.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null)}
+              <Text style={styles.paletteNote}>Recommendations use verified garment colour names matched against this palette. Colours without a verified match are not presented as a match.</Text>
+            </View>
+          ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
@@ -142,6 +167,15 @@ const useStyles = makeStyles((c) => ({
   subtitle: { fontFamily: fonts.text, fontSize: 13, color: c.muted, marginTop: 4 },
   content: { padding: 20, paddingBottom: 60 },
   card: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, padding: 18, borderRadius: 4 },
+  paletteSection: { marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
+  paletteHeading: { fontFamily: fonts.text, fontSize: 11, letterSpacing: 1.2, color: c.muted, marginBottom: 6 },
+  paletteGroup: { marginTop: 12 },
+  paletteLabel: { fontFamily: fonts.text, fontSize: 12, color: c.onSurface, marginBottom: 6 },
+  swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  swatchItem: { alignItems: "center", width: 66 },
+  swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: c.borderStrong },
+  swatchName: { fontFamily: fonts.text, fontSize: 10, textAlign: "center", color: c.onSurfaceTertiary, marginTop: 4 },
+  paletteNote: { fontFamily: fonts.text, fontSize: 11, lineHeight: 16, color: c.muted, marginTop: 12 },
   cardTitle: { fontFamily: fonts.display, fontSize: 20, fontWeight: "700", color: c.onSurface, marginBottom: 8 },
   body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.onSurfaceTertiary, marginTop: 4 },
   reason: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.onSurface, marginTop: 5 },
