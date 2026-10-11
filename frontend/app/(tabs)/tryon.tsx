@@ -73,6 +73,7 @@ export default function TryOnScreen() {
   const del = useMutation({
     mutationFn: deleteTryOn,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tryons"] }),
+    onError: (e: Error) => setError(e.message || "Verified image deletion failed. Try again."),
   });
 
   const gen = useMutation({
