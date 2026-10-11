@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { saveAccountSession, clearAccountSession } from "@/src/account-api";
+import { saveAccountSession, clearAccountSession, webCsrfHeaders } from "@/src/account-api";
 import { Platform } from "react-native";
 
 // Account UI is staged separately from the legacy shared-profile flow.
@@ -26,7 +26,7 @@ export default function AccountScreen() {
     try {
       const res = await fetch(`${BASE}/api/account/${mode}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(Platform.OS === "web" && mode === "login" ? { "X-Lumiere-Web-Login": "1" } : {}) },
         body: JSON.stringify({ email, password }),
       });
       const body = await res.json();
@@ -35,9 +35,9 @@ export default function AccountScreen() {
         setMode("login");
         setMessage("Account created. Sign in to continue.");
       } else {
-        await saveAccountSession(body.access_token);
+        if (Platform.OS !== "web") await saveAccountSession(body.access_token);
         queryClient.clear(); // Never show cached data from a previous customer.
-        setToken(body.access_token);
+        setToken(Platform.OS === "web" ? "web-session" : body.access_token);
         setPassword("");
         setMessage("Signed in to your private account.");
       }
@@ -51,10 +51,10 @@ export default function AccountScreen() {
   async function logout() {
     setBusy(true);
     try {
-      const saved = token || await SecureStore.getItemAsync(TOKEN_KEY);
-      if (saved) {
+      const saved = Platform.OS === "web" ? null : (token || await SecureStore.getItemAsync(TOKEN_KEY));
+      if (saved || Platform.OS === "web") {
         const res = await fetch(`${BASE}/api/account/logout`, {
-          method: "POST", headers: { Authorization: `Bearer ${saved}` },
+          method: "POST", headers: Platform.OS === "web" ? webCsrfHeaders() : { Authorization: `Bearer ${saved}` },
         });
         if (!res.ok) throw new Error("Unable to revoke the session. Try again.");
       }
@@ -73,7 +73,7 @@ export default function AccountScreen() {
     <ScrollView contentContainerStyle={{ padding: 24, gap: 16, flexGrow: 1 }}>
       <Stack.Screen options={{ title: "LUMIÈRE account", headerShown: true }} />
       <Text style={{ fontSize: 28, fontWeight: "600" }}>Your LUMIÈRE account</Text>
-      <Text>Private account preview. Profile, wardrobe, Discover and text styling now use your account. Photo analysis and the existing Try-On screen still require migration.</Text>
+      <Text>Sign in to keep your styling, wardrobe and photographs private to your account.</Text>
       <TextInput placeholder="Email" value={email} autoCapitalize="none"
         keyboardType="email-address" onChangeText={setEmail}
         style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
