@@ -67,6 +67,8 @@ class Database:
         self.customer_wardrobe = Collection()
         self.customer_photos = Collection()
         self.customer_feedback = Collection()
+        self.customer_conversations = Collection()
+        self.customer_messages = Collection()
 
 
 def test_account_profile_wardrobe_and_photo_access_isolation():
@@ -90,6 +92,11 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     a = {"Authorization": "Bearer " + tokens[0]}
     b = {"Authorization": "Bearer " + tokens[1]}
     assert client.get("/api/account/profile").status_code == 401
+    conversation = client.post("/api/account/conversations", headers=a).json()
+    assert client.get("/api/account/conversations", headers=b).json() == []
+    assert client.get("/api/account/conversations/" + conversation["id"] + "/messages", headers=b).status_code == 404
+    assert client.delete("/api/account/conversations/" + conversation["id"], headers=b).status_code == 404
+    assert client.delete("/api/account/conversations/" + conversation["id"], headers=a).status_code == 200
     assert client.put("/api/account/profile", headers=a,
                       json={"notes": "first account"}).status_code == 200
     assert client.get("/api/account/profile", headers=b).json().get("notes") is None
