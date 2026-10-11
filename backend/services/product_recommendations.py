@@ -40,18 +40,36 @@ def _everyday_priority(product: dict) -> float:
 
 
 def _diversify_brands(ranked: list[dict], limit: int) -> list[dict]:
-    groups: dict[str, list[dict]] = {}
-    for product in ranked:
-        brand = str(product.get("brand") or "Unknown").casefold()
-        groups.setdefault(brand, []).append(product)
+    """Balance brand and clothing type without fabricating variety."""
+    remaining = ranked[:250]
     selected = []
-    while groups and len(selected) < limit:
-        for brand in list(groups):
-            selected.append(groups[brand].pop(0))
-            if not groups[brand]:
-                del groups[brand]
-            if len(selected) >= limit:
-                break
+    brand_counts = {}
+    type_counts = {}
+    def kind(item):
+        label = " ".join(str(item.get(k) or "") for k in ("name", "category", "category_path")).lower()
+        for group, words in (
+            ("swimwear", ("swimming", "swimwear", "swim trunks", "bikini")),
+            ("underwear", ("underwear", "boxer", "briefs", "singlet")),
+            ("sleepwear", ("pyjama", "pajama", "sleepwear")),
+            ("shirts", ("shirt", "polo", "blouse", "tee ")),
+            ("trousers", ("trouser", "chino", "jean", "pants")),
+            ("shorts", ("short",)),
+            ("dresses", ("dress", "skirt")),
+        ):
+            if any(word in label for word in words):
+                return group
+        return "other"
+    while remaining and len(selected) < limit:
+        def adjusted(item):
+            brand = str(item.get("brand") or "Unknown").casefold()
+            return item["recommendation_score"] - 4 * min(brand_counts.get(brand, 0), 3) - 6 * min(type_counts.get(kind(item), 0), 4)
+        winner = max(remaining, key=adjusted)
+        remaining.remove(winner)
+        selected.append(winner)
+        brand = str(winner.get("brand") or "Unknown").casefold()
+        category = kind(winner)
+        brand_counts[brand] = brand_counts.get(brand, 0) + 1
+        type_counts[category] = type_counts.get(category, 0) + 1
     return selected
 
 
@@ -82,8 +100,6 @@ def rank_verified_products(
         if not product.get("source_verified"):
             continue
         if not product.get("external_id") or not product.get("name"):
-            continue
-        if _is_sleepwear(product) and not allow_sleepwear:
             continue
 
         # Strict colour eligibility: scan palette or preferred colours,
@@ -141,7 +157,14 @@ def rank_verified_products(
         if score < 0:
             continue
 
-        score += _everyday_priority(product)
+        label = " ".join(str(product.get(k) or "") for k in ("name", "category", "category_path")).lower()
+        swim_requested = any(term in (" ".join(str(x) for x in (prefs.get("categories") or [])) + " " + str(prefs.get("occasion") or "")).lower() for term in ("swim", "beach", "pool"))
+        swimwear = any(term in label for term in ("swimming", "swimwear", "swim trunks", "bikini", "beachwear"))
+        underwear = any(term in label for term in ("underwear", "boxer", "briefs", "lingerie", "panties", "knickers", "singlet"))
+        if (swimwear and not swim_requested) or ((underwear or _is_sleepwear(product)) and not allow_sleepwear):
+            score -= 22  # Soft penalty: limited catalogues can still show these later.
+        else:
+            score += _everyday_priority(product)
 
         # Preference, not a hard filter: verified products from other providers
         # can still surface when they are a substantially better wardrobe match.
