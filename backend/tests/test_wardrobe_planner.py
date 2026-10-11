@@ -88,3 +88,15 @@ def test_capsule_rejects_zero_capacity():
     import pytest
     with pytest.raises(ValueError):
         capsule_plan([], max_items=0)
+
+
+def test_single_base_outfit_offers_alternative_owned_shoes():
+    items = [
+        {"id": "top", "name": "Linen top", "category": "top"},
+        {"id": "bottom", "name": "Trousers", "category": "bottom"},
+        {"id": "trainers", "name": "Trainers", "category": "shoes"},
+        {"id": "sandals", "name": "Sandals", "category": "shoes"},
+    ]
+    outfits = plan_outfits(items, climate="hot")
+    assert [outfit["item_ids"][-1] for outfit in outfits] == ["trainers", "sandals"]
+    assert len(plan_outfits(items, climate="hot", limit=1)) == 1
