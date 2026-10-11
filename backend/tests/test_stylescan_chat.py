@@ -6,18 +6,12 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/") if os.environ.get("EXPO_PUBLIC_BACKEND_URL") else None
-
-# Fallback to reading from frontend/.env if not set in env
+# Integration tests require an explicitly configured local development backend.
+# Do not contact historical preview services during an offline unit-test run.
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    with open("/app/frontend/.env") as fh:
-        for line in fh:
-            if line.startswith("EXPO_PUBLIC_BACKEND_URL="):
-                BASE_URL = line.split("=", 1)[1].strip().strip('"').rstrip("/")
-                break
-
+    pytest.skip("Set EXPO_PUBLIC_BACKEND_URL for live integration tests", allow_module_level=True)
 API = f"{BASE_URL}/api"
-
 
 @pytest.fixture(scope="module")
 def convo_id():
