@@ -62,6 +62,7 @@ class Database:
         self.customer_profiles = Collection()
         self.customer_wardrobe = Collection()
         self.customer_photos = Collection()
+        self.customer_feedback = Collection()
 
 
 def test_account_profile_wardrobe_and_photo_access_isolation():
@@ -97,6 +98,9 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     photo_id = photo.json()["id"]
     assert client.get("/api/account/photos/" + photo_id, headers=b).status_code == 404
     assert client.get("/api/account/photos/" + photo_id, headers=a).status_code == 200
+    assert client.put("/api/account/feedback/item123", headers=a, json={"sentiment": "liked"}).status_code == 200
+    assert client.get("/api/account/feedback", headers=b).json() == []
+    assert client.get("/api/account/feedback", headers=a).json() == [{"product_id": "item123", "sentiment": "liked"}]
     assert client.post("/api/account/logout", headers=a).status_code == 200
     assert client.get("/api/account/me", headers=a).status_code == 401
     assert client.get("/api/account/me", headers=b).status_code == 200
