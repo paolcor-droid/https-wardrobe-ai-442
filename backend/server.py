@@ -266,6 +266,25 @@ class Profile(BaseModel):
     updated_at: str = Field(default_factory=now_iso)
 
 
+class WardrobeItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    category: Literal["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"] = "other"
+    colour: str = ""
+    image_path: str
+    notes: str = ""
+    created_at: str = Field(default_factory=now_iso)
+    deleted_at: Optional[str] = None
+
+
+class WardrobeItemInput(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: Literal["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"] = "other"
+    colour: str = Field(default="", max_length=80)
+    image_path: str
+    notes: str = Field(default="", max_length=500)
+
+
 class TryOn(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     person_image_path: str
@@ -960,6 +979,40 @@ async def skin_analysis(req: SkinAnalysisRequest):
         upsert=True,
     )
     return analysis
+
+# ---- Digital wardrobe (private user-uploaded items) ----
+@api_router.get("/wardrobe", response_model=List[WardrobeItem])
+async def list_wardrobe():
+    docs = await db.wardrobe_items.find({"deleted_at": None}).sort("created_at", -1).to_list(500)
+    return [WardrobeItem(**clean(doc)) for doc in docs]
+
+
+@api_router.post("/wardrobe", response_model=WardrobeItem)
+async def add_wardrobe_item(req: WardrobeItemInput):
+    # The path must refer to an already uploaded application image; never
+    # accept arbitrary external URLs or filesystem paths.
+    if not (req.image_path.startswith("local/") or req.image_path.startswith(f"{APP_NAME}/uploads/anon/")):
+        raise HTTPException(status_code=400, detail="Upload a wardrobe photograph first")
+    try:
+        await run_in_threadpool(get_object, req.image_path)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="Wardrobe photograph could not be read") from exc
+    item = WardrobeItem(**req.dict())
+    await db.wardrobe_items.insert_one(item.dict())
+    return item
+
+
+@api_router.delete("/wardrobe/{item_id}")
+async def delete_wardrobe_item(item_id: str):
+    result = await db.wardrobe_items.update_one(
+        {"id": item_id, "deleted_at": None}, {"$set": {"deleted_at": now_iso()}}
+    )
+    if not result.matched_count:
+        raise HTTPException(status_code=404, detail="Wardrobe item not found")
+    # Soft deletion removes it from wardrobe, but does not erase the uploaded
+    # image object. Do not imply permanent photo deletion.
+    return {"success": True}
+
 
 # ---- Virtual try-on ----
 @api_router.post("/tryon", response_model=TryOn)
