@@ -132,11 +132,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     @router.get("/profile")
     async def get_profile(user_id: str = Depends(current_user)):
         record = await db.customer_profiles.find_one({"user_id": user_id}, {"_id": 0})
-        return record or {"user_id": user_id, "preferences": {}}
+        return record or {"id": user_id, "user_id": user_id, "favorite_colors": [], "styles": [], "sizes": {}, "notes": "", "preferences": {"budget_min": 0, "budget_max": 500, "occasion": "casual", "categories": [], "climate": "mild", "style": "classic", "preferred_fit": "regular", "preferred_colours": [], "avoided_colours": [], "preferred_retailers": ["zara", "hm", "uniqlo"], "shop_for": "all"}, "updated_at": datetime.now(timezone.utc).isoformat()}
 
     @router.put("/profile")
     async def put_profile(payload: dict, user_id: str = Depends(current_user)):
-        allowed = {key: payload[key] for key in ("preferences", "notes", "favorite_colors", "styles", "sizes") if key in payload}
+        allowed = {key: payload[key] for key in ("preferences", "notes", "favorite_colors", "styles", "sizes", "budget") if key in payload}
         await db.customer_profiles.update_one({"user_id": user_id}, {"$set": allowed}, upsert=True)
         return await get_profile(user_id)
 
@@ -151,7 +151,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(422, "Invalid garment name")
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
-                "colour": str(payload.get("colour", ""))[:80], "deleted_at": None}
+                "colour": str(payload.get("colour", ""))[:80], "image_path": "",
+                "notes": str(payload.get("notes", ""))[:500],
+                "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
         item.pop("_id", None)
         return item
