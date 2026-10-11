@@ -35,7 +35,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
@@ -320,6 +320,25 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(404, "Try-On not found")
         # Generated photo deletion is separate and must be verified by the object provider.
         return {"success": True, "result_photo_deleted": False}
+
+
+    @router.post("/catalogue/products/{product_id}/prepare-tryon")
+    async def owned_catalogue_garment(product_id: str, user_id: str = Depends(current_user)):
+        if prepare_catalogue is None:
+            raise HTTPException(503, "Private catalogue garment preparation unavailable")
+        try:
+            data, mime, name = await prepare_catalogue(product_id)
+            ext, verified_mime = validate_image(data, mime, "garment.jpg")
+            clean = await run_in_threadpool(sanitize_image, data, ext)
+            path = await run_in_threadpool(save_image, clean, ext, verified_mime)
+        except Exception as exc:
+            raise HTTPException(502, "Catalogue garment preparation failed") from exc
+        photo_id = str(uuid.uuid4())
+        await db.customer_photos.insert_one({
+            "id": photo_id, "user_id": user_id, "path": path,
+            "content_type": verified_mime, "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return {"path": "private:" + photo_id, "name": name}
 
     @router.get("/catalogue/recommendations")
     async def customer_discover(user_id: str = Depends(current_user)):
