@@ -164,7 +164,7 @@ def delete_owned_object(path: str) -> None:
     if not LOCAL_IMAGE_STORAGE or not path.startswith("local/"):
         raise NotImplementedError("Verified remote object deletion is not configured")
     name = path.removeprefix("local/")
-    if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+    if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
         raise ValueError("Invalid local media path")
     (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
 
