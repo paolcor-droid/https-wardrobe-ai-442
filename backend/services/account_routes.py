@@ -159,4 +159,23 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "Content-Security-Policy": "default-src 'none'; sandbox",
         })
 
+
+    @router.put("/feedback/{product_id}")
+    async def set_feedback(product_id: str, payload: dict, user_id: str = Depends(current_user)):
+        if not 1 <= len(product_id) <= 150 or payload.get("sentiment") not in {
+            "liked", "disliked", "saved", "purchased"
+        }:
+            raise HTTPException(422, "Invalid product feedback")
+        await db.customer_feedback.update_one(
+            {"user_id": user_id, "product_id": product_id},
+            {"$set": {"sentiment": payload["sentiment"], "updated_at": datetime.now(timezone.utc)}},
+            upsert=True,
+        )
+        return {"product_id": product_id, "sentiment": payload["sentiment"]}
+
+    @router.get("/feedback")
+    async def feedback(user_id: str = Depends(current_user)):
+        records = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+        return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
+
     return router
