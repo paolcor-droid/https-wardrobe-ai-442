@@ -306,12 +306,11 @@ export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | 
 }
 
 export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
-  const res = await fetch(`${BASE}/api/skin-analysis`, {
+  return accountRequest<SkinAnalysis>("/skin-analysis", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image_path: imagePath, provider: provider ?? null }),
   });
-  return json<SkinAnalysis>(res);
 }
 
 export async function createTryOn(body: {
