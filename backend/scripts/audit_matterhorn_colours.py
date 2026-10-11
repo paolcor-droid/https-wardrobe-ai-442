@@ -1,6 +1,6 @@
 """Audit supplier image colours for manual review; never claim image verification.
 
-Run after installing Pillow: python -m pip install Pillow
+Install optional foreground isolation: python -m pip install "rembg[cpu]" Pillow
 Then: python backend/scripts/audit_matterhorn_colours.py
 Images contain backgrounds, models and patterns: pixel sampling is NOT garment
 segmentation and must never be used to confirm skin-palette matches automatically.
@@ -51,7 +51,6 @@ def inspect(url):
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
         return {"error": "non-HTTPS image URL"}
-    # Avoid redirect-based requests to unexpected destinations.
     response = requests.get(url, timeout=12, stream=True, allow_redirects=False)
     response.raise_for_status()
     if response.is_redirect:
@@ -62,16 +61,36 @@ def inspect(url):
         if len(raw) > MAX_BYTES:
             return {"error": "image exceeds 5 MB audit limit"}
     image = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
-    image.thumbnail((120, 120))
-    w, h = image.size
-    # Centre sampling is a heuristic, not proof of garment colour.
-    pixels = [image.getpixel((x, y)) for y in range(h // 4, max(h // 4 + 1, 3 * h // 4), 3)
-              for x in range(w // 4, max(w // 4 + 1, 3 * w // 4), 3)]
+    image.thumbnail((320, 320))
+    try:
+        from rembg import remove
+    except ImportError:
+        return {"isolation_status": "unavailable", "review_required": True,
+                "image_colour_verified": False, "reason": "Install rembg[cpu] for optional foreground isolation"}
+    foreground = remove(image.convert("RGBA"))
+    if not isinstance(foreground, Image.Image):
+        foreground = Image.open(io.BytesIO(foreground)).convert("RGBA")
+    alpha = foreground.getchannel("A")
+    w, h = foreground.size
+    # Conservative body region reduces background and face contamination,
+    # but this is not semantic garment segmentation.
+    pixels = [image.getpixel((x, y))
+              for y in range(int(h * .32), int(h * .85), 2)
+              for x in range(int(w * .20), int(w * .80), 2)
+              if alpha.getpixel((x, y)) >= 220]
+    if len(pixels) < 150:
+        return {"isolation_status": "insufficient_foreground",
+                "candidate_pixels": len(pixels),
+                "review_required": True, "image_colour_verified": False}
     counts = Counter(coarse_colour(pixel) for pixel in pixels)
-    return {"centre_region_colour_families": counts.most_common(4),
+    total = sum(counts.values())
+    return {"isolation_status": "foreground_central_body_candidate",
+            "candidate_region_colour_families": [
+                {"family": name, "fraction": round(count / total, 3)}
+                for name, count in counts.most_common(5)],
+            "candidate_pixels": total, "review_required": True,
             "image_colour_verified": False,
-            "review_required": True,
-            "limitation": "Model, background, pattern and lighting may contaminate centre pixels."}
+            "limitation": "Foreground isolation is not garment segmentation; skin, hair and accessories may remain."}
 
 
 def main():
