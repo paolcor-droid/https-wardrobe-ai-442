@@ -1259,12 +1259,22 @@ async def block_unauthenticated_public_deployment(request, call_next):
 
 app.include_router(api_router)
 
+# Explicit trusted origins only. Development clients may be configured via
+# LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
+_allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "LUMIERE_CORS_ORIGINS",
+        "http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006",
+    ).split(",")
+    if origin.strip() and origin.strip() != "*"
+]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
