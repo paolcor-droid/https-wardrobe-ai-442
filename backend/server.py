@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
 from services.security_gate import allow_legacy_dev_request
+from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
@@ -1270,6 +1271,7 @@ async def block_unauthenticated_public_deployment(request, call_next):
 
 
 app.include_router(api_router)
+app.include_router(configure_account_router(db))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
@@ -1292,6 +1294,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_storage():
+    # Atomic email uniqueness, token lookup, and account-owned collections.
+    await db.customer_accounts.create_index("email", unique=True)
+    await db.customer_sessions.create_index("digest", unique=True)
+    await db.customer_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.customer_profiles.create_index("user_id", unique=True)
+    await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
     try:
         await run_in_threadpool(init_storage)
         logger.info("Object storage initialized")
