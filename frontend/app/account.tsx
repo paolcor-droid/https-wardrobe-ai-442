@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { saveAccountSession, clearAccountSession } from "@/src/account-api";
 import { Platform } from "react-native";
 
 // Account UI is staged separately from the legacy shared-profile flow.
@@ -32,7 +33,7 @@ export default function AccountScreen() {
         setMode("login");
         setMessage("Account created. Sign in to continue.");
       } else {
-        await SecureStore.setItemAsync(TOKEN_KEY, body.access_token);
+        await saveAccountSession(body.access_token);
         setToken(body.access_token);
         setPassword("");
         setMessage("Signed in to your private account.");
@@ -54,7 +55,7 @@ export default function AccountScreen() {
         });
         if (!res.ok) throw new Error("Unable to revoke the session. Try again.");
       }
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      await clearAccountSession();
       setToken("");
       setMessage("Signed out.");
     } catch (error) {
