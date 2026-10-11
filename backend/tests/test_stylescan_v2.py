@@ -13,16 +13,11 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL")
+# Live API suite is opt-in; never depend on Emergent's /app filesystem.
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    with open("/app/frontend/.env") as fh:
-        for line in fh:
-            if line.startswith("EXPO_PUBLIC_BACKEND_URL="):
-                BASE_URL = line.split("=", 1)[1].strip().strip('"')
-                break
-BASE_URL = BASE_URL.rstrip("/")
+    pytest.skip("Set EXPO_PUBLIC_BACKEND_URL for live integration tests", allow_module_level=True)
 API = f"{BASE_URL}/api"
-
 
 # ---- helpers ----
 def _make_png_bytes(color=(139, 69, 19)):
