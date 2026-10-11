@@ -25,9 +25,11 @@ export function AccountPhoto({
     return () => { active = false; };
   }, [path, privatePhoto]);
   if (privatePhoto && !token) return null;
+  const uri = privatePhoto ? fileUrl(path)
+    : /^(https?:|file:|content:|data:|blob:)/i.test(path) ? path : fileUrl(path);
   return <Image
     source={{
-      uri: fileUrl(path),
+      uri,
       ...(privatePhoto ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     }}
     style={style}
