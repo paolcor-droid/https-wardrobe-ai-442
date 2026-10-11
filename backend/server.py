@@ -1365,7 +1365,7 @@ async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
     return analysis.dict()
 
 
-async def generate_customer_tryon(person_bytes, garment_bytes, garment_prompt):
+async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_bytes, garment_prompt):
     """Use owned images only; do not write generation output into legacy try-on DB."""
     if not EMERGENT_LLM_KEY:
         raise RuntimeError("Image generation provider not configured")
@@ -1375,6 +1375,11 @@ async def generate_customer_tryon(person_bytes, garment_bytes, garment_prompt):
         outfit = "the exact garment from the second input image"
     else:
         outfit = garment_prompt
+    if second_garment_bytes is not None:
+        if garment_bytes is None:
+            raise ValueError("Second garment requires first garment")
+        files.append(ImageContent(image_base64=base64.b64encode(second_garment_bytes).decode("ascii")))
+        outfit = "both garments from the second and third input images, layered naturally"
     instruction = (
         "Create one photorealistic virtual try-on using the supplied first image "
         "of the person and dress them in " + outfit + ". Preserve the actual "
