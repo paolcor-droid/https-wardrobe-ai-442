@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
@@ -13,6 +13,8 @@ export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const { width: screenWidth } = useWindowDimensions();
   const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
   const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
@@ -28,6 +30,15 @@ export default function DiscoverScreen() {
     queryFn: getCatalogueRecommendations,
     enabled: Boolean(profile),
   });
+
+  const { data: productFeedback = [] } = useQuery({ queryKey: ["product-feedback"], queryFn: getProductFeedback });
+  const recordFeedback = async (id: string, sentiment: ProductSentiment) => {
+    try {
+      await saveProductFeedback(id, sentiment);
+      setFeedbackError(null);
+      queryClient.invalidateQueries({ queryKey: ["product-feedback"] });
+    } catch (e) { setFeedbackError(e instanceof Error ? e.message : "Could not save feedback"); }
+  };
 
   const prefs = profile?.preferences;
   const preferredIds = prefs?.preferred_retailers ?? DEFAULT_RETAILERS;
@@ -111,6 +122,15 @@ export default function DiscoverScreen() {
             <Text key={reason} style={styles.reason}>• {reason}</Text>
           ))}
         </View>
+        <View style={styles.feedbackRow}>
+          {(["liked", "disliked", "saved", "purchased"] as ProductSentiment[]).map((sentiment) => (
+            <Pressable key={sentiment} testID={`feedback-${sentiment}-${product.product_id}`}
+              onPress={() => recordFeedback(product.product_id, sentiment)}
+              style={[styles.feedbackButton, productFeedback.some((f) => f.product_id === product.product_id && f.sentiment === sentiment) && styles.feedbackSelected]}>
+              <Text style={styles.feedbackText}>{sentiment === "purchased" ? "I bought it" : sentiment === "saved" ? "Save" : sentiment === "liked" ? "Like" : "Not for me"}</Text>
+            </Pressable>
+          ))}
+        </View>
         {product.image_url ? (
           <Pressable
             style={styles.tryOnButton}
@@ -189,6 +209,7 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
         {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
+        {feedbackError ? <Text style={styles.error}>{feedbackError}</Text> : null}
         {!catalogueLoading && !catalogueError ? (
           <View style={styles.productGrid}>
             {catalogue?.recommendations.map((product) => (
@@ -237,6 +258,10 @@ const useStyles = makeStyles((c) => ({
   outfitBar: { borderWidth: 1, borderColor: c.borderStrong, padding: 16, marginBottom: 16, gap: 8 },
   outfitSelect: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
   outfitSelectText: { fontFamily: fonts.text, fontSize: 13, color: c.onSurface },
+  feedbackRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },
+  feedbackButton: { borderWidth: 1, borderColor: c.border, paddingHorizontal: 8, paddingVertical: 7 },
+  feedbackSelected: { backgroundColor: c.surfaceTertiary, borderColor: c.borderStrong },
+  feedbackText: { fontFamily: fonts.text, fontSize: 11, color: c.onSurface },
   productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", alignItems: "flex-start", columnGap: "2%", rowGap: 16 },
   productCard: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, borderRadius: 6, overflow: "hidden", marginBottom: 18 },
   productImage: { width: "100%", aspectRatio: 0.82, backgroundColor: c.surfaceTertiary },
