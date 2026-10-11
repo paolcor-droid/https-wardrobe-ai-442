@@ -1271,7 +1271,7 @@ async def block_unauthenticated_public_deployment(request, call_next):
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
@@ -1299,6 +1299,7 @@ async def startup_storage():
     await db.customer_sessions.create_index("digest", unique=True)
     await db.customer_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.customer_profiles.create_index("user_id", unique=True)
+    await db.customer_photos.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
     try:
         await run_in_threadpool(init_storage)
