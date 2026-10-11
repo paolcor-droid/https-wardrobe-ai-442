@@ -159,6 +159,16 @@ def get_object(path: str) -> tuple[bytes, str]:
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
+def delete_owned_object(path: str) -> None:
+    """Delete only locally stored media. Remote deletion is unsupported and fails closed."""
+    if not LOCAL_IMAGE_STORAGE or not path.startswith("local/"):
+        raise NotImplementedError("Verified remote object deletion is not configured")
+    name = path.removeprefix("local/")
+    if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+        raise ValueError("Invalid local media path")
+    (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
+
+
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
     if LOCAL_IMAGE_STORAGE:
         if ext not in ("jpg", "jpeg", "png", "webp"):
@@ -1271,7 +1281,7 @@ async def block_unauthenticated_public_deployment(request, call_next):
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
