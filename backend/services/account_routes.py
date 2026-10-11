@@ -320,9 +320,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         name = payload.get("name")
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 120:
             raise HTTPException(422, "Invalid garment name")
+        private_path = payload.get("image_path", "")
+        if not isinstance(private_path, str) or (private_path and not private_path.startswith("private:")):
+            raise HTTPException(422, "Wardrobe photographs must use private photo IDs")
+        if private_path:
+            photo_id = private_path.removeprefix("private:")
+            if not await db.customer_photos.find_one({"id": photo_id, "user_id": user_id}):
+                raise HTTPException(404, "Wardrobe photograph not found")
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
-                "colour": str(payload.get("colour", ""))[:80], "image_path": "",
+                "colour": str(payload.get("colour", ""))[:80], "image_path": private_path,
                 "notes": str(payload.get("notes", ""))[:500],
                 "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
