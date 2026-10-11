@@ -28,7 +28,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
@@ -208,6 +208,13 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                                          "title": title, "provider": payload.provider}) + "\n\n"
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+    @router.get("/catalogue/recommendations")
+    async def customer_discover(user_id: str = Depends(current_user)):
+        if recommend_catalogue is None:
+            raise HTTPException(503, "Private catalogue recommendations unavailable")
+        return await recommend_catalogue(user_id)
 
     @router.get("/profile")
     async def get_profile(user_id: str = Depends(current_user)):
