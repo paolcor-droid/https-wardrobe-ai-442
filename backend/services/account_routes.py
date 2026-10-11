@@ -312,15 +312,30 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
     @router.delete("/tryons/{tryon_id}")
     async def delete_owned_tryon(tryon_id: str, user_id: str = Depends(current_user)):
-        result = await db.customer_tryons.update_one(
+        record = await db.customer_tryons.find_one({
+            "id": tryon_id, "user_id": user_id, "deleted_at": None,
+        })
+        if not record:
+            raise HTTPException(404, "Try-On not found")
+        result_photo_id = record.get("result_photo_id")
+        photo = await db.customer_photos.find_one({
+            "id": result_photo_id, "user_id": user_id,
+        })
+        if photo:
+            if delete_image is None:
+                raise HTTPException(503, "Verified generated-image deletion unavailable")
+            try:
+                await run_in_threadpool(delete_image, photo["path"])
+            except Exception as exc:
+                raise HTTPException(503, "Verified generated-image deletion unavailable") from exc
+            await db.customer_photos.delete_one({
+                "id": result_photo_id, "user_id": user_id,
+            })
+        await db.customer_tryons.update_one(
             {"id": tryon_id, "user_id": user_id, "deleted_at": None},
             {"$set": {"deleted_at": datetime.now(timezone.utc)}},
         )
-        if not result.matched_count:
-            raise HTTPException(404, "Try-On not found")
-        # Generated photo deletion is separate and must be verified by the object provider.
-        return {"success": True, "result_photo_deleted": False}
-
+        return {"success": True, "result_photo_deleted": True}
 
     @router.post("/catalogue/products/{product_id}/prepare-tryon")
     async def owned_catalogue_garment(product_id: str, user_id: str = Depends(current_user)):
