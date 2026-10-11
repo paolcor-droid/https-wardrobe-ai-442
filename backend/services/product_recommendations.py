@@ -15,6 +15,33 @@ from services.recommendation_engine import is_colour_eligible, recommendation_re
 LUMIERE_WHOLESALE_POLICY = PricingPolicy(markup_percent=25)
 
 
+
+def _is_sleepwear(product: dict) -> bool:
+    label = " ".join(str(product.get(key) or "") for key in ("name", "category", "category_path")).lower()
+    return any(word in label for word in ("pyjama", "pajama", "sleepwear", "nightwear", "nightdress", "underwear", "boxer", "briefs", "lingerie", "panties", "knickers", "bra "))
+
+
+def _wants_sleepwear(prefs: dict) -> bool:
+    selection = (" ".join(str(x) for x in (prefs.get("categories") or [])) + " " + str(prefs.get("occasion") or "")).lower()
+    return any(word in selection for word in ("sleep", "nightwear", "pyjama", "pajama", "underwear", "lingerie"))
+
+
+def _diversify_brands(ranked: list[dict], limit: int) -> list[dict]:
+    groups: dict[str, list[dict]] = {}
+    for product in ranked:
+        brand = str(product.get("brand") or "Unknown").casefold()
+        groups.setdefault(brand, []).append(product)
+    selected = []
+    while groups and len(selected) < limit:
+        for brand in list(groups):
+            selected.append(groups[brand].pop(0))
+            if not groups[brand]:
+                del groups[brand]
+            if len(selected) >= limit:
+                break
+    return selected
+
+
 def rank_verified_products(
     products: Iterable[dict],
     profile: dict,
@@ -34,6 +61,7 @@ def rank_verified_products(
     budget_min = prefs.get("budget_min")
     budget_max = prefs.get("budget_max")
     shop_for = prefs.get("shop_for") or "all"
+    allow_sleepwear = _wants_sleepwear(prefs)
 
     for product in products:
         if not product.get("live"):
@@ -41,6 +69,8 @@ def rank_verified_products(
         if not product.get("source_verified"):
             continue
         if not product.get("external_id") or not product.get("name"):
+            continue
+        if _is_sleepwear(product) and not allow_sleepwear:
             continue
 
         # Strict colour eligibility: scan palette or preferred colours,
@@ -120,7 +150,7 @@ def rank_verified_products(
         })
 
     ranked.sort(key=lambda item: item["recommendation_score"], reverse=True)
-    return ranked[: max(0, limit)]
+    return _diversify_brands(ranked, max(0, limit))
 
 
 def customer_product_view(product: dict) -> dict:
