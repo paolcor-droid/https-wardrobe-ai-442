@@ -16,15 +16,14 @@ from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
 
-router = APIRouter(prefix="/api/account", tags=["account"])
-
-
 class Credentials(BaseModel):
     email: str
     password: str = Field(min_length=12, max_length=1024)
 
 
 def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None):
+    # A fresh router binds each app to its own database and storage callbacks.
+    router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(401, "Authentication required")
