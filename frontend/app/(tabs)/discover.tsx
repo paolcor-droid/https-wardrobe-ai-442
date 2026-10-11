@@ -17,6 +17,7 @@ export default function DiscoverScreen() {
   const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
   const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
+  const [outfitItems, setOutfitItems] = useState<ProductRecommendation[]>([]);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const {
     data: catalogue,
@@ -71,6 +72,29 @@ export default function DiscoverScreen() {
     }
   };
 
+  const openOutfitTryOn = async () => {
+    if (outfitItems.length !== 2 || preparingTryOn) return;
+    setPreparingTryOn("outfit");
+    setTryOnError(null);
+    try {
+      const [first, second] = await Promise.all(outfitItems.map((item) => prepareCatalogueGarment(item.product_id)));
+      router.push({
+        pathname: "/(tabs)/tryon",
+        params: { garmentPath: first.path, garmentName: first.name, secondGarmentPath: second.path, secondGarmentName: second.name },
+      });
+    } catch (error) {
+      setTryOnError(error instanceof Error ? error.message : "Could not prepare your outfit for try-on.");
+    } finally {
+      setPreparingTryOn(null);
+    }
+  };
+
+  const toggleOutfitItem = (product: ProductRecommendation) => {
+    setOutfitItems((current) => current.some((item) => item.product_id === product.product_id)
+      ? current.filter((item) => item.product_id !== product.product_id)
+      : current.length < 2 ? [...current, product] : current);
+  };
+
   const renderProduct = (product: ProductRecommendation) => (
     <View key={product.product_id} style={styles.productCard}>
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : null}
@@ -95,6 +119,12 @@ export default function DiscoverScreen() {
           >
             {preparingTryOn === product.product_id ? <ActivityIndicator size="small" /> : <Feather name="zap" size={16} />}
             <Text style={styles.tryOnText}>{preparingTryOn === product.product_id ? "Preparing…" : "Try this on"}</Text>
+          </Pressable>
+        ) : null}
+        {product.image_url ? (
+          <Pressable testID={`outfit-select-${product.product_id}`} style={styles.outfitSelect} onPress={() => toggleOutfitItem(product)}>
+            <Feather name={outfitItems.some((item) => item.product_id === product.product_id) ? "check-square" : "square"} size={17} />
+            <Text style={styles.outfitSelectText}>{outfitItems.some((item) => item.product_id === product.product_id) ? "Selected for outfit" : "Add to outfit"}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -147,6 +177,17 @@ export default function DiscoverScreen() {
             <Text style={styles.body}>LUMIÈRE couldn't find products in the current trial catalogue that meet your colour profile and shopping preferences. We won't recommend unsuitable colours just to fill your results. You can explore your preferred retailers below.</Text>
           </View>
         ) : null}
+        {outfitItems.length > 0 ? (
+          <View style={styles.outfitBar}>
+            <Text style={styles.body}>{outfitItems.length}/2 garments selected for one try-on</Text>
+            <Text style={styles.note}>{outfitItems.map((item) => item.name).join(" + ")}</Text>
+            <Pressable testID="try-on-outfit-button" style={[styles.tryOnButton, outfitItems.length !== 2 && { opacity: 0.4 }]} disabled={outfitItems.length !== 2 || !!preparingTryOn} onPress={openOutfitTryOn}>
+              {preparingTryOn === "outfit" ? <ActivityIndicator size="small" /> : <Feather name="zap" size={16} />}
+              <Text style={styles.tryOnText}>Try both on together</Text>
+            </Pressable>
+            <Pressable onPress={() => setOutfitItems([])}><Text style={styles.outfitSelectText}>Clear selection</Text></Pressable>
+          </View>
+        ) : null}
         {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
         {!catalogueLoading && !catalogueError ? (
           <View style={styles.productGrid}>
@@ -193,6 +234,9 @@ const useStyles = makeStyles((c) => ({
   note: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, marginBottom: 12 },
   loading: { marginVertical: 28 },
   error: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.error, marginBottom: 12 },
+  outfitBar: { borderWidth: 1, borderColor: c.borderStrong, padding: 16, marginBottom: 16, gap: 8 },
+  outfitSelect: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
+  outfitSelectText: { fontFamily: fonts.text, fontSize: 13, color: c.onSurface },
   productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", alignItems: "flex-start", columnGap: "2%", rowGap: 16 },
   productCard: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, borderRadius: 6, overflow: "hidden", marginBottom: 18 },
   productImage: { width: "100%", aspectRatio: 0.82, backgroundColor: c.surfaceTertiary },
