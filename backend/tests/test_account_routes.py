@@ -69,6 +69,7 @@ class Database:
         self.customer_feedback = Collection()
         self.customer_conversations = Collection()
         self.customer_messages = Collection()
+        self.customer_tryons = Collection()
 
 
 def test_account_profile_wardrobe_and_photo_access_isolation():
@@ -226,3 +227,52 @@ def test_discover_uses_authenticated_customer_only():
         "recommendations"][0]["name"] == "Customer A styles"
     assert client.get("/api/account/catalogue/recommendations", headers=b).json()[
         "recommendations"][0]["name"] == "New user"
+
+
+def test_private_tryon_requires_owned_person_and_garment_and_hides_results():
+    db = Database()
+    app = FastAPI()
+    async def generate(person, garment, prompt):
+        return b"generated output", "image/png"
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png",
+        lambda path: (b"private image", "image/png"),
+        lambda path: None, None, None, generate,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("try-a@example.com", "try-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        login = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        })
+        headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
+    a, b = headers
+    person = client.post("/api/account/photos", headers=a,
+                         files={"file": ("person.png", b"bytes", "image/png")}).json()["id"]
+    garment = client.post("/api/account/photos", headers=a,
+                          files={"file": ("garment.png", b"bytes", "image/png")}).json()["id"]
+    uri = "/api/account/tryons"
+    assert client.post(uri, json={"person_photo_id": person,
+                                  "garment_prompt": "linen shirt"}).status_code == 401
+    assert client.post(uri, headers=b, json={
+        "person_photo_id": person, "garment_prompt": "linen shirt"
+    }).status_code == 404
+    assert client.post(uri, headers=b, json={
+        "person_photo_id": garment, "garment_photo_id": person
+    }).status_code == 404
+    made = client.post(uri, headers=a, json={
+        "person_photo_id": person, "garment_photo_id": garment
+    })
+    assert made.status_code == 201, made.text
+    item = made.json()
+    assert client.get(uri, headers=b).json() == []
+    assert len(client.get(uri, headers=a).json()) == 1
+    result_uri = "/api/account/photos/" + item["result_photo_id"]
+    assert client.get(result_uri, headers=b).status_code == 404
+    assert client.get(result_uri, headers=a).status_code == 200
+    assert client.delete(uri + "/" + item["id"], headers=b).status_code == 404
+    assert client.delete(uri + "/" + item["id"], headers=a).status_code == 200
