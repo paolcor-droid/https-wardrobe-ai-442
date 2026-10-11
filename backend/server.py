@@ -1200,6 +1200,19 @@ async def delete_tryon(tryon_id: str):
     return {"success": True}
 
 
+# Fail closed for public deployments until real per-user authentication and
+# object ownership are implemented. Development mode remains available locally.
+@app.middleware("http")
+async def block_unauthenticated_public_deployment(request, call_next):
+    if os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT", "0") == "1":
+        return Response(
+            content=json.dumps({"detail": "Public access disabled until authenticated user isolation is configured"}),
+            status_code=503,
+            media_type="application/json",
+        )
+    return await call_next(request)
+
+
 app.include_router(api_router)
 
 app.add_middleware(
