@@ -214,7 +214,8 @@ export function streamChat(
         return;
       }
       xhr.open("POST", `${BASE}/api/account/conversations/${encodeURIComponent(conversationId)}/chat`);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      else Object.entries(webCsrfHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.send(JSON.stringify({ message, image_path: null, provider: provider ?? null }));
     } catch (error) {
