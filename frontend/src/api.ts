@@ -313,28 +313,54 @@ export async function analyzeSkin(imagePath: string, provider?: string | null): 
   });
 }
 
+type PrivateTryOnRecord = {
+  id: string; person_photo_id: string; garment_photo_id?: string | null;
+  second_garment_photo_id?: string | null; garment_prompt?: string | null;
+  result_photo_id: string; created_at: string;
+};
+
+function ownedPhotoId(path: string): string {
+  if (!path.startsWith("private:") || !path.slice(8)) {
+    throw new Error("Private Try-On requires a photograph uploaded to your account.");
+  }
+  return path.slice(8);
+}
+
+function presentPrivateTryOn(row: PrivateTryOnRecord): TryOn {
+  return {
+    id: row.id, person_image_path: `private:${row.person_photo_id}`,
+    garment_image_path: row.garment_photo_id ? `private:${row.garment_photo_id}` : null,
+    second_garment_image_path: row.second_garment_photo_id ? `private:${row.second_garment_photo_id}` : null,
+    garment_prompt: row.garment_prompt, result_path: `private:${row.result_photo_id}`,
+    created_at: row.created_at,
+  };
+}
+
 export async function createTryOn(body: {
   person_image_path: string;
   garment_image_path?: string | null;
   second_garment_image_path?: string | null;
   garment_prompt?: string | null;
 }): Promise<TryOn> {
-  const res = await fetch(`${BASE}/api/tryon`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  const record = await accountRequest<PrivateTryOnRecord>("/tryons", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      person_photo_id: ownedPhotoId(body.person_image_path),
+      garment_photo_id: body.garment_image_path ? ownedPhotoId(body.garment_image_path) : null,
+      second_garment_photo_id: body.second_garment_image_path ? ownedPhotoId(body.second_garment_image_path) : null,
+      garment_prompt: body.garment_prompt ?? null,
+    }),
   });
-  return json<TryOn>(res);
+  return presentPrivateTryOn(record);
 }
 
 export async function listTryOns(): Promise<TryOn[]> {
-  const res = await fetch(`${BASE}/api/tryons`);
-  return json<TryOn[]>(res);
+  const records = await accountRequest<PrivateTryOnRecord[]>("/tryons");
+  return records.map(presentPrivateTryOn);
 }
 
 export async function deleteTryOn(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/tryons/${id}`, { method: "DELETE" });
-  await json(res);
+  await accountRequest<{ success: boolean }>(`/tryons/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 
