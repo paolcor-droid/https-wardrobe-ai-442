@@ -159,7 +159,7 @@ export default function TryOnScreen() {
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.title}>Virtual Try-On</Text>
-        <Text style={styles.subtitle}>Try one garment or a complete outfit</Text>
+        <Text style={styles.subtitle}>Try one garment or a complete outfit · AI preview, not a fit guarantee</Text>
       </View>
 
       <KeyboardAwareScrollView
@@ -224,7 +224,7 @@ export default function TryOnScreen() {
 
         {result && (
           <View style={styles.resultWrap} testID="tryon-result">
-            <Text style={styles.resultLabel}>Your look</Text>
+            <Text style={styles.resultLabel}>AI-generated preview · Fit, drape and colour may differ in reality</Text>
             <Image source={{ uri: fileUrl(result.result_path) }} style={styles.resultImg} contentFit="cover" />
             <Pressable
               testID="share-result-button"
