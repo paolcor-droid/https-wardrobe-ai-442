@@ -166,7 +166,7 @@ def delete_owned_object(path: str) -> None:
     """
     if LOCAL_IMAGE_STORAGE and path.startswith("local/"):
         name = path.removeprefix("local/")
-        if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+        if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
             raise ValueError("Invalid local media path")
         (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
         return
@@ -176,7 +176,7 @@ def delete_owned_object(path: str) -> None:
     if not re.fullmatch(
         r"stylescan/uploads/anon/(?:[0-9a-f]{32}|"
         r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
-        r"\\.(?:jpg|jpeg|png|webp)", path,
+        r"\.(?:jpg|jpeg|png|webp)", path,
     ):
         raise ValueError("Invalid remote image path")
     key = init_storage()
