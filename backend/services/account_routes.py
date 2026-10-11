@@ -91,6 +91,45 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         user = await db.customer_accounts.find_one({"id": user_id})
         return {"id": user_id, "email": user["email"]}
 
+
+    @router.post("/conversations", status_code=201)
+    async def create_conversation(user_id: str = Depends(current_user)):
+        record = {
+            "id": str(uuid.uuid4()), "user_id": user_id,
+            "title": "New styling session", "created_at": datetime.now(timezone.utc),
+            "deleted_at": None,
+        }
+        await db.customer_conversations.insert_one(record)
+        record.pop("_id", None)
+        return record
+
+    @router.get("/conversations")
+    async def list_conversations(user_id: str = Depends(current_user)):
+        return await db.customer_conversations.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}
+        ).to_list(200)
+
+    @router.get("/conversations/{conversation_id}/messages")
+    async def list_messages(conversation_id: str, user_id: str = Depends(current_user)):
+        conversation = await db.customer_conversations.find_one({
+            "id": conversation_id, "user_id": user_id, "deleted_at": None,
+        })
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+        return await db.customer_messages.find(
+            {"user_id": user_id, "conversation_id": conversation_id}, {"_id": 0}
+        ).to_list(200)
+
+    @router.delete("/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str, user_id: str = Depends(current_user)):
+        result = await db.customer_conversations.update_one(
+            {"id": conversation_id, "user_id": user_id, "deleted_at": None},
+            {"$set": {"deleted_at": datetime.now(timezone.utc)}},
+        )
+        if not result.matched_count:
+            raise HTTPException(404, "Conversation not found")
+        return {"success": True}
+
     @router.get("/profile")
     async def get_profile(user_id: str = Depends(current_user)):
         record = await db.customer_profiles.find_one({"user_id": user_id}, {"_id": 0})
