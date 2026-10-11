@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette, suggested_season
+from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
@@ -264,6 +265,22 @@ class Profile(BaseModel):
     preferences: Preferences = Field(default_factory=Preferences)
     skin: Optional[SkinAnalysis] = None
     updated_at: str = Field(default_factory=now_iso)
+
+
+class ProductFeedbackInput(BaseModel):
+    product_id: str = Field(min_length=1, max_length=150)
+    sentiment: Literal["liked", "disliked", "saved", "purchased"]
+    # Explicit feedback only; never infer that an outbound retailer click is a purchase.
+
+
+class OutfitPlanInput(BaseModel):
+    occasion: str = Field(default="casual", max_length=80)
+    climate: Literal["hot", "mild", "cold"] = "mild"
+
+
+class PriceWatchInput(BaseModel):
+    product_id: str = Field(min_length=1, max_length=150)
+    target_price_aud: float = Field(gt=0, le=100000)
 
 
 class WardrobeItem(BaseModel):
@@ -980,7 +997,59 @@ async def skin_analysis(req: SkinAnalysisRequest):
     )
     return analysis
 
-# ---- Digital wardrobe (private user-uploaded items) ----
+# ---- Explicit recommendation feedback and wardrobe planning ----
+@api_router.put("/feedback")
+async def record_product_feedback(req: ProductFeedbackInput):
+    # Development-only single-profile store. Production requires authenticated
+    # per-user ownership and access controls.
+    await db.product_feedback.update_one(
+        {"profile_id": "default", "product_id": req.product_id},
+        {"$set": {"sentiment": req.sentiment, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    return {"product_id": req.product_id, "sentiment": req.sentiment}
+
+
+@api_router.get("/feedback")
+async def list_product_feedback():
+    docs = await db.product_feedback.find({"profile_id": "default"}).to_list(500)
+    return [{"product_id": x["product_id"], "sentiment": x["sentiment"]} for x in docs]
+
+
+@api_router.post("/wardrobe/outfits")
+async def wardrobe_outfits(req: OutfitPlanInput):
+    docs = await db.wardrobe_items.find({"deleted_at": None}).to_list(500)
+    return {"outfits": plan_outfits(docs, req.occasion, req.climate),
+            "weather_live": False, "notice": "Uses selected climate, not live weather."}
+
+
+@api_router.post("/wardrobe/capsule")
+async def wardrobe_capsule(req: OutfitPlanInput):
+    docs = await db.wardrobe_items.find({"deleted_at": None}).to_list(500)
+    return capsule_plan(docs, req.occasion, req.climate)
+
+
+@api_router.post("/price-watch")
+async def save_price_watch(req: PriceWatchInput):
+    # A target-price wishlist only. There is no live feed, scheduler, or
+    # notification delivery, so never claim active price-drop alerts.
+    await db.price_watches.update_one(
+        {"profile_id": "default", "product_id": req.product_id},
+        {"$set": {"target_price_aud": req.target_price_aud, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    return {"product_id": req.product_id, "target_price_aud": req.target_price_aud,
+            "monitoring_active": False, "notice": "Saved target only; live price alerts are not enabled."}
+
+
+@api_router.get("/price-watch")
+async def list_price_watches():
+    docs = await db.price_watches.find({"profile_id": "default"}).to_list(500)
+    return [{"product_id": x["product_id"], "target_price_aud": x["target_price_aud"],
+             "monitoring_active": False} for x in docs]
+
+
+# ---- Digital wardrobe (development-only user-uploaded items; authentication pending) ----
 @api_router.get("/wardrobe", response_model=List[WardrobeItem])
 async def list_wardrobe():
     docs = await db.wardrobe_items.find({"deleted_at": None}).sort("created_at", -1).to_list(500)
