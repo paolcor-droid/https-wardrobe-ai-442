@@ -3,11 +3,13 @@
 Account records never adopt the old shared "default" profile automatically.
 """
 import uuid
+import os
+import secrets
 import json
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Request
 from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
@@ -38,12 +40,46 @@ class Credentials(BaseModel):
 def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
-    async def current_user(authorization: Annotated[str | None, Header()] = None):
-        if not authorization or not authorization.startswith("Bearer "):
+    COOKIE_NAME = "lumiere_session"
+    CSRF_NAME = "lumiere_csrf"
+
+    def browser_session(response, token):
+        # Host-only cookies, never shared with unrelated domains.
+        # For Codespaces forwarded HTTPS, use Secure even when FastAPI receives HTTP.
+        secure = os.environ.get("LUMIERE_WEB_COOKIE_SECURE", "1") != "0"
+        response.set_cookie(COOKIE_NAME, token, max_age=86400, httponly=True,
+                            secure=secure, samesite="lax", path="/api/account")
+        csrf = secrets.token_urlsafe(32)
+        # The JS-readable CSRF cookie must be available at the site root.
+        response.set_cookie(CSRF_NAME, csrf, max_age=86400, httponly=False,
+                            secure=secure, samesite="lax", path="/")
+        return csrf
+
+    def clear_browser_session(response):
+        response.delete_cookie(COOKIE_NAME, path="/api/account")
+        response.delete_cookie(CSRF_NAME, path="/")
+
+    async def current_user(request: Request, authorization: Annotated[str | None, Header()] = None):
+        token = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization[7:]
+        elif request.cookies.get(COOKIE_NAME):
+            token = request.cookies[COOKIE_NAME]
+            # Unsafe cookie-authenticated requests require double-submit CSRF.
+            if request.method not in ("GET", "HEAD", "OPTIONS"):
+                csrf = request.headers.get("X-Lumiere-CSRF", "")
+                expected = request.cookies.get(CSRF_NAME, "")
+                if not csrf or not expected or not secrets.compare_digest(csrf, expected):
+                    raise HTTPException(403, "CSRF verification failed")
+                # Deny cross-site form/cors requests even with valid cookies.
+                origin = request.headers.get("origin")
+                if origin:
+                    from urllib.parse import urlsplit
+                    host = request.headers.get("host", "")
+                    if urlsplit(origin).netloc != host:
+                        raise HTTPException(403, "Cross-site request blocked")
+        if not token or len(token) > 256:
             raise HTTPException(401, "Authentication required")
-        token = authorization[7:]
-        if len(token) > 256 or not token:
-            raise HTTPException(401, "Invalid session")
         record = await db.customer_sessions.find_one({
             "digest": token_digest(token), "revoked_at": None,
             "expires_at": {"$gt": datetime.now(timezone.utc)},
@@ -76,7 +112,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return {"id": user_id, "email": email}
 
     @router.post("/login")
-    async def login(payload: Credentials):
+    async def login(payload: Credentials, request: Request, response: Response):
         try:
             email = normalize_email(payload.email)
         except ValueError:
@@ -89,14 +125,18 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "digest": digest, "user_id": user["id"], "expires_at": expiry,
             "revoked_at": None,
         })
+        if request.headers.get("X-Lumiere-Web-Login") == "1":
+            browser_session(response, token)
+            return {"success": True, "token_type": "cookie", "expires_at": expiry.isoformat()}
         return {"access_token": token, "token_type": "bearer", "expires_at": expiry.isoformat()}
 
     @router.post("/logout")
-    async def logout(authorization: Annotated[str | None, Header()] = None, user_id: str = Depends(current_user)):
+    async def logout(request: Request, response: Response, authorization: Annotated[str | None, Header()] = None, user_id: str = Depends(current_user)):
         await db.customer_sessions.update_one(
-            {"digest": token_digest(authorization[7:]), "user_id": user_id},
+            {"digest": token_digest(authorization[7:] if authorization and authorization.startswith("Bearer ") else request.cookies.get(COOKIE_NAME, "")), "user_id": user_id},
             {"$set": {"revoked_at": datetime.now(timezone.utc)}},
         )
+        clear_browser_session(response)
         return {"success": True}
 
     @router.get("/me")
