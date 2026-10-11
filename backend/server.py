@@ -271,6 +271,7 @@ class TryOn(BaseModel):
     person_image_path: str
     garment_image_path: Optional[str] = None
     garment_prompt: Optional[str] = None
+    second_garment_image_path: Optional[str] = None
     result_path: str
     created_at: str = Field(default_factory=now_iso)
     deleted_at: Optional[str] = None
@@ -310,6 +311,7 @@ class TryOnRequest(BaseModel):
     person_image_path: str
     garment_image_path: Optional[str] = None
     garment_prompt: Optional[str] = None
+    second_garment_image_path: Optional[str] = None
 
 
 class CatalogueProductInput(BaseModel):
@@ -980,7 +982,26 @@ async def create_tryon(req: TryOnRequest):
         except Exception:  # noqa: BLE001
             logger.exception("Could not read garment image")
 
-    if req.garment_image_path:
+    if req.second_garment_image_path:
+        if not req.garment_image_path:
+            raise HTTPException(status_code=400, detail="Select the first garment before adding a second")
+        try:
+            second_b64 = await run_in_threadpool(image_to_b64, req.second_garment_image_path)
+            file_contents.append(ImageContent(image_base64=second_b64))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail="Could not read the second garment photo") from exc
+
+    if req.second_garment_image_path:
+        prompt = (
+            "Create ONE photorealistic outfit try-on. The FIRST image is the person, "
+            "the SECOND image is the first garment, and the THIRD image is the second garment. "
+            "Dress the person in BOTH garments simultaneously, keeping the exact garment colours, "
+            "textures and designs. Do not replace one selected garment with the other. "
+            "Preserve the person's face, skin appearance, hair, body proportions, pose, hands, "
+            "camera angle, lighting and background. Change only the clothes. "
+            "If the garments overlap, layer them naturally. Do not invent additional clothing."
+        )
+    elif req.garment_image_path:
         prompt = (
             "Take the person in the FIRST image and edit the photo so they are wearing the "
             "clothing item shown in the SECOND image. Preserve the exact person: face, visible skin "
@@ -1026,6 +1047,7 @@ async def create_tryon(req: TryOnRequest):
         person_image_path=req.person_image_path,
         garment_image_path=req.garment_image_path,
         garment_prompt=req.garment_prompt,
+        second_garment_image_path=req.second_garment_image_path,
         result_path=result_path,
     )
     await db.tryons.insert_one(tryon.dict())
