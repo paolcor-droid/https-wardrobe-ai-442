@@ -1,11 +1,21 @@
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { makeStyles, fonts } from "@/src/theme";
 
-const HERO =
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?crop=entropy&cs=srgb&fm=jpg&w=1200&q=85";
+// Rotate five curated fashion photographs across launches.
+const HERO_PHOTOS = [
+  "photo-1483985988355-763728e1935b",
+  "photo-1441986300917-64674bd600d8",
+  "photo-1490481651871-ab68de25d43d",
+  "photo-1469334031218-e382a71b716b",
+  "photo-1487222477894-8943e31ef7b2"
+];
+const HERO_INDEX_KEY = "lumiere-home-hero-index-v1";
+const heroUrl = (id: string) => "https://images.unsplash.com/" + id + "?auto=format&fit=crop&w=1600&q=85";
 
 const SUGGESTIONS = [
   "Build me a smart-casual capsule wardrobe",
@@ -16,6 +26,25 @@ const SUGGESTIONS = [
 
 export function ChatEmpty({ onPick }: { onPick: (prompt: string) => void }) {
   const styles = useStyles();
+  const [heroIndex, setHeroIndex] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const value = await AsyncStorage.getItem(HERO_INDEX_KEY);
+        const previous = value === null ? -1 : Number(value);
+        const next = Number.isInteger(previous) && previous >= 0 && previous < HERO_PHOTOS.length
+          ? (previous + 1) % HERO_PHOTOS.length
+          : Math.floor(Math.random() * HERO_PHOTOS.length);
+        if (!active) return;
+        setHeroIndex(next);
+        await AsyncStorage.setItem(HERO_INDEX_KEY, String(next));
+      } catch {
+        if (active) setHeroIndex(Math.floor(Math.random() * HERO_PHOTOS.length));
+      }
+    })();
+    return () => { active = false; };
+  }, []);
   return (
     <ScrollView
       contentContainerStyle={styles.container}
@@ -23,7 +52,7 @@ export function ChatEmpty({ onPick }: { onPick: (prompt: string) => void }) {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.heroWrap}>
-        <Image source={{ uri: HERO }} style={styles.hero} contentFit="cover" transition={300} />
+        {heroIndex !== null && <Image source={{ uri: heroUrl(HERO_PHOTOS[heroIndex]) }} style={styles.hero} contentFit="cover" transition={450} />}
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.15)", "rgba(0,0,0,0.75)"]}
           style={styles.scrim}
