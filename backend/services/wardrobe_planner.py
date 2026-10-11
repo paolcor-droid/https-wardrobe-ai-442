@@ -26,6 +26,10 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12):
     seen = set()
     candidates = ([top, bottom] for top in tops for bottom in bottoms)
     candidates = list(candidates) + [[dress] for dress in dresses]
+    # With just one base outfit, suggest alternative owned shoes rather than
+    # silently discarding them. Bound the expansion by the requested limit.
+    if len(candidates) == 1 and len(shoes) > 1:
+        candidates = candidates * min(len(shoes), limit)
     for index, base in enumerate(candidates):
         chosen = list(base)
         if shoes:
