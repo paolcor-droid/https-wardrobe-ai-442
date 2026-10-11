@@ -50,6 +50,10 @@ class Collection:
             return Result()
         return Result(0)
 
+    async def delete_one(self, query):
+        self.docs = [doc for doc in self.docs if not all(self._match(doc.get(k), v) for k, v in query.items())]
+        return Result()
+
     def find(self, query, projection=None):
         return Cursor([dict(doc) for doc in self.docs
                        if all(self._match(doc.get(k), v) for k, v in query.items())])
@@ -71,7 +75,7 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     app.include_router(configure_account_router(
         db, lambda *args: ("png", "image/png"),
         lambda data, ext: data, lambda *args: "local/fake.png",
-        lambda path: (b"private image", "image/png"),
+        lambda path: (b"private image", "image/png"), lambda path: None,
     ))
     client = TestClient(app)
     tokens = []
@@ -104,6 +108,9 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     assert client.put("/api/account/feedback/item123", headers=a, json={"sentiment": "liked"}).status_code == 200
     assert client.get("/api/account/feedback", headers=b).json() == []
     assert client.get("/api/account/feedback", headers=a).json() == [{"product_id": "item123", "sentiment": "liked"}]
+    assert client.delete("/api/account/photos/" + photo_id, headers=b).status_code == 404
+    assert client.delete("/api/account/photos/" + photo_id, headers=a).status_code == 200
+    assert client.get("/api/account/photos/" + photo_id, headers=a).status_code == 404
     assert client.post("/api/account/logout", headers=a).status_code == 200
     assert client.get("/api/account/me", headers=a).status_code == 401
     assert client.get("/api/account/me", headers=b).status_code == 200
