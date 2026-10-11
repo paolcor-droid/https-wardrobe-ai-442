@@ -173,6 +173,42 @@ def store_bytes(data: bytes, ext: str, content_type: str) -> str:
     return result["path"]
 
 
+def validate_uploaded_image(data: bytes, content_type: str, filename: str) -> tuple[str, str]:
+    """Validate image bytes rather than trusting user-supplied MIME/extension.
+
+    The application stores the original bytes only after Pillow can decode them.
+    Reject decompression bombs, malformed files and excessive payload sizes.
+    """
+    import io
+    import warnings
+    from PIL import Image, UnidentifiedImageError
+
+    if not data or len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Photograph must be between 1 byte and 8 MB")
+    if content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=415, detail="Use a JPEG, PNG or WebP photograph")
+    accepted = {"JPEG": ("jpg", "image/jpeg"), "PNG": ("png", "image/png"),
+                "WEBP": ("webp", "image/webp")}
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                image.verify()
+            with Image.open(io.BytesIO(data)) as image:
+                if image.format not in accepted:
+                    raise HTTPException(status_code=415, detail="Unsupported image encoding")
+                if image.width * image.height > 30_000_000:
+                    raise HTTPException(status_code=413, detail="Image dimensions exceed safety limit")
+                ext, mime = accepted[image.format]
+    except HTTPException:
+        raise
+    except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+        raise HTTPException(status_code=415, detail="Invalid or unsafe image file") from exc
+    if mime != content_type:
+        raise HTTPException(status_code=415, detail="Image content does not match declared file type")
+    return ext, mime
+
+
 def image_to_b64(path: str) -> str:
     img_bytes, _ = get_object(path)
     return base64.b64encode(img_bytes).decode("utf-8")
@@ -566,21 +602,13 @@ async def available_chat_models():
 
 @api_router.post("/upload")
 async def upload(file: UploadFile = File(...)):
-    data = await file.read()
-    ext = (file.filename or "img.jpg").rsplit(".", 1)[-1].lower()
-    if ext not in ("jpg", "jpeg", "png", "webp", "heic"):
-        ext = "jpg"
-    content_type = file.content_type or "image/jpeg"
-    if LOCAL_IMAGE_STORAGE:
-        if ext not in ("jpg", "jpeg", "png", "webp") or content_type not in ("image/jpeg", "image/png", "image/webp"):
-            raise HTTPException(status_code=415, detail="Use a JPEG, PNG or WebP photograph")
-        if len(data) > 8 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Photograph exceeds 8 MB limit")
+    data = await file.read(8 * 1024 * 1024 + 1)
+    ext, content_type = validate_uploaded_image(data, file.content_type or "", file.filename or "")
     try:
         path = await run_in_threadpool(store_bytes, data, ext, content_type)
-    except Exception as e:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         logger.exception("Upload failed")
-        raise HTTPException(status_code=502, detail=f"Upload failed: {e}")
+        raise HTTPException(status_code=502, detail="Upload failed")
     return {"path": path}
 
 
