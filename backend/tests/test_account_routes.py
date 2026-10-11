@@ -276,3 +276,48 @@ def test_private_tryon_requires_owned_person_and_garment_and_hides_results():
     assert client.get(result_uri, headers=a).status_code == 200
     assert client.delete(uri + "/" + item["id"], headers=b).status_code == 404
     assert client.delete(uri + "/" + item["id"], headers=a).status_code == 200
+
+
+def test_skin_analysis_and_wardrobe_photo_links_require_ownership():
+    db = Database()
+    app = FastAPI()
+    async def analyse(data, mime, provider):
+        return {"undertone": "neutral", "depth": "medium", "chroma": "muted",
+                "contrast": "low", "summary": "private colour result",
+                "palette": [], "best_neutrals": [], "best_accents": [],
+                "statement_colours": [], "caution_colours": []}
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/fake.png",
+        lambda path: (b"private photo bytes", "image/png"), None, None, None, None, analyse,
+    ))
+    client = TestClient(app)
+    users = []
+    for email in ("scan-a@example.com", "scan-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        logged = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        })
+        users.append({"Authorization": "Bearer " + logged.json()["access_token"]})
+    a, b = users
+    photo = client.post("/api/account/photos", headers=a,
+                        files={"file": ("face.png", b"bytes", "image/png")}).json()["id"]
+    private_path = "private:" + photo
+    assert client.post("/api/account/skin-analysis", headers=b,
+                       json={"image_path": private_path}).status_code == 404
+    assert client.post("/api/account/wardrobe", headers=b, json={
+        "name": "Stolen photo", "image_path": private_path
+    }).status_code == 404
+    assert client.post("/api/account/wardrobe", headers=b, json={
+        "name": "Legacy shared photo", "image_path": "local/legacy.png"
+    }).status_code == 422
+    analysed = client.post("/api/account/skin-analysis", headers=a,
+                           json={"image_path": private_path})
+    assert analysed.status_code == 200, analysed.text
+    assert client.get("/api/account/profile", headers=a).json()["skin"]["summary"] == "private colour result"
+    assert client.get("/api/account/profile", headers=b).json()["skin"] is None
+    assert client.post("/api/account/wardrobe", headers=a, json={
+        "name": "Owned item", "image_path": private_path
+    }).status_code == 201
