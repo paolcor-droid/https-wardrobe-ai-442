@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { useEffect, useState } from "react";
 import { Image } from "expo-image";
 import { accountAccessToken } from "@/src/account-api";
@@ -24,13 +25,13 @@ export function AccountPhoto({
     }
     return () => { active = false; };
   }, [path, privatePhoto]);
-  if (privatePhoto && !token) return null;
+  if (privatePhoto && !token && Platform.OS !== "web") return null;
   const uri = privatePhoto ? fileUrl(path)
     : /^(https?:|file:|content:|data:|blob:)/i.test(path) ? path : fileUrl(path);
   return <Image
     source={{
       uri,
-      ...(privatePhoto ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      ...(privatePhoto && token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     }}
     style={style}
     cachePolicy={privatePhoto ? "none" : "disk"}
