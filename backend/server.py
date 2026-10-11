@@ -1304,6 +1304,35 @@ async def block_unauthenticated_public_deployment(request, call_next):
     return await call_next(request)
 
 
+async def generate_customer_tryon(person_bytes, garment_bytes, garment_prompt):
+    """Use owned images only; do not write generation output into legacy try-on DB."""
+    if not EMERGENT_LLM_KEY:
+        raise RuntimeError("Image generation provider not configured")
+    files = [ImageContent(image_base64=base64.b64encode(person_bytes).decode("ascii"))]
+    if garment_bytes is not None:
+        files.append(ImageContent(image_base64=base64.b64encode(garment_bytes).decode("ascii")))
+        outfit = "the exact garment from the second input image"
+    else:
+        outfit = garment_prompt
+    instruction = (
+        "Create one photorealistic virtual try-on using the supplied first image "
+        "of the person and dress them in " + outfit + ". Preserve the actual "
+        "person's face, skin, body, proportions, pose and background. "
+        "Preserve garment texture and colours. Change only the clothing."
+    )
+    client = LlmChat(
+        api_key=EMERGENT_LLM_KEY, session_id=f"account-tryon-{uuid.uuid4()}",
+        system_message="You are a careful fashion image editor.",
+    ).with_model(*IMAGE_MODEL).with_params(modalities=["image", "text"])
+    _response_text, images = await client.send_message_multimodal_response(
+        UserMessage(text=instruction, file_contents=files)
+    )
+    if not images:
+        raise RuntimeError("No generated image returned")
+    mime = images[0].get("mime_type", "image/png")
+    return base64.b64decode(images[0]["data"]), mime
+
+
 async def recommend_catalogue_for_customer(user_id):
     """Rank only against this account's profile and explicit product feedback."""
     profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
@@ -1359,7 +1388,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
@@ -1391,6 +1420,7 @@ async def startup_storage():
     await db.customer_photos.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_conversations.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_messages.create_index([("user_id", 1), ("conversation_id", 1)])
+    await db.customer_tryons.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
     try:
         await run_in_threadpool(init_storage)
