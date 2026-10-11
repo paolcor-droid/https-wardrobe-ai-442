@@ -6,7 +6,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from services.customer_auth import (
@@ -21,7 +23,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image):
     async def current_user(authorization: Annotated[str | None, Header()] = None):
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(401, "Authentication required")
@@ -124,5 +126,37 @@ def configure_account_router(db):
         if not result.matched_count:
             raise HTTPException(404, "Wardrobe item not found")
         return {"success": True}
+
+
+    @router.post("/photos", status_code=201)
+    async def upload_photo(file: UploadFile = File(...), user_id: str = Depends(current_user)):
+        raw = await file.read(8 * 1024 * 1024 + 1)
+        ext, mime = validate_image(raw, file.content_type or "", file.filename or "")
+        try:
+            data = await run_in_threadpool(sanitize_image, raw, ext)
+            path = await run_in_threadpool(save_image, data, ext, mime)
+        except Exception as exc:
+            raise HTTPException(502, "Photo storage failed") from exc
+        photo_id = str(uuid.uuid4())
+        await db.customer_photos.insert_one({
+            "id": photo_id, "user_id": user_id, "path": path,
+            "content_type": mime, "created_at": datetime.now(timezone.utc),
+        })
+        return {"id": photo_id}
+
+    @router.get("/photos/{photo_id}")
+    async def get_photo(photo_id: str, user_id: str = Depends(current_user)):
+        photo = await db.customer_photos.find_one({"id": photo_id, "user_id": user_id})
+        if not photo:
+            raise HTTPException(404, "Photo not found")
+        try:
+            data, mime = await run_in_threadpool(read_image, photo["path"])
+        except Exception as exc:
+            raise HTTPException(404, "Photo unavailable") from exc
+        return Response(content=data, media_type=mime, headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
 
     return router
