@@ -58,3 +58,33 @@ def test_invalid_limit_rejected():
     import pytest
     with pytest.raises(ValueError):
         plan_outfits([], limit=0)
+
+
+def test_capsule_balances_categories_before_extra_tops():
+    items = [{"id": f"top{i}", "name": f"A top {i}", "category": "top"} for i in range(8)]
+    items += [
+        {"id": "bottom", "name": "Z trousers", "category": "bottom"},
+        {"id": "shoes", "name": "Z shoes", "category": "shoes"},
+    ]
+    result = capsule_plan(items, max_items=4)
+    selected = {item["id"] for item in result["items"]}
+    assert {"bottom", "shoes"}.issubset(selected)
+    assert result["possible_outfits"]
+
+
+def test_wardrobe_duplicates_only_from_matching_labels():
+    from services.wardrobe_planner import wardrobe_insights
+    items = [
+        {"id": "one", "name": " Blue Shirt ", "category": "top", "colour": "Blue"},
+        {"id": "two", "name": "blue  shirt", "category": "top", "colour": "blue"},
+        {"id": "three", "name": "Different shirt", "category": "top", "colour": "blue"},
+    ]
+    insights = wardrobe_insights(items)
+    assert len(insights["possible_duplicates"]) == 1
+    assert insights["possible_duplicates"][0]["item_ids"] == ["one", "two"]
+
+
+def test_capsule_rejects_zero_capacity():
+    import pytest
+    with pytest.raises(ValueError):
+        capsule_plan([], max_items=0)
