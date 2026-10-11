@@ -91,6 +91,9 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     assert client.get("/api/account/profile", headers=b).json().get("notes") is None
     item = client.post("/api/account/wardrobe", headers=a, json={"name": "Private shirt"}).json()
     assert len(client.get("/api/account/wardrobe", headers=b).json()) == 0
+    assert client.post("/api/account/wardrobe/capsule", headers=b, json={}).json()["items"] == []
+    assert [x["id"] for x in client.post("/api/account/wardrobe/capsule", headers=a, json={}).json()["items"]] == [item["id"]]
+    assert client.post("/api/account/wardrobe/outfits", headers=b, json={}).json()["outfits"] == []
     assert client.delete("/api/account/wardrobe/" + item["id"], headers=b).status_code == 404
     photo = client.post("/api/account/photos", headers=a,
                         files={"file": ("sample.png", b"fake bytes", "image/png")})
