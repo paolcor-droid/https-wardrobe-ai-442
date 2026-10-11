@@ -14,8 +14,11 @@ from pathlib import Path
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://style-scan-v3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 API = f"{BASE_URL}/api"
+
+# Stage 1-3 make external calls; keep stage 4 static regression local.
+LIVE_API_ENABLED = bool(BASE_URL)
 
 
 # ---------- helpers ----------
@@ -58,6 +61,7 @@ def selfie_path(api_client) -> str:
 # ============================================================
 # STAGE 1 — Your Scan
 # ============================================================
+@pytest.mark.skipif(not LIVE_API_ENABLED, reason="Set EXPO_PUBLIC_BACKEND_URL for live API tests")
 class TestStage1YourScan:
     def test_01_upload_selfie(self, selfie_path):
         assert selfie_path.endswith(".png")
@@ -124,6 +128,7 @@ class TestStage1YourScan:
 # ============================================================
 # STAGE 2 — Discover (catalogue recommendations)
 # ============================================================
+@pytest.mark.skipif(not LIVE_API_ENABLED, reason="Set EXPO_PUBLIC_BACKEND_URL for live API tests")
 class TestStage2Discover:
     @pytest.fixture(scope="class")
     def recs_payload(self, api_client):
@@ -180,6 +185,7 @@ class TestStage2Discover:
 # ============================================================
 # STAGE 3 — Discover -> Try-On (ONE generation only)
 # ============================================================
+@pytest.mark.skipif(not LIVE_API_ENABLED, reason="Set EXPO_PUBLIC_BACKEND_URL for live API tests")
 class TestStage3TryOn:
     def test_prepare_tryon_for_111506(self, api_client):
         r = api_client.post(f"{API}/catalogue/products/111506/prepare-tryon", timeout=120)
@@ -236,7 +242,7 @@ class TestStage3TryOn:
 # ============================================================
 class TestStage4XhrRegression:
     def test_uploadImage_still_uses_xhr(self):
-        src = Path("/app/frontend/src/api.ts").read_text()
+        src = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "api.ts").read_text()
         # must use XMLHttpRequest for /api/upload
         idx = src.find("uploadImage")
         assert idx > 0, "uploadImage not found"
