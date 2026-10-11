@@ -6,16 +6,28 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { makeStyles, fonts } from "@/src/theme";
 
-// Rotate five curated fashion photographs across launches.
+// Fifteen editorial fashion covers, sequenced by visual theme.
+// A different theme appears each time the home view is mounted.
 const HERO_PHOTOS = [
-  "photo-1483985988355-763728e1935b",
-  "photo-1441986300917-64674bd600d8",
-  "photo-1490481651871-ab68de25d43d",
-  "photo-1469334031218-e382a71b716b",
-  "photo-1487222477894-8943e31ef7b2"
-];
-const HERO_INDEX_KEY = "lumiere-home-hero-index-v1";
-const heroUrl = (id: string) => "https://images.unsplash.com/" + id + "?auto=format&fit=crop&w=1600&q=85";
+  { id: "photo-1483985988355-763728e1935b", theme: "women" },
+  { id: "photo-1507679799987-c73779587ccf", theme: "men" },
+  { id: "photo-1496747611176-843222e1e57c", theme: "summer" },
+  { id: "photo-1441986300917-64674bd600d8", theme: "smart casual" },
+  { id: "photo-1515886657613-9f3515b0c78f", theme: "evening" },
+  { id: "photo-1529139574466-a303027c1d8b", theme: "women" },
+  { id: "photo-1503342217505-b0a15ec3261c", theme: "men" },
+  { id: "photo-1469334031218-e382a71b716b", theme: "summer" },
+  { id: "photo-1490481651871-ab68de25d43d", theme: "smart casual" },
+  { id: "photo-1487222477894-8943e31ef7b2", theme: "evening" },
+  { id: "photo-1512436991641-6745cdb1723f", theme: "couples" },
+  { id: "photo-1524504388940-b1c1722653e1", theme: "women" },
+  { id: "photo-1500917293891-ef795e70e1f6", theme: "smart casual" },
+  { id: "photo-1506629905607-d9d116f6837b", theme: "couples" },
+  { id: "photo-1521572163474-6864f9cf17ab", theme: "summer" },
+] as const;
+const HERO_INDEX_KEY = "lumiere-home-hero-index-v2";
+const heroUrl = (id: string) =>
+  "https://images.unsplash.com/" + id + "?auto=format&fit=crop&w=1600&q=85";
 
 const SUGGESTIONS = [
   "Build me a smart-casual capsule wardrobe",
@@ -52,7 +64,7 @@ export function ChatEmpty({ onPick }: { onPick: (prompt: string) => void }) {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.heroWrap}>
-        {heroIndex !== null && <Image source={{ uri: heroUrl(HERO_PHOTOS[heroIndex]) }} style={styles.hero} contentFit="cover" transition={450} />}
+        {heroIndex !== null && <Image source={{ uri: heroUrl(HERO_PHOTOS[heroIndex].id) }} style={styles.hero} contentFit="cover" transition={900} />}
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.15)", "rgba(0,0,0,0.75)"]}
           style={styles.scrim}
