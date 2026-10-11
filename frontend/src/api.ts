@@ -1,4 +1,4 @@
-import { accountRequest, accountAccessToken } from "./account-api";
+import { accountRequest, accountAccessToken, webCsrfHeaders } from "./account-api";
 import { Platform } from "react-native";
 
 // On web, same-origin /api calls are forwarded by Metro to local FastAPI.
@@ -116,7 +116,8 @@ export async function uploadImage(uri: string, name: string, type: string): Prom
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BASE}/api/account/photos`);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    else Object.entries(webCsrfHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
