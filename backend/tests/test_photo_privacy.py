@@ -34,3 +34,14 @@ def test_rejects_unknown_format():
     import pytest
     with pytest.raises(ValueError):
         sanitize_photo(b"invalid", "svg")
+
+
+def test_sanitized_photo_keeps_expected_pixel_dimensions():
+    image = Image.new("RGB", (12, 9), (45, 78, 120))
+    buf = BytesIO()
+    image.save(buf, format="WEBP")
+    cleaned = sanitize_photo(buf.getvalue(), "webp")
+    with Image.open(BytesIO(cleaned)) as result:
+        assert result.size == (12, 9)
+        assert result.format == "WEBP"
+        assert not result.info.get("exif")
