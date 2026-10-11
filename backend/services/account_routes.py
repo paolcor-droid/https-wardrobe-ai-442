@@ -203,9 +203,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             {"$set": {"title": title, "updated_at": timestamp}},
         )
         async def stream():
-            yield "data: " + json.dumps({"delta": reply}) + "\\n\\n"
+            yield "data: " + json.dumps({"delta": reply}) + "\n\n"
             yield "data: " + json.dumps({"done": True, "message_id": message_id,
-                                         "title": title, "provider": payload.provider}) + "\\n\\n"
+                                         "title": title, "provider": payload.provider}) + "\n\n"
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
