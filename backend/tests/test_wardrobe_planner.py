@@ -25,3 +25,36 @@ def test_hot_weather_does_not_add_coat():
 def test_capsule_identifies_missing_bottom():
     result = capsule_plan([{"id": "top", "name": "Top", "category": "top"}])
     assert "a versatile bottom" in result["missing_categories"]
+
+
+def test_rotates_shoes_instead_of_always_first():
+    items = [
+        {"id": "top", "name": "Top", "category": "top"},
+        {"id": "bottom1", "name": "Bottom one", "category": "bottom"},
+        {"id": "bottom2", "name": "Bottom two", "category": "bottom"},
+        {"id": "shoes1", "name": "Shoes one", "category": "shoes"},
+        {"id": "shoes2", "name": "Shoes two", "category": "shoes"},
+    ]
+    outfits = plan_outfits(items)
+    assert len(outfits) == 2
+    assert outfits[0]["item_ids"][-1] == "shoes1"
+    assert outfits[1]["item_ids"][-1] == "shoes2"
+
+
+def test_dresses_work_without_tops_and_bottoms():
+    items = [{"id": "dress", "name": "Summer dress", "category": "dress"}]
+    assert plan_outfits(items, climate="hot")[0]["item_ids"] == ["dress"]
+
+
+def test_soft_deleted_wardrobe_items_are_excluded():
+    items = [
+        {"id": "top", "name": "Top", "category": "top"},
+        {"id": "bottom", "name": "Bottom", "category": "bottom", "deleted_at": "2026-01-01"},
+    ]
+    assert plan_outfits(items) == []
+
+
+def test_invalid_limit_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        plan_outfits([], limit=0)
