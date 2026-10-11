@@ -1037,6 +1037,18 @@ async def wardrobe_capsule(req: OutfitPlanInput):
     return capsule_plan(docs, req.occasion, req.climate)
 
 
+@api_router.get("/subscriptions/config")
+async def subscription_config():
+    # Never pretend that payment credentials, entitlements or billing webhooks
+    # exist when they have not been configured and validated.
+    return {
+        "billing_enabled": False,
+        "provider": None,
+        "plans": [],
+        "notice": "Subscriptions are unavailable until payment provider, secure accounts, webhook verification and entitlement enforcement are configured.",
+    }
+
+
 @api_router.post("/price-watch")
 async def save_price_watch(req: PriceWatchInput):
     # A target-price wishlist only. There is no live feed, scheduler, or
@@ -1086,9 +1098,10 @@ async def delete_wardrobe_item(item_id: str):
     )
     if not result.matched_count:
         raise HTTPException(status_code=404, detail="Wardrobe item not found")
-    # Soft deletion removes it from wardrobe, but does not erase the uploaded
-    # image object. Do not imply permanent photo deletion.
-    return {"success": True}
+    # Deleting the wardrobe record is not a claim of permanent media erasure:
+    # legacy uploads are unowned and can be referenced by try-on/history.
+    return {"success": True, "photo_deleted": False,
+            "notice": "Wardrobe record removed; media erasure requires authenticated ownership."}
 
 
 # ---- Virtual try-on ----
