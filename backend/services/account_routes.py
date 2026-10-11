@@ -290,8 +290,20 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
     @router.get("/profile")
     async def get_profile(user_id: str = Depends(current_user)):
-        record = await db.customer_profiles.find_one({"user_id": user_id}, {"_id": 0})
-        return record or {"id": user_id, "user_id": user_id, "favorite_colors": [], "styles": [], "sizes": {}, "notes": "", "preferences": {"budget_min": 0, "budget_max": 500, "occasion": "casual", "categories": [], "climate": "mild", "style": "classic", "preferred_fit": "regular", "preferred_colours": [], "avoided_colours": [], "preferred_retailers": ["zara", "hm", "uniqlo"], "shop_for": "all"}, "updated_at": datetime.now(timezone.utc).isoformat()}
+        record = await db.customer_profiles.find_one({"user_id": user_id}, {"_id": 0}) or {}
+        defaults = {
+            "budget_min": 0, "budget_max": 500, "occasion": "casual",
+            "categories": [], "climate": "mild", "style": "classic",
+            "preferred_fit": "regular", "preferred_colours": [],
+            "avoided_colours": [], "preferred_retailers": ["zara", "hm", "uniqlo"],
+            "shop_for": "all",
+        }
+        return {
+            "id": user_id, "user_id": user_id, "favorite_colors": [],
+            "styles": [], "sizes": {}, "budget": None, "notes": "",
+            "skin": None, "updated_at": datetime.now(timezone.utc).isoformat(),
+            **record, "preferences": {**defaults, **(record.get("preferences") or {})},
+        }
 
     @router.put("/profile")
     async def put_profile(payload: dict, user_id: str = Depends(current_user)):
