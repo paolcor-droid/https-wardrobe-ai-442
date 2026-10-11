@@ -136,22 +136,18 @@ export async function uploadImage(uri: string, name: string, type: string): Prom
 }
 
 export async function saveLook(messageId: string): Promise<SavedLook> {
-  const res = await fetch(`${BASE}/api/saved`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  return accountRequest<SavedLook>("/saved", {
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message_id: messageId }),
   });
-  return json<SavedLook>(res);
 }
 
 export async function listSaved(): Promise<SavedLook[]> {
-  const res = await fetch(`${BASE}/api/saved`);
-  return json<SavedLook[]>(res);
+  return accountRequest<SavedLook[]>("/saved");
 }
 
 export async function deleteSaved(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/saved/${id}`, { method: "DELETE" });
-  await json(res);
+  await accountRequest<{ success: boolean }>(`/saved/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export type StreamHandlers = {
@@ -428,15 +424,12 @@ export type RecommendationPreviewResponse = {
 };
 
 export async function previewCatalogueRecommendations(
-  products: CatalogueProduct[],
-  limit = 20,
+  _products: CatalogueProduct[],
+  _limit = 20,
 ): Promise<RecommendationPreviewResponse> {
-  const res = await fetch(`${BASE}/api/catalogue/recommendations/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ products, limit }),
-  });
-  return json<RecommendationPreviewResponse>(res);
+  // The legacy preview processed caller-supplied products against a shared profile.
+  // Fail closed rather than expose another customer's styling preferences.
+  throw new Error("Catalogue preview is unavailable until the private preview API is ready.");
 }
 
 export type WardrobeItem = {
@@ -473,13 +466,14 @@ export type CapsulePlan = {
 export type ProductSentiment = "liked" | "disliked" | "saved" | "purchased";
 
 export async function saveProductFeedback(product_id: string, sentiment: ProductSentiment) {
-  return json<{ product_id: string; sentiment: ProductSentiment }>(await fetch(`${BASE}/api/feedback`, {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ product_id, sentiment }),
-  }));
+  return accountRequest<{ product_id: string; sentiment: ProductSentiment }>(
+    `/feedback/${encodeURIComponent(product_id)}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sentiment }),
+    });
 }
 export async function getProductFeedback() {
-  return json<Array<{ product_id: string; sentiment: ProductSentiment }>>(await fetch(`${BASE}/api/feedback`));
+  return accountRequest<Array<{ product_id: string; sentiment: ProductSentiment }>>("/feedback");
 }
 export async function getWardrobeOutfits(occasion: string, climate: "hot" | "mild" | "cold") {
   return accountRequest<{ outfits: OutfitPlan[]; weather_live: false; notice: string }>("/wardrobe/outfits", {
@@ -493,9 +487,7 @@ export async function getCapsulePlan(occasion: string, climate: "hot" | "mild" |
     body: JSON.stringify({ occasion, climate }),
   });
 }
-export async function savePriceTarget(product_id: string, target_price_aud: number) {
-  return json<{ monitoring_active: false; notice: string }>(await fetch(`${BASE}/api/price-watch`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ product_id, target_price_aud }),
-  }));
+export async function savePriceTarget(_product_id: string, _target_price_aud: number) {
+  // Prevent writing customer interests into the old unauthenticated price-watch store.
+  throw new Error("Private price alerts are not available yet.");
 }
