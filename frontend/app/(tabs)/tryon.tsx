@@ -31,6 +31,8 @@ export default function TryOnScreen() {
   const params = useLocalSearchParams<{
     garmentPath?: string;
     garmentName?: string;
+    secondGarmentPath?: string;
+    secondGarmentName?: string;
   }>();
 
   const [personPath, setPersonPath] = useState<string | null>(null);
@@ -56,6 +58,11 @@ export default function TryOnScreen() {
       setError(null);
     }
   }, [params.garmentPath]);
+
+  useEffect(() => {
+    setSecondGarmentPath(params.secondGarmentPath || null);
+    setSecondGarmentPreview(params.secondGarmentPath ? fileUrl(params.secondGarmentPath) : null);
+  }, [params.secondGarmentPath]);
 
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 32;
@@ -175,7 +182,7 @@ export default function TryOnScreen() {
               </Pressable>
               {secondGarmentPath && <Pressable testID="remove-second-garment" onPress={() => { setSecondGarmentPath(null); setSecondGarmentPreview(null); }}><Text style={styles.slotLabel}>Remove</Text></Pressable>}
             </View>
-            <Text style={styles.secondHint}>Add a shirt and trousers, for example, to try both on together.</Text>
+            <Text style={styles.secondHint}>{params.secondGarmentName && secondGarmentPath ? `Selected from Discover · ${params.secondGarmentName}` : "Add a shirt and trousers, for example, to try both on together."}</Text>
           </View>
         )}
 
