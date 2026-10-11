@@ -515,3 +515,36 @@ def test_expired_session_is_rejected_without_revoking_other_customers():
     assert client.get("/api/account/me", headers=a).status_code == 401
     assert client.get("/api/account/profile", headers=a).status_code == 401
     assert client.get("/api/account/me", headers=b).status_code == 200
+
+
+def test_browser_cookie_login_csrf_photo_and_logout():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/fake.png", lambda path: (b"image", "image/png"),
+        lambda path: None,
+    ))
+    client = TestClient(app, base_url="https://lumiere.example")
+    creds = {"email": "browser@example.com", "password": "secure browser testing password"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    login = client.post("/api/account/login", json=creds,
+                        headers={"X-Lumiere-Web-Login": "1"})
+    assert login.status_code == 200
+    assert "access_token" not in login.json()
+    assert "httponly" in login.headers["set-cookie"].lower()
+    csrf = client.cookies.get("lumiere_csrf")
+    assert csrf
+    assert client.get("/api/account/me").status_code == 200
+    assert client.post("/api/account/photos",
+                       files={"file": ("face.png", b"data", "image/png")}).status_code == 403
+    headers = {"X-Lumiere-CSRF": csrf}
+    upload = client.post("/api/account/photos", headers=headers,
+                         files={"file": ("face.png", b"data", "image/png")})
+    assert upload.status_code == 201, upload.text
+    assert client.get("/api/account/photos/" + upload.json()["id"]).status_code == 200
+    assert client.post("/api/account/logout", headers={
+        **headers, "Origin": "https://attacker.example"
+    }).status_code == 403
+    assert client.post("/api/account/logout", headers=headers).status_code == 200
+    assert client.get("/api/account/me").status_code == 401
