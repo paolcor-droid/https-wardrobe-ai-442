@@ -1304,6 +1304,67 @@ async def block_unauthenticated_public_deployment(request, call_next):
     return await call_next(request)
 
 
+async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
+    """Fresh per-photo colour analysis without shared profile writes or cross-user cache."""
+    direct_openai = provider == "openai" or (provider is None and bool(OPENAI_API_KEY))
+    if direct_openai:
+        if not OPENAI_API_KEY:
+            raise RuntimeError("OpenAI colour analysis is not configured")
+        data = await run_in_threadpool(_openai_skin_vision, image_bytes, mime_type)
+        used_provider = "openai"
+    else:
+        if not EMERGENT_LLM_KEY:
+            raise RuntimeError("AI colour analysis is not configured")
+        llm = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"account-skin-{uuid.uuid4()}",
+            system_message=(
+                "Assess the visible facial colour relationships in this photograph, "
+                "account for illumination and white balance. Never infer sensitive traits. "
+                "Return only JSON."
+            ),
+        ).with_model(*resolve_chat_model(provider))
+        reply = await llm.send_message(UserMessage(
+            text=(
+                'Return JSON fields: {"undertone":"warm|neutral_warm|neutral|neutral_cool|cool",'
+                '"depth":"light|medium|deep","chroma":"muted|balanced|clear",'
+                '"contrast":"low|medium|high","lighting_quality":"poor|fair|good",'
+                '"face_visibility":"poor|fair|good","confidence":"low|medium|high",'
+                '"summary":"brief evidence and uncertainty"}.'
+            ),
+            file_contents=[ImageContent(image_base64=base64.b64encode(image_bytes).decode("ascii"))],
+        ))
+        data = _parse_json_block(reply)
+        used_provider = resolve_provider_id(provider)
+    accepted = {
+        "undertone": {"warm", "neutral_warm", "neutral", "neutral_cool", "cool"},
+        "depth": {"light", "medium", "deep"},
+        "chroma": {"muted", "balanced", "clear"},
+        "contrast": {"low", "medium", "high"},
+    }
+    if any(data.get(name) not in choices for name, choices in accepted.items()):
+        raise ValueError("Incomplete or invalid colour dimensions")
+    palette = build_palette(data["undertone"], data["depth"], data["chroma"], data["contrast"])
+    analysis = SkinAnalysis(
+        undertone=data["undertone"], depth=data["depth"], chroma=data["chroma"],
+        contrast=data["contrast"],
+        season=suggested_season(data["undertone"], data["depth"], data["chroma"], data["contrast"]),
+        summary=str(data.get("summary", ""))[:1000],
+        palette=[ColorSwatch(**c) for c in palette["best_neutrals"] + palette["best_accents"]],
+        best_neutrals=[ColorSwatch(**c) for c in palette["best_neutrals"]],
+        best_accents=[ColorSwatch(**c) for c in palette["best_accents"]],
+        statement_colours=[ColorSwatch(**c) for c in palette["statement_colours"]],
+        caution_colours=[ColorSwatch(**c) for c in palette["caution_colours"]],
+        analysis_quality=AnalysisQuality(
+            lighting_quality=data.get("lighting_quality", "fair"),
+            face_visibility=data.get("face_visibility", "fair"),
+            confidence=data.get("confidence", "medium"),
+        ),
+        analyzed_with=used_provider,
+    )
+    return analysis.dict()
+
+
 async def generate_customer_tryon(person_bytes, garment_bytes, garment_prompt):
     """Use owned images only; do not write generation output into legacy try-on DB."""
     if not EMERGENT_LLM_KEY:
@@ -1388,7 +1449,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
