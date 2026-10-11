@@ -13,6 +13,9 @@ def _items(items):
 
 
 def plan_outfits(items, occasion="casual", climate="mild", limit=12):
+    """Offer diverse combinations without claiming visual fit or weather verification."""
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
     items = _items(items)
     tops = [x for x in items if x.get("category") == "top"]
     bottoms = [x for x in items if x.get("category") == "bottom"]
@@ -20,27 +23,28 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12):
     shoes = [x for x in items if x.get("category") == "shoes"]
     outer = [x for x in items if x.get("category") == "outerwear"]
     outfits = []
-    for top in tops:
-        for bottom in bottoms:
-            chosen = [top, bottom]
-            if shoes:
-                chosen.append(shoes[0])
-            if climate == "cold" and outer:
-                chosen.append(outer[0])
-            outfits.append({
-                "item_ids": [x["id"] for x in chosen],
-                "names": [x["name"] for x in chosen],
-                "reason": f"Your {top['name']} with {bottom['name']} for a {occasion} occasion; {climate} climate is a planning preference, not a live forecast.",
-                "image_colour_verified": False,
-            })
-            if len(outfits) >= limit:
-                return outfits
-    for dress in dresses:
-        chosen = [dress] + shoes[:1] + (outer[:1] if climate == "cold" else [])
+    seen = set()
+    candidates = ([top, bottom] for top in tops for bottom in bottoms)
+    candidates = list(candidates) + [[dress] for dress in dresses]
+    for index, base in enumerate(candidates):
+        chosen = list(base)
+        if shoes:
+            chosen.append(shoes[index % len(shoes)])
+        if climate == "cold" and outer:
+            chosen.append(outer[index % len(outer)])
+        ids = tuple(x["id"] for x in chosen)
+        if ids in seen:
+            continue
+        seen.add(ids)
+        names = [x["name"] for x in chosen]
         outfits.append({
-            "item_ids": [x["id"] for x in chosen],
-            "names": [x["name"] for x in chosen],
-            "reason": f"Your {dress['name']} is an option for a {occasion} occasion. Check weather and fit before wearing.",
+            "item_ids": list(ids),
+            "names": names,
+            "reason": (
+                f"Try {' with '.join(names[:2])} for a {occasion} occasion. "
+                f"The {climate} setting is your preference, not a live forecast. "
+                "Check colour coordination, weather and fit yourself."
+            ),
             "image_colour_verified": False,
         })
         if len(outfits) >= limit:
