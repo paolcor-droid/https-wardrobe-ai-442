@@ -1304,8 +1304,32 @@ async def block_unauthenticated_public_deployment(request, call_next):
     return await call_next(request)
 
 
+async def generate_customer_styling_reply(conversation_id, profile, prior, message, provider):
+    """Generate text-only style advice using an authenticated customer's own context."""
+    if not EMERGENT_LLM_KEY:
+        raise RuntimeError("LLM provider not configured")
+    prompt = build_system_prompt(profile)
+    context = [{"role": "system", "content": prompt}]
+    for item in prior[-60:]:
+        if item.get("role") in {"user", "assistant"}:
+            context.append({"role": item["role"], "content": item.get("content", "")})
+    client = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id="private-" + conversation_id,
+        system_message=prompt,
+        initial_messages=context,
+    ).with_model(*resolve_chat_model(provider))
+    chunks = []
+    async for event in client.stream_message(UserMessage(text=message, file_contents=[])):
+        if isinstance(event, TextDelta):
+            chunks.append(event.content)
+        elif isinstance(event, StreamDone):
+            break
+    return "".join(chunks).strip()
+
+
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
