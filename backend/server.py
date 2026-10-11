@@ -507,9 +507,17 @@ async def catalogue_recommendations():
             logger.warning("Could not read imported Matterhorn catalogue: %s", exc)
     normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
     ranked = rank_verified_products(normalized, profile, limit=60)
+    recommendations = customer_recommendations(ranked)
+    # Explicit feedback refines presentation only after all existing
+    # colour, department and other eligibility filters have run.
+    feedback_docs = await db.product_feedback.find({"profile_id": "default"}).to_list(500)
+    feedback = {x["product_id"]: x["sentiment"] for x in feedback_docs}
+    recommendations = [x for x in recommendations if feedback.get(x.get("product_id")) != "disliked"]
+    weight = {"purchased": 3, "saved": 2, "liked": 1}
+    recommendations.sort(key=lambda x: -weight.get(feedback.get(x.get("product_id")), 0))
     return {
-        "recommendations": customer_recommendations(ranked),
-        "count": len(ranked),
+        "recommendations": recommendations,
+        "count": len(recommendations),
         "live_inventory_enabled": False,
         "source": catalogue_source,
         "notice": "Trial catalogue snapshot; price and current stock are not claimed live.",
