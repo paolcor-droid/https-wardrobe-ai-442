@@ -160,13 +160,37 @@ def get_object(path: str) -> tuple[bytes, str]:
 
 
 def delete_owned_object(path: str) -> None:
-    """Delete only locally stored media. Remote deletion is unsupported and fails closed."""
-    if not LOCAL_IMAGE_STORAGE or not path.startswith("local/"):
-        raise NotImplementedError("Verified remote object deletion is not configured")
-    name = path.removeprefix("local/")
-    if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
-        raise ValueError("Invalid local media path")
-    (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
+    """Remove an owned object, verifying remote absence before removing metadata.
+
+    Remote operation stays opt-in until validated on deployed storage.
+    """
+    if LOCAL_IMAGE_STORAGE and path.startswith("local/"):
+        name = path.removeprefix("local/")
+        if not re.fullmatch(r"[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", name):
+            raise ValueError("Invalid local media path")
+        (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
+        return
+
+    if LOCAL_IMAGE_STORAGE or os.environ.get("LUMIERE_REMOTE_DELETE_ENABLED") != "1":
+        raise NotImplementedError("Verified remote object deletion is not enabled")
+    if not re.fullmatch(
+        r"stylescan/uploads/anon/(?:[0-9a-f]{32}|"
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+        r"\\.(?:jpg|jpeg|png|webp)", path,
+    ):
+        raise ValueError("Invalid remote image path")
+    key = init_storage()
+    endpoint = f"{STORAGE_URL}/objects/{path}"
+    headers = {"X-Storage-Key": key}
+    deleted = requests.delete(endpoint, headers=headers, timeout=60)
+    if deleted.status_code not in (200, 202, 204, 404):
+        deleted.raise_for_status()
+        raise RuntimeError("Storage delete was not acknowledged")
+    # A successful DELETE acknowledgement alone is not proof of removal.
+    verify = requests.get(endpoint, headers=headers, timeout=60)
+    if verify.status_code != 404:
+        raise RuntimeError("Remote object remains accessible or deletion is unverified")
+
 
 
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
