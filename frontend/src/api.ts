@@ -1,3 +1,4 @@
+import { accountRequest } from "./account-api";
 import { Platform } from "react-native";
 
 // On web, same-origin /api calls are forwarded by Metro to local FastAPI.
@@ -271,17 +272,17 @@ export type TryOn = {
 };
 
 export async function getProfile(): Promise<Profile> {
-  const res = await fetch(`${BASE}/api/profile`);
-  return json<Profile>(res);
+  const res = await accountRequest<Profile>("/profile");
+  return res;
 }
 
 export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | "updated_at">>): Promise<Profile> {
-  const res = await fetch(`${BASE}/api/profile`, {
+  const res = await accountRequest<Profile>("/profile", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return json<Profile>(res);
+  return res;
 }
 
 export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
@@ -405,17 +406,17 @@ export type WardrobeItem = {
 };
 
 export async function listWardrobe(): Promise<WardrobeItem[]> {
-  return json<WardrobeItem[]>(await fetch(`${BASE}/api/wardrobe`));
+  return accountRequest<WardrobeItem[]>("/wardrobe");
 }
 
 export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes">): Promise<WardrobeItem> {
-  return json<WardrobeItem>(await fetch(`${BASE}/api/wardrobe`, {
+  return accountRequest<WardrobeItem>("/wardrobe", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  }));
+  });
 }
 
 export async function deleteWardrobeItem(id: string): Promise<void> {
-  await json(await fetch(`${BASE}/api/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" }));
+  await accountRequest<{success: boolean}>(`/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean };
@@ -437,13 +438,13 @@ export async function getProductFeedback() {
   return json<Array<{ product_id: string; sentiment: ProductSentiment }>>(await fetch(`${BASE}/api/feedback`));
 }
 export async function getWardrobeOutfits(occasion: string, climate: "hot" | "mild" | "cold") {
-  return json<{ outfits: OutfitPlan[]; weather_live: false; notice: string }>(await fetch(`${BASE}/api/wardrobe/outfits`, {
+  return accountRequest<{ outfits: OutfitPlan[]; weather_live: false; notice: string }>("/wardrobe/outfits", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ occasion, climate }),
-  }));
+  });
 }
 export async function getCapsulePlan(occasion: string, climate: "hot" | "mild" | "cold") {
-  return json<CapsulePlan>(await fetch(`${BASE}/api/wardrobe/capsule`, {
+  return accountRequest<CapsulePlan>("/wardrobe/capsule", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ occasion, climate }),
   }));
