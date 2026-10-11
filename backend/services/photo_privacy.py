@@ -22,4 +22,7 @@ def sanitize_photo(data: bytes, extension: str) -> bytes:
         output = BytesIO()
         options = {"quality": 92} if formats[extension] == "JPEG" else {}
         clean.save(output, format=formats[extension], **options)
-        return output.getvalue()
+        payload = output.getvalue()
+        if len(payload) > 8 * 1024 * 1024:
+            raise ValueError("Sanitized photograph exceeds 8 MB storage limit")
+        return payload
