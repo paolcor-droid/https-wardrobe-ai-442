@@ -1217,7 +1217,8 @@ async def delete_tryon(tryon_id: str):
 # object ownership are implemented. Development mode remains available locally.
 @app.middleware("http")
 async def block_unauthenticated_public_deployment(request, call_next):
-    if os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT", "0") == "1":
+    if (os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT", "0") == "1"
+            or os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}):
         return Response(
             content=json.dumps({"detail": "Public access disabled until authenticated user isolation is configured"}),
             status_code=503,
