@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from services.customer_pricing import PricingPolicy, apply_customer_price
-from services.recommendation_engine import is_colour_eligible, recommendation_reasons, recommendation_score
+from services.recommendation_engine import is_colour_eligible, recommendation_reasons, recommendation_score, scan_colour_evidence, _product_colour_names, _colour_match, _norm_colour
 
 # LUMIÈRE retails wholesale-sourced trial products at a fixed +25% markup.
 # Supplier cost stays private; the customer only ever sees this derived price.
@@ -181,7 +181,26 @@ def rank_verified_products(
             prefs.get("avoided_colours"),
         )
 
+        evidence = scan_colour_evidence(product, colour_profile)
+        palette_matches = sorted(set().union(
+            evidence["best_neutrals"], evidence["best_accents"], evidence["statement_colours"]
+        ))
+        preferred_matches = sorted(_colour_match(
+            _product_colour_names(product),
+            {_norm_colour(str(c)) for c in (prefs.get("preferred_colours") or []) if c},
+        ))
+        colour_match = {
+            "basis": "both" if palette_matches and preferred_matches else
+                     "skin_palette" if palette_matches else
+                     "preferred_colour" if preferred_matches else "unverified",
+            "skin_palette_colours": palette_matches,
+            "preferred_colours": preferred_matches,
+            "evidence_source": "supplier_colour_label",
+            "image_colour_verified": False,
+        }
+
         ranked.append({
+            "colour_match": colour_match,
             **product,
             "recommendation_score": round(score, 1),
             "recommendation_reasons": reasons,
@@ -213,6 +232,7 @@ def customer_product_view(product: dict) -> dict:
         "materials": product.get("materials", []),
         "recommendation_score": product.get("recommendation_score"),
         "recommendation_reasons": product.get("recommendation_reasons", []),
+        "colour_match": product.get("colour_match"),
     }
 
 
