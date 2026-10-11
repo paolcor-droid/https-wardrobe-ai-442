@@ -189,6 +189,7 @@ export default function ProfileScreen() {
                     {skin.analysis_quality.confidence} confidence · {skin.analysis_quality.lighting_quality} lighting
                   </Text>
                 ) : null}
+                <Text style={styles.skinQuality}>Colour analysis is an estimate. If the result feels wrong, you can re-scan or adjust preferred colours below.</Text>
                 {skin.analyzed_with ? (
                   <Text style={styles.skinQuality}>
                     Analysed with {skin.analyzed_with === "openai" ? "ChatGPT" : "Claude"}
@@ -201,7 +202,7 @@ export default function ProfileScreen() {
               ["Best neutrals", skin.best_neutrals],
               ["Best accents", skin.best_accents],
               ["Statement colours", skin.statement_colours],
-              ["Use carefully near the face", skin.caution_colours],
+              ["Other colours to experiment with", skin.caution_colours],
             ].map(([label, swatches]) => (
               <View key={label as string}>
                 <Text style={styles.swatchLabel}>{label as string}</Text>
