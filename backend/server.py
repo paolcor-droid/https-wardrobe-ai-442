@@ -620,7 +620,11 @@ async def files(path: str):
         content, content_type = await run_in_threadpool(get_object, path)
     except Exception:  # noqa: BLE001
         raise HTTPException(status_code=404, detail="File not found")
-    return Response(content=content, media_type=content_type)
+    return Response(content=content, media_type=content_type, headers={
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+    })
 
 
 # ---- Conversations ----
