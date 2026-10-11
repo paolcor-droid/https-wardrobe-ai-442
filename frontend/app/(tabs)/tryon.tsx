@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
+import { AccountPhoto } from "@/src/components/AccountPhoto";
 import Feather from "@react-native-vector-icons/feather";
 import * as Haptics from "expo-haptics";
 
@@ -52,7 +53,7 @@ export default function TryOnScreen() {
     if (params.garmentPath) {
       setGarmentPath(params.garmentPath);
       // Preview the LUMIÈRE-hosted copy via /api/files, never the supplier URL.
-      setGarmentPreview(fileUrl(params.garmentPath));
+      setGarmentPreview(params.garmentPath);
       setGarmentPrompt("");
       setResult(null);
       setError(null);
@@ -61,7 +62,7 @@ export default function TryOnScreen() {
 
   useEffect(() => {
     setSecondGarmentPath(params.secondGarmentPath || null);
-    setSecondGarmentPreview(params.secondGarmentPath ? fileUrl(params.secondGarmentPath) : null);
+    setSecondGarmentPreview(params.secondGarmentPath || null);
   }, [params.secondGarmentPath]);
 
 
@@ -145,7 +146,7 @@ export default function TryOnScreen() {
     >
       {preview ? (
         <>
-          <Image source={{ uri: preview }} style={styles.slotImg} contentFit="cover" />
+          <AccountPhoto path={preview} style={styles.slotImg} contentFit="cover" />
           {uploadingTarget === which && (
             <View style={styles.slotOverlay}>
               <ActivityIndicator color={colors.onBrandPrimary} />
@@ -184,7 +185,7 @@ export default function TryOnScreen() {
             <Text style={styles.secondTitle}>Build an outfit (optional)</Text>
             <View style={styles.secondControls}>
               <Pressable testID="tryon-slot-secondGarment" style={styles.secondSlot} onPress={() => setTarget("secondGarment")}>
-                {secondGarmentPreview ? <Image source={{ uri: secondGarmentPreview }} style={styles.slotImg} contentFit="cover" /> : <Text style={styles.slotLabel}>+ Add second garment</Text>}
+                {secondGarmentPreview ? <AccountPhoto path={secondGarmentPreview} style={styles.slotImg} contentFit="cover" /> : <Text style={styles.slotLabel}>+ Add second garment</Text>}
               </Pressable>
               {secondGarmentPath && <Pressable testID="remove-second-garment" onPress={() => { setSecondGarmentPath(null); setSecondGarmentPreview(null); }}><Text style={styles.slotLabel}>Remove</Text></Pressable>}
             </View>
@@ -231,15 +232,15 @@ export default function TryOnScreen() {
         {result && (
           <View style={styles.resultWrap} testID="tryon-result">
             <Text style={styles.resultLabel}>AI-generated preview · Fit, drape and colour may differ in reality</Text>
-            <Image source={{ uri: fileUrl(result.result_path) }} style={styles.resultImg} contentFit="cover" />
-            <Pressable
+            <AccountPhoto path={result.result_path} style={styles.resultImg} contentFit="cover" />
+            {!result.result_path.startsWith("private:") && <Pressable
               testID="share-result-button"
               style={styles.shareBtn}
               onPress={() => setShareUrl(fileUrl(result.result_path))}
             >
               <Feather name="share" size={16} color={colors.onSurface} />
               <Text style={styles.shareBtnText}>Share this look</Text>
-            </Pressable>
+            </Pressable>}
           </View>
         )}
 
@@ -249,7 +250,7 @@ export default function TryOnScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
               {gallery!.map((t) => (
                 <View key={t.id} style={styles.galleryItem} testID={`tryon-history-${t.id}`}>
-                  <Image source={{ uri: fileUrl(t.result_path) }} style={styles.galleryImg} contentFit="cover" />
+                  <AccountPhoto path={t.result_path} style={styles.galleryImg} contentFit="cover" />
                   <Pressable
                     testID={`tryon-delete-${t.id}`}
                     style={styles.galleryDelete}
