@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
+import { AccountPhoto } from "@/src/components/AccountPhoto";
 import Feather from "@react-native-vector-icons/feather";
 import * as Haptics from "expo-haptics";
 
@@ -180,7 +181,7 @@ export default function ProfileScreen() {
           <View style={styles.skinCard} testID="skin-result">
             <View style={styles.skinTop}>
               {skin.image_path ? (
-                <Image source={{ uri: fileUrl(skin.image_path) }} style={styles.skinAvatar} contentFit="cover" />
+                <AccountPhoto path={skin.image_path} style={styles.skinAvatar} contentFit="cover" />
               ) : null}
               <View style={styles.flex}>
                 <Text style={styles.undertone}>
