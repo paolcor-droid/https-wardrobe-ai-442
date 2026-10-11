@@ -121,3 +121,28 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     assert client.post("/api/account/logout", headers=a).status_code == 200
     assert client.get("/api/account/me", headers=a).status_code == 401
     assert client.get("/api/account/me", headers=b).status_code == 200
+
+
+def test_remote_photo_deletion_unavailable_keeps_record():
+    db = Database()
+    app = FastAPI()
+    def unsupported_delete(path):
+        raise NotImplementedError("Remote object storage delete not verified")
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "remote/private-id.png",
+        lambda path: (b"photo", "image/png"), unsupported_delete,
+    ))
+    client = TestClient(app)
+    assert client.post("/api/account/register", json={
+        "email": "third@example.com", "password": "long secure password"
+    }).status_code == 201
+    login = client.post("/api/account/login", json={
+        "email": "third@example.com", "password": "long secure password"
+    })
+    headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+    photo = client.post("/api/account/photos", headers=headers,
+                        files={"file": ("sample.png", b"bytes", "image/png")}).json()
+    path = "/api/account/photos/" + photo["id"]
+    assert client.delete(path, headers=headers).status_code == 503
+    assert client.get(path, headers=headers).status_code == 200
