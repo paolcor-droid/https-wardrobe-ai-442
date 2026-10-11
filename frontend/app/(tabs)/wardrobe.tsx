@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, deleteWardrobeItem, type WardrobeItem } from "@/src/api";
+import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -27,6 +27,10 @@ export default function WardrobeScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outfitSelection, setOutfitSelection] = useState<WardrobeItem[]>([]);
+  const [occasion, setOccasion] = useState("casual");
+  const [climate, setClimate] = useState<"hot" | "mild" | "cold">("mild");
+  const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
+  const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
@@ -89,6 +93,37 @@ export default function WardrobeScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Text style={styles.note}>Removing an item hides its wardrobe record; uploaded photos are not yet permanently erased from storage.</Text>
         </View>
+        <View style={styles.form}>
+          <Text style={styles.heading}>Plan what to wear</Text>
+          <TextInput style={styles.input} value={occasion} onChangeText={setOccasion} placeholder="Occasion (e.g. work, weekend)" placeholderTextColor="#888" maxLength={80} />
+          <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
+            <Pressable key={value} onPress={() => setClimate(value)} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
+          ))}</View>
+          <Text style={styles.note}>Choose a climate preference. Live weather is not connected.</Text>
+          <Pressable testID="wardrobe-plan-outfits" style={styles.button} onPress={async () => {
+            try { const result = await getWardrobeOutfits(occasion, climate); setPlannedOutfits(result.outfits); setError(null); }
+            catch (e) { setError(e instanceof Error ? e.message : "Planning failed"); }
+          }}><Text style={styles.buttonText}>Suggest outfits</Text></Pressable>
+          <Pressable testID="wardrobe-plan-capsule" style={[styles.button, { marginTop: 8 }]} onPress={async () => {
+            try { setCapsule(await getCapsulePlan(occasion, climate)); setError(null); }
+            catch (e) { setError(e instanceof Error ? e.message : "Capsule planning failed"); }
+          }}><Text style={styles.buttonText}>Build capsule wardrobe</Text></Pressable>
+          {plannedOutfits.map((outfit, index) => <View key={index} style={styles.planned}>
+            <Text style={styles.itemName}>{outfit.names.join(" + ")}</Text>
+            <Text style={styles.note}>{outfit.reason}</Text>
+            {outfit.item_ids.length >= 2 && <Pressable onPress={() => {
+              const chosen = outfit.item_ids.map((id) => items.find((item) => item.id === id)).filter((item): item is WardrobeItem => Boolean(item));
+              if (chosen.length >= 2) setOutfitSelection(chosen.slice(0, 2));
+            }}><Text style={styles.action}>Select first two for try-on</Text></Pressable>}
+          </View>)}
+          {capsule && <View style={styles.planned}>
+            <Text style={styles.heading}>Your capsule ({capsule.items.length} pieces)</Text>
+            <Text style={styles.note}>{capsule.items.map((item) => item.name).join(" · ") || "Add wardrobe items to begin."}</Text>
+            <Text style={styles.itemName}>Pieces to consider</Text>
+            <Text style={styles.note}>{capsule.missing_categories.join(" · ") || "No basic category gaps identified."}</Text>
+            <Text style={styles.note}>{capsule.possible_outfits.length} possible combinations from these pieces (not fit-verified).</Text>
+          </View>}
+        </View>
         <Text style={styles.heading}>Your pieces ({items.length})</Text>
         {outfitSelection.length > 0 && <View style={styles.form}>
           <Text style={styles.itemName}>{outfitSelection.length}/2 garments selected</Text>
@@ -136,6 +171,7 @@ const useStyles = makeStyles((c) => ({
   error: { color: c.error, fontFamily: fonts.text, marginTop: 8 },
   note: { color: c.muted, fontFamily: fonts.text, fontSize: 12, marginTop: 6 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  planned: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12, marginTop: 12, gap: 5 },
   item: { width: "47%", borderWidth: 1, borderColor: c.border, padding: 10, gap: 5 },
   itemPhoto: { width: "100%", aspectRatio: 0.85 },
   itemName: { color: c.onSurface, fontFamily: fonts.text, fontSize: 14 },
