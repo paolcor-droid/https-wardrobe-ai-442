@@ -26,6 +26,19 @@ def _wants_sleepwear(prefs: dict) -> bool:
     return any(word in selection for word in ("sleep", "nightwear", "pyjama", "pajama", "underwear", "lingerie"))
 
 
+
+def _everyday_priority(product: dict) -> float:
+    """Small ranking boost for versatile daily clothing, without bypassing filters."""
+    label = " ".join(str(product.get(key) or "") for key in ("name", "category", "category_path")).lower()
+    primary = ("shirt", "polo", "trouser", "chino", "jean", "short", "blouse", "t-shirt", "tee ")
+    secondary = ("dress", "skirt", "top", "jumper", "sweater", "cardigan", "jacket", "blazer")
+    if any(term in label for term in primary):
+        return 12.0
+    if any(term in label for term in secondary):
+        return 5.0
+    return 0.0
+
+
 def _diversify_brands(ranked: list[dict], limit: int) -> list[dict]:
     groups: dict[str, list[dict]] = {}
     for product in ranked:
@@ -127,6 +140,8 @@ def rank_verified_products(
         )
         if score < 0:
             continue
+
+        score += _everyday_priority(product)
 
         # Preference, not a hard filter: verified products from other providers
         # can still surface when they are a substantially better wardrobe match.
