@@ -162,7 +162,7 @@ export default function DiscoverScreen() {
                   </View>
                 </View>
               ) : null)}
-              <Text style={styles.paletteNote}>Recommendations use verified garment colour names matched against this palette. Colours without a verified match are not presented as a match.</Text>
+              <Text style={styles.paletteNote}>Recommendations use supplier-provided garment colour labels, not independently verified garment-image colours. Palette matching is an estimate, not a guarantee.</Text>
             </View>
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
