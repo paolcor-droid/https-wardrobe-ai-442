@@ -50,7 +50,9 @@ def main():
     require(request("GET", "/me", token=b)[0] == 200, "Account B session failed")
     status, _ = request("PUT", "/profile", {"notes": "private smoke A"}, a)
     require(status == 200, "Profile write failed")
-    require(request("GET", "/profile", token=b)[1].get("notes") != "private smoke A",
+    status_b, profile_b = request("GET", "/profile", token=b)
+    require(status_b == 200 and isinstance(profile_b, dict), "Profile B read failed")
+    require(profile_b.get("notes") != "private smoke A",
             "Cross-user profile leak")
     require(request("GET", "/saved", token=b)[1] == [], "New account saved looks not empty")
     require(request("GET", "/profile")[0] == 401, "Missing authorization was accepted")
