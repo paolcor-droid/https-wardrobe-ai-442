@@ -1,4 +1,4 @@
-import { accountRequest } from "./account-api";
+import { accountRequest, accountAccessToken } from "./account-api";
 import { Platform } from "react-native";
 
 // On web, same-origin /api calls are forwarded by Metro to local FastAPI.
@@ -62,37 +62,37 @@ export function fileUrl(path: string): string {
 }
 
 export async function createConversation(): Promise<Conversation> {
-  const res = await fetch(`${BASE}/api/conversations`, { method: "POST" });
-  return json<Conversation>(res);
+  const res = await accountRequest<Conversation>("/conversations", { method: "POST" });
+  return res;
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const res = await fetch(`${BASE}/api/conversations`);
-  return json<Conversation[]>(res);
+  const res = await accountRequest<Conversation[]>("/conversations");
+  return res;
 }
 
 export async function updateConversation(
   id: string,
   body: { title?: string; pinned?: boolean },
 ): Promise<Conversation> {
-  const res = await fetch(`${BASE}/api/conversations/${id}`, {
+  const res = await accountRequest<Conversation>(`/conversations/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return json<Conversation>(res);
+  return res;
 }
 
 export async function getMessages(conversationId: string): Promise<ChatMessage[]> {
-  const res = await fetch(`${BASE}/api/conversations/${conversationId}/messages`);
-  return json<ChatMessage[]>(res);
+  const res = await accountRequest<ChatMessage[]>(`/conversations/${encodeURIComponent(conversationId)}/messages`);
+  return res;
 }
 
 export async function deleteConversation(conversationId: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/conversations/${conversationId}`, {
+  const res = await accountRequest<{success: boolean}>(`/conversations/${encodeURIComponent(conversationId)}`, {
     method: "DELETE",
   });
-  await json(res);
+  void res;
 }
 
 export async function uploadImage(uri: string, name: string, type: string): Promise<string> {
@@ -162,8 +162,7 @@ export function streamChat(
   provider?: string | null,
 ): () => void {
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", `${BASE}/api/conversations/${conversationId}/chat`);
-  xhr.setRequestHeader("Content-Type", "application/json");
+  let cancelled = false;
 
   let consumed = 0;
   let buffer = "";
@@ -203,9 +202,24 @@ export function streamChat(
     if (xhr.status >= 400) handlers.onError(`Request failed (${xhr.status})`);
   };
   xhr.onerror = () => handlers.onError("We lost connection to the styling desk.");
-  xhr.send(JSON.stringify({ message, image_path: imagePath ?? null, provider: provider ?? null }));
+  void (async () => {
+    try {
+      const token = await accountAccessToken();
+      if (cancelled) return;
+      if (imagePath) {
+        handlers.onError("Private image attachments are not yet supported by account chat.");
+        return;
+      }
+      xhr.open("POST", `${BASE}/api/account/conversations/${encodeURIComponent(conversationId)}/chat`);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify({ message, image_path: null, provider: provider ?? null }));
+    } catch (error) {
+      if (!cancelled) handlers.onError(error instanceof Error ? error.message : "Sign in required");
+    }
+  })();
 
-  return () => xhr.abort();
+  return () => { cancelled = true; xhr.abort(); };
 }
 
 // ----------------------------- Profile / Skin / Try-on -----------------------------
