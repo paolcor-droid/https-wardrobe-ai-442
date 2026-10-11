@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { View, Text, Pressable, TextInput, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -43,6 +43,7 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { provider } = useModel();
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 40;
@@ -159,11 +160,14 @@ export default function ProfileScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.title}>You</Text>
         <Text style={styles.subtitle}>Your stylist learns from this</Text>
-        <Link href={"/account" as any} asChild>
-          <Pressable accessibilityRole="button" style={{ paddingVertical: 8 }}>
-            <Text>Account / Sign in / Sign out</Text>
-          </Pressable>
-        </Link>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open account sign in or registration"
+          onPress={() => router.push("/account" as any)}
+          style={{ alignSelf: "flex-start", backgroundColor: colors.text, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 16, marginTop: 10 }}
+        >
+          <Text style={{ color: colors.background, fontWeight: "700" }}>Sign in / Create account  →</Text>
+        </Pressable>
       </View>
 
       <KeyboardAwareScrollView
