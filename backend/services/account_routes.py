@@ -34,7 +34,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
@@ -216,6 +216,31 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
+
+
+    @router.post("/skin-analysis")
+    async def customer_skin_analysis(payload: dict, user_id: str = Depends(current_user)):
+        path = payload.get("image_path")
+        if not isinstance(path, str) or not path.startswith("private:"):
+            raise HTTPException(422, "Colour analysis requires an owned private photo")
+        photo_id = path.removeprefix("private:")
+        photo = await db.customer_photos.find_one({"id": photo_id, "user_id": user_id})
+        if not photo:
+            raise HTTPException(404, "Photograph not found")
+        if analyze_skin is None:
+            raise HTTPException(503, "Private colour analysis unavailable")
+        try:
+            data, mime = await run_in_threadpool(read_image, photo["path"])
+            analysis = await analyze_skin(data, mime, payload.get("provider"))
+        except Exception as exc:
+            raise HTTPException(502, "Colour analysis unavailable") from exc
+        analysis = {**analysis, "image_path": path, "analyzed_at": datetime.now(timezone.utc).isoformat()}
+        await db.customer_profiles.update_one(
+            {"user_id": user_id}, {"$set": {
+                "skin": analysis, "updated_at": datetime.now(timezone.utc).isoformat(),
+            }}, upsert=True,
+        )
+        return analysis
 
     @router.post("/tryons", status_code=201)
     async def owned_tryon(payload: PrivateTryOnInput, user_id: str = Depends(current_user)):
