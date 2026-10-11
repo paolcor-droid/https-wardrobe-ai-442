@@ -37,7 +37,8 @@ config.server = {
       if (!req.url || !/^\/api(?:\/|\?|$)/.test(req.url)) {
         return downstream(req, res, next);
       }
-      const headers = { ...req.headers, host: "127.0.0.1:8000" };
+      // Preserve the browser-facing Host for strict same-origin CSRF validation.
+      const headers = { ...req.headers };
       delete headers.connection;
       const upstream = http.request(
         {
