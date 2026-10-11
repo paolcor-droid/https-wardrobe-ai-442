@@ -17,10 +17,15 @@ export async function clearAccountSession(): Promise<void> {
   await SecureStore.deleteItemAsync(KEY);
 }
 
-export async function accountRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function accountAccessToken(): Promise<string> {
   if (Platform.OS === "web") throw new Error("Secure web account sessions are not configured");
   const token = await SecureStore.getItemAsync(KEY);
   if (!token) throw new Error("Please sign in to your LUMIÈRE account");
+  return token;
+}
+
+export async function accountRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = await accountAccessToken();
   if (!path.startsWith("/") || path.startsWith("//")) throw new Error("Invalid account path");
   const response = await fetch(`${BASE}/api/account${path}`, {
     ...init, headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
