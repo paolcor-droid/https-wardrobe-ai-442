@@ -17,6 +17,12 @@ from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
 
+class PrivateTryOnInput(BaseModel):
+    person_photo_id: str
+    garment_photo_id: str | None = None
+    garment_prompt: str | None = Field(default=None, max_length=1000)
+
+
 class AccountChatInput(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     provider: str | None = None
@@ -28,7 +34,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
@@ -209,6 +215,72 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
+
+
+    @router.post("/tryons", status_code=201)
+    async def owned_tryon(payload: PrivateTryOnInput, user_id: str = Depends(current_user)):
+        person = await db.customer_photos.find_one({
+            "id": payload.person_photo_id, "user_id": user_id,
+        })
+        if not person:
+            raise HTTPException(404, "Person photograph not found")
+        garment = None
+        if payload.garment_photo_id is not None:
+            garment = await db.customer_photos.find_one({
+                "id": payload.garment_photo_id, "user_id": user_id,
+            })
+            if not garment:
+                raise HTTPException(404, "Garment photograph not found")
+        if garment is None and not (payload.garment_prompt or "").strip():
+            raise HTTPException(422, "A garment photo or description is required")
+        if generate_tryon is None:
+            raise HTTPException(503, "Private Try-On generation is unavailable")
+        try:
+            person_bytes, _ = await run_in_threadpool(read_image, person["path"])
+            garment_bytes = None
+            if garment:
+                garment_bytes, _ = await run_in_threadpool(read_image, garment["path"])
+            result_bytes, mime = await generate_tryon(
+                person_bytes, garment_bytes, payload.garment_prompt or ""
+            )
+            ext, verified_mime = validate_image(result_bytes, mime, "generated.png")
+            clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
+            path = await run_in_threadpool(save_image, clean, ext, verified_mime)
+        except Exception as exc:
+            raise HTTPException(502, "Private Try-On failed") from exc
+        photo_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        await db.customer_photos.insert_one({
+            "id": photo_id, "user_id": user_id, "path": path,
+            "content_type": verified_mime, "created_at": now, "generated": True,
+        })
+        record = {
+            "id": str(uuid.uuid4()), "user_id": user_id,
+            "person_photo_id": payload.person_photo_id,
+            "garment_photo_id": payload.garment_photo_id,
+            "garment_prompt": payload.garment_prompt,
+            "result_photo_id": photo_id, "created_at": now, "deleted_at": None,
+        }
+        await db.customer_tryons.insert_one(record)
+        record.pop("_id", None)
+        return record
+
+    @router.get("/tryons")
+    async def list_owned_tryons(user_id: str = Depends(current_user)):
+        return await db.customer_tryons.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}
+        ).to_list(200)
+
+    @router.delete("/tryons/{tryon_id}")
+    async def delete_owned_tryon(tryon_id: str, user_id: str = Depends(current_user)):
+        result = await db.customer_tryons.update_one(
+            {"id": tryon_id, "user_id": user_id, "deleted_at": None},
+            {"$set": {"deleted_at": datetime.now(timezone.utc)}},
+        )
+        if not result.matched_count:
+            raise HTTPException(404, "Try-On not found")
+        # Generated photo deletion is separate and must be verified by the object provider.
+        return {"success": True, "result_photo_deleted": False}
 
     @router.get("/catalogue/recommendations")
     async def customer_discover(user_id: str = Depends(current_user)):
