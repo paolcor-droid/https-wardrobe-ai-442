@@ -144,6 +144,8 @@ def get_object(path: str) -> tuple[bytes, str]:
         file_path = LOCAL_IMAGE_DIR / name
         mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[file_path.suffix.lstrip(".")]
         return file_path.read_bytes(), mime
+    if not re.fullmatch(r"stylescan/uploads/anon/[0-9a-f]{32}\\.(jpg|jpeg|png|webp)", path):
+        raise ValueError("Invalid remote image path")
     key = init_storage()
     resp = requests.get(
         f"{STORAGE_URL}/objects/{path}",
