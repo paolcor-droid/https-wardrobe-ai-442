@@ -232,7 +232,7 @@ def test_discover_uses_authenticated_customer_only():
 def test_private_tryon_requires_owned_person_and_garment_and_hides_results():
     db = Database()
     app = FastAPI()
-    async def generate(person, garment, prompt):
+    async def generate(person, garment, second_garment, prompt):
         return b"generated output", "image/png"
     app.include_router(configure_account_router(
         db, lambda *args: ("png", "image/png"), lambda data, ext: data,
