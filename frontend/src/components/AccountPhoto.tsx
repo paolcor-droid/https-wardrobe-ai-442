@@ -33,6 +33,7 @@ export function AccountPhoto({
       ...(privatePhoto ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     }}
     style={style}
+    cachePolicy={privatePhoto ? "none" : "disk"}
     contentFit={contentFit}
   />;
 }
