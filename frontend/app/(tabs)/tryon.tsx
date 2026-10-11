@@ -43,7 +43,7 @@ export default function TryOnScreen() {
   const [secondGarmentPath, setSecondGarmentPath] = useState<string | null>(null);
   const [secondGarmentPreview, setSecondGarmentPreview] = useState<string | null>(null);
   const [target, setTarget] = useState<"person" | "garment" | "secondGarment" | null>(null);
-  const [uploadingTarget, setUploadingTarget] = useState<"person" | "garment" | null>(null);
+  const [uploadingTarget, setUploadingTarget] = useState<"person" | "garment" | "secondGarment" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TryOn | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
