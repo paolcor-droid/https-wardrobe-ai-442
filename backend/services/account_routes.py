@@ -3,11 +3,12 @@
 Account records never adopt the old shared "default" profile automatically.
 """
 import uuid
+import json
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -16,12 +17,18 @@ from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
 
+class AccountChatInput(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    provider: str | None = None
+    image_path: str | None = None
+
+
 class Credentials(BaseModel):
     email: str
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     async def current_user(authorization: Annotated[str | None, Header()] = None):
@@ -95,7 +102,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def create_conversation(user_id: str = Depends(current_user)):
         record = {
             "id": str(uuid.uuid4()), "user_id": user_id,
-            "title": "New styling session", "created_at": datetime.now(timezone.utc),
+            "title": "New styling session", "pinned": False, "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "deleted_at": None,
         }
         await db.customer_conversations.insert_one(record)
@@ -128,6 +136,78 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         if not result.matched_count:
             raise HTTPException(404, "Conversation not found")
         return {"success": True}
+
+
+    @router.patch("/conversations/{conversation_id}")
+    async def update_conversation(conversation_id: str, payload: dict, user_id: str = Depends(current_user)):
+        updates = {}
+        if "title" in payload:
+            title = payload["title"]
+            if not isinstance(title, str) or not 1 <= len(title.strip()) <= 120:
+                raise HTTPException(422, "Invalid conversation title")
+            updates["title"] = title.strip()
+        if "pinned" in payload:
+            if not isinstance(payload["pinned"], bool):
+                raise HTTPException(422, "Invalid pinned value")
+            updates["pinned"] = payload["pinned"]
+        if not updates:
+            raise HTTPException(422, "No valid changes")
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        result = await db.customer_conversations.update_one(
+            {"id": conversation_id, "user_id": user_id, "deleted_at": None},
+            {"$set": updates},
+        )
+        if not result.matched_count:
+            raise HTTPException(404, "Conversation not found")
+        record = await db.customer_conversations.find_one({"id": conversation_id, "user_id": user_id})
+        record.pop("_id", None)
+        return record
+
+    @router.post("/conversations/{conversation_id}/chat")
+    async def owned_chat(conversation_id: str, payload: AccountChatInput, user_id: str = Depends(current_user)):
+        conversation = await db.customer_conversations.find_one({
+            "id": conversation_id, "user_id": user_id, "deleted_at": None,
+        })
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+        if payload.image_path is not None:
+            raise HTTPException(422, "Private photo attachment is not yet supported by account chat")
+        if generate_chat is None:
+            raise HTTPException(503, "Authenticated chat provider unavailable")
+        prior = await db.customer_messages.find({
+            "user_id": user_id, "conversation_id": conversation_id,
+        }, {"_id": 0}).to_list(200)
+        prior.sort(key=lambda item: item.get("created_at", ""))
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {"user_id": user_id}
+        # Generate before saving so provider failures do not leave ghost conversations.
+        try:
+            reply = await generate_chat(conversation_id, profile, prior, payload.message, payload.provider)
+        except Exception as exc:
+            raise HTTPException(502, "Stylist response unavailable") from exc
+        if not isinstance(reply, str) or not reply.strip():
+            raise HTTPException(502, "Stylist response unavailable")
+        timestamp = datetime.now(timezone.utc).isoformat()
+        await db.customer_messages.insert_one({
+            "id": str(uuid.uuid4()), "user_id": user_id, "conversation_id": conversation_id,
+            "role": "user", "content": payload.message, "image_path": None, "created_at": timestamp,
+        })
+        message_id = str(uuid.uuid4())
+        await db.customer_messages.insert_one({
+            "id": message_id, "user_id": user_id, "conversation_id": conversation_id,
+            "role": "assistant", "content": reply, "image_path": None, "created_at": timestamp,
+        })
+        first_message = not prior
+        title = payload.message.strip()[:48] if first_message else conversation["title"]
+        await db.customer_conversations.update_one(
+            {"id": conversation_id, "user_id": user_id},
+            {"$set": {"title": title, "updated_at": timestamp}},
+        )
+        async def stream():
+            yield "data: " + json.dumps({"delta": reply}) + "\\n\\n"
+            yield "data: " + json.dumps({"done": True, "message_id": message_id,
+                                         "title": title, "provider": payload.provider}) + "\\n\\n"
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
     @router.get("/profile")
     async def get_profile(user_id: str = Depends(current_user)):
