@@ -38,7 +38,9 @@ export default function TryOnScreen() {
   const [garmentPath, setGarmentPath] = useState<string | null>(null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(null);
   const [garmentPrompt, setGarmentPrompt] = useState("");
-  const [target, setTarget] = useState<"person" | "garment" | null>(null);
+  const [secondGarmentPath, setSecondGarmentPath] = useState<string | null>(null);
+  const [secondGarmentPreview, setSecondGarmentPreview] = useState<string | null>(null);
+  const [target, setTarget] = useState<"person" | "garment" | "secondGarment" | null>(null);
   const [uploadingTarget, setUploadingTarget] = useState<"person" | "garment" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TryOn | null>(null);
@@ -79,14 +81,17 @@ export default function TryOnScreen() {
     setTarget(null);
     if (!which) return;
     if (which === "person") setPersonPreview(asset.uri);
+    else if (which === "secondGarment") setSecondGarmentPreview(asset.uri);
     else setGarmentPreview(asset.uri);
     setUploadingTarget(which);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
       if (which === "person") setPersonPath(path);
+      else if (which === "secondGarment") setSecondGarmentPath(path);
       else setGarmentPath(path);
     } catch {
       if (which === "person") setPersonPreview(null);
+      else if (which === "secondGarment") setSecondGarmentPreview(null);
       else setGarmentPreview(null);
     } finally {
       setUploadingTarget(null);
@@ -94,7 +99,7 @@ export default function TryOnScreen() {
   };
 
   const canGenerate =
-    !!personPath && (!!garmentPath || garmentPrompt.trim().length > 0) && !gen.isPending;
+    !!personPath && (!!garmentPath || garmentPrompt.trim().length > 0) && !uploadingTarget && !gen.isPending;
 
   const handleGenerate = () => {
     if (!canGenerate) return;
@@ -104,6 +109,7 @@ export default function TryOnScreen() {
     gen.mutate({
       person_image_path: personPath!,
       garment_image_path: garmentPath,
+      second_garment_image_path: garmentPath ? secondGarmentPath : null,
       garment_prompt: garmentPrompt.trim() || null,
     });
   };
@@ -114,7 +120,7 @@ export default function TryOnScreen() {
     label,
     icon,
   }: {
-    which: "person" | "garment";
+    which: "person" | "garment" | "secondGarment";
     preview: string | null;
     label: string;
     icon: "user" | "shopping-bag";
@@ -146,7 +152,7 @@ export default function TryOnScreen() {
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.title}>Virtual Try-On</Text>
-        <Text style={styles.subtitle}>See a piece on you before you buy</Text>
+        <Text style={styles.subtitle}>Try one garment or a complete outfit</Text>
       </View>
 
       <KeyboardAwareScrollView
@@ -159,6 +165,19 @@ export default function TryOnScreen() {
           <Slot which="person" preview={personPreview} label="Your photo" icon="user" />
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
         </View>
+
+        {garmentPath && (
+          <View style={styles.secondRow}>
+            <Text style={styles.secondTitle}>Build an outfit (optional)</Text>
+            <View style={styles.secondControls}>
+              <Pressable testID="tryon-slot-secondGarment" style={styles.secondSlot} onPress={() => setTarget("secondGarment")}>
+                {secondGarmentPreview ? <Image source={{ uri: secondGarmentPreview }} style={styles.slotImg} contentFit="cover" /> : <Text style={styles.slotLabel}>+ Add second garment</Text>}
+              </Pressable>
+              {secondGarmentPath && <Pressable testID="remove-second-garment" onPress={() => { setSecondGarmentPath(null); setSecondGarmentPreview(null); }}><Text style={styles.slotLabel}>Remove</Text></Pressable>}
+            </View>
+            <Text style={styles.secondHint}>Add a shirt and trousers, for example, to try both on together.</Text>
+          </View>
+        )}
 
         {params.garmentName && garmentPath ? <Text style={styles.catalogueItem}>Selected from Discover · {params.garmentName}</Text> : null}
         <Text style={styles.orText}>or describe the item</Text>
@@ -237,7 +256,7 @@ export default function TryOnScreen() {
         visible={target !== null}
         onClose={() => setTarget(null)}
         onPicked={onPicked}
-        title={target === "person" ? "Add your photo" : "Add the garment"}
+        title={target === "person" ? "Add your photo" : target === "secondGarment" ? "Add another garment" : "Add the garment"}
       />
       <ShareLookModal visible={!!shareUrl} text="" imageUrl={shareUrl} onClose={() => setShareUrl(null)} />
     </View>
@@ -274,6 +293,11 @@ const useStyles = makeStyles((c) => ({
   slotEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   slotLabel: { fontFamily: fonts.text, fontSize: 13, color: c.muted },
   catalogueItem: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: "center", marginTop: 12 },
+  secondRow: { marginTop: 18, gap: 10 },
+  secondTitle: { fontFamily: fonts.text, fontSize: 15, color: c.onSurface },
+  secondControls: { flexDirection: "row", alignItems: "center", gap: 16 },
+  secondSlot: { width: 140, height: 125, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceTertiary, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  secondHint: { fontFamily: fonts.text, fontSize: 12, color: c.muted },
   orText: {
     fontFamily: fonts.text,
     fontSize: 12,
