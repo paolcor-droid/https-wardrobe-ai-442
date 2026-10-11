@@ -378,8 +378,7 @@ export type CatalogueRecommendationsResponse = {
 };
 
 export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
-  const res = await fetch(`${BASE}/api/catalogue/recommendations`);
-  return json<CatalogueRecommendationsResponse>(res);
+  return accountRequest<CatalogueRecommendationsResponse>("/catalogue/recommendations");
 }
 
 
