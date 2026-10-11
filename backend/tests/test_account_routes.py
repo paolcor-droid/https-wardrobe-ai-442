@@ -193,3 +193,36 @@ def test_authenticated_chat_requires_owner_and_uses_only_that_user_profile():
     messages = client.get("/api/account/conversations/" + conversation["id"] + "/messages",
                           headers=a).json()
     assert [message["role"] for message in messages] == ["user", "assistant"]
+
+
+def test_discover_uses_authenticated_customer_only():
+    db = Database()
+    app = FastAPI()
+    async def private_recommendations(user_id):
+        row = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        return {"count": 1, "recommendations": [{"name": row.get("notes", "New user")}],
+                "source": "test", "live_inventory_enabled": False}
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/fake.png",
+        lambda path: (b"photo", "image/png"), None, None, private_recommendations,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("rec-a@example.com", "rec-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        login = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        }).json()
+        headers.append({"Authorization": "Bearer " + login["access_token"]})
+    a, b = headers
+    assert client.get("/api/account/catalogue/recommendations").status_code == 401
+    assert client.put("/api/account/profile", headers=a, json={
+        "notes": "Customer A styles"
+    }).status_code == 200
+    assert client.get("/api/account/catalogue/recommendations", headers=a).json()[
+        "recommendations"][0]["name"] == "Customer A styles"
+    assert client.get("/api/account/catalogue/recommendations", headers=b).json()[
+        "recommendations"][0]["name"] == "New user"
