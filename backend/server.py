@@ -1304,6 +1304,26 @@ async def block_unauthenticated_public_deployment(request, call_next):
     return await call_next(request)
 
 
+async def prepare_trusted_garment_for_customer(product_id):
+    """Only known catalogue IDs can resolve to a supplier image URL."""
+    if not isinstance(product_id, str) or len(product_id) > 200:
+        raise ValueError("Invalid catalogue ID")
+    raw = next(
+        (product for product in MATTERHORN_TRIAL_SNAPSHOT
+         if product.get("external_id") == product_id), None,
+    )
+    if not raw or not raw.get("image_url"):
+        raise ValueError("Unknown catalogue garment")
+    def download():
+        response = requests.get(raw["image_url"], timeout=30)
+        response.raise_for_status()
+        if len(response.content) > 8 * 1024 * 1024:
+            raise ValueError("Catalogue photograph exceeds upload limit")
+        return response.content, response.headers.get("Content-Type", "image/jpeg").split(";")[0]
+    image_bytes, mime = await run_in_threadpool(download)
+    return image_bytes, mime, raw["name"]
+
+
 async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
     """Fresh per-photo colour analysis without shared profile writes or cross-user cache."""
     direct_openai = provider == "openai" or (provider is None and bool(OPENAI_API_KEY))
@@ -1454,7 +1474,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
