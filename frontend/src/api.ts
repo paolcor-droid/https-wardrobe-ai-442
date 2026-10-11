@@ -393,3 +393,27 @@ export async function previewCatalogueRecommendations(
   });
   return json<RecommendationPreviewResponse>(res);
 }
+
+export type WardrobeItem = {
+  id: string;
+  name: string;
+  category: "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "other";
+  colour: string;
+  image_path: string;
+  notes: string;
+  created_at: string;
+};
+
+export async function listWardrobe(): Promise<WardrobeItem[]> {
+  return json<WardrobeItem[]>(await fetch(`${BASE}/api/wardrobe`));
+}
+
+export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes">): Promise<WardrobeItem> {
+  return json<WardrobeItem>(await fetch(`${BASE}/api/wardrobe`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteWardrobeItem(id: string): Promise<void> {
+  await json(await fetch(`${BASE}/api/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" }));
+}
