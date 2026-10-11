@@ -447,7 +447,7 @@ export async function getCapsulePlan(occasion: string, climate: "hot" | "mild" |
   return accountRequest<CapsulePlan>("/wardrobe/capsule", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ occasion, climate }),
-  }));
+  });
 }
 export async function savePriceTarget(product_id: string, target_price_aud: number) {
   return json<{ monitoring_active: false; notice: string }>(await fetch(`${BASE}/api/price-watch`, {
