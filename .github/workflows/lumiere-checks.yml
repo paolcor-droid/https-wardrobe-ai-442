@@ -20,7 +20,7 @@ jobs:
       - name: Install focused test dependencies
         run: python -m pip install pytest pytest-xdist pydantic requests Pillow
       - name: Compile Python
-        run: python -m compileall -q services scripts
+        run: python -m compileall -q server.py services scripts tests
       - name: Run independent planner and catalogue tests
         run: python -m pytest -q tests/test_wardrobe_planner.py tests/test_price_snapshots.py tests/test_catalogue_providers.py tests/test_customer_pricing.py tests/test_department_filter.py
   frontend-types:
