@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
+from services.remote_photo_deletion import delete_and_verify_remote
 from services.security_gate import allow_legacy_dev_request
 from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
@@ -173,24 +174,7 @@ def delete_owned_object(path: str) -> None:
 
     if LOCAL_IMAGE_STORAGE or os.environ.get("LUMIERE_REMOTE_DELETE_ENABLED") != "1":
         raise NotImplementedError("Verified remote object deletion is not enabled")
-    if not re.fullmatch(
-        r"stylescan/uploads/anon/(?:[0-9a-f]{32}|"
-        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
-        r"\.(?:jpg|jpeg|png|webp)", path,
-    ):
-        raise ValueError("Invalid remote image path")
-    key = init_storage()
-    endpoint = f"{STORAGE_URL}/objects/{path}"
-    headers = {"X-Storage-Key": key}
-    deleted = requests.delete(endpoint, headers=headers, timeout=60)
-    if deleted.status_code not in (200, 202, 204, 404):
-        deleted.raise_for_status()
-        raise RuntimeError("Storage delete was not acknowledged")
-    # A successful DELETE acknowledgement alone is not proof of removal.
-    verify = requests.get(endpoint, headers=headers, timeout=60)
-    if verify.status_code != 404:
-        raise RuntimeError("Remote object remains accessible or deletion is unverified")
-
+    delete_and_verify_remote(path, STORAGE_URL, init_storage(), requests.delete, requests.get)
 
 
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
