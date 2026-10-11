@@ -26,6 +26,7 @@ export default function WardrobeScreen() {
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [outfitSelection, setOutfitSelection] = useState<WardrobeItem[]>([]);
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
@@ -46,6 +47,19 @@ export default function WardrobeScreen() {
       setPhotoPath(path); setPhotoPreview(asset.uri);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
     finally { setBusy(false); }
+  };
+  const toggleOutfit = (item: WardrobeItem) => {
+    setOutfitSelection((current) => current.some((i) => i.id === item.id)
+      ? current.filter((i) => i.id !== item.id)
+      : current.length < 2 ? [...current, item] : current);
+  };
+  const tryOutfit = () => {
+    if (outfitSelection.length !== 2) return;
+    const [first, second] = outfitSelection;
+    router.push({ pathname: "/(tabs)/tryon", params: {
+      garmentPath: first.image_path, garmentName: first.name,
+      secondGarmentPath: second.image_path, secondGarmentName: second.name,
+    } });
   };
   const tryItem = (item: WardrobeItem) => {
     router.push({ pathname: "/(tabs)/tryon", params: { garmentPath: item.image_path, garmentName: item.name } });
@@ -76,6 +90,14 @@ export default function WardrobeScreen() {
           <Text style={styles.note}>Removing an item hides its wardrobe record; uploaded photos are not yet permanently erased from storage.</Text>
         </View>
         <Text style={styles.heading}>Your pieces ({items.length})</Text>
+        {outfitSelection.length > 0 && <View style={styles.form}>
+          <Text style={styles.itemName}>{outfitSelection.length}/2 garments selected</Text>
+          <Text style={styles.note}>{outfitSelection.map((item) => item.name).join(" + ")}</Text>
+          <Pressable testID="wardrobe-try-outfit" style={[styles.button, outfitSelection.length !== 2 && styles.disabled]} disabled={outfitSelection.length !== 2} onPress={tryOutfit}>
+            <Text style={styles.buttonText}>Try both together</Text>
+          </Pressable>
+          <Pressable onPress={() => setOutfitSelection([])}><Text style={styles.action}>Clear selection</Text></Pressable>
+        </View>}
         {isLoading ? <ActivityIndicator /> : items.length === 0 ? <Text style={styles.note}>Your wardrobe is empty. Add a garment to get started.</Text> : null}
         <View style={styles.grid}>{items.map((item) => (
           <View key={item.id} style={styles.item}>
@@ -83,7 +105,10 @@ export default function WardrobeScreen() {
             <Text style={styles.itemName}>{item.name}</Text>
             <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}</Text>
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
-            <Pressable testID={`wardrobe-delete-${item.id}`} onPress={() => del.mutate(item.id)}><Text style={styles.note}>Remove from wardrobe</Text></Pressable>
+            <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
+              <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
+            </Pressable>
+            <Pressable testID={`wardrobe-delete-${item.id}`} onPress={() => { setOutfitSelection((current) => current.filter((i) => i.id !== item.id)); del.mutate(item.id); }}><Text style={styles.note}>Remove from wardrobe</Text></Pressable>
           </View>
         ))}</View>
       </ScrollView>
