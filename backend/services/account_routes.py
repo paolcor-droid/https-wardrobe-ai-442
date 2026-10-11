@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
@@ -127,6 +128,29 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(404, "Wardrobe item not found")
         return {"success": True}
 
+
+
+    @router.post("/wardrobe/outfits")
+    async def owned_outfits(payload: dict, user_id: str = Depends(current_user)):
+        climate = payload.get("climate", "mild")
+        occasion = payload.get("occasion", "casual")
+        if climate not in {"hot", "mild", "cold"} or not isinstance(occasion, str) or len(occasion) > 80:
+            raise HTTPException(422, "Invalid wardrobe planning preferences")
+        items = await db.customer_wardrobe.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}
+        ).to_list(200)
+        return {"outfits": plan_outfits(items, occasion=occasion, climate=climate)}
+
+    @router.post("/wardrobe/capsule")
+    async def owned_capsule(payload: dict, user_id: str = Depends(current_user)):
+        climate = payload.get("climate", "mild")
+        occasion = payload.get("occasion", "casual")
+        if climate not in {"hot", "mild", "cold"} or not isinstance(occasion, str) or len(occasion) > 80:
+            raise HTTPException(422, "Invalid wardrobe planning preferences")
+        items = await db.customer_wardrobe.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}
+        ).to_list(200)
+        return capsule_plan(items, occasion=occasion, climate=climate)
 
     @router.post("/photos", status_code=201)
     async def upload_photo(file: UploadFile = File(...), user_id: str = Depends(current_user)):
