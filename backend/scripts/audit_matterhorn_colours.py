@@ -63,11 +63,11 @@ def inspect(url):
     image = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
     image.thumbnail((320, 320))
     try:
-        from rembg import remove
+        from rembg import remove, new_session
     except ImportError:
         return {"isolation_status": "unavailable", "review_required": True,
                 "image_colour_verified": False, "reason": "Install rembg[cpu] for optional foreground isolation"}
-    foreground = remove(image.convert("RGBA"))
+    foreground = remove(image.convert("RGBA"), session=new_session("u2netp"))
     if not isinstance(foreground, Image.Image):
         foreground = Image.open(io.BytesIO(foreground)).convert("RGBA")
     alpha = foreground.getchannel("A")
