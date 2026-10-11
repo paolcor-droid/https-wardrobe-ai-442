@@ -417,3 +417,40 @@ export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "categor
 export async function deleteWardrobeItem(id: string): Promise<void> {
   await json(await fetch(`${BASE}/api/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" }));
 }
+
+export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean };
+export type CapsulePlan = {
+  items: Array<{ id: string; name: string; category: string; colour: string }>;
+  possible_outfits: OutfitPlan[];
+  missing_categories: string[];
+  notice: string;
+};
+export type ProductSentiment = "liked" | "disliked" | "saved" | "purchased";
+
+export async function saveProductFeedback(product_id: string, sentiment: ProductSentiment) {
+  return json<{ product_id: string; sentiment: ProductSentiment }>(await fetch(`${BASE}/api/feedback`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product_id, sentiment }),
+  }));
+}
+export async function getProductFeedback() {
+  return json<Array<{ product_id: string; sentiment: ProductSentiment }>>(await fetch(`${BASE}/api/feedback`));
+}
+export async function getWardrobeOutfits(occasion: string, climate: "hot" | "mild" | "cold") {
+  return json<{ outfits: OutfitPlan[]; weather_live: false; notice: string }>(await fetch(`${BASE}/api/wardrobe/outfits`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ occasion, climate }),
+  }));
+}
+export async function getCapsulePlan(occasion: string, climate: "hot" | "mild" | "cold") {
+  return json<CapsulePlan>(await fetch(`${BASE}/api/wardrobe/capsule`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ occasion, climate }),
+  }));
+}
+export async function savePriceTarget(product_id: string, target_price_aud: number) {
+  return json<{ monitoring_active: false; notice: string }>(await fetch(`${BASE}/api/price-watch`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product_id, target_price_aud }),
+  }));
+}
