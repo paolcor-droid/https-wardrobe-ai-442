@@ -457,12 +457,14 @@ async def catalogue_recommendations():
     # Prefer a locally imported genuine XML snapshot; it is not live stock.
     catalogue_path = ROOT_DIR / ".lumiere-private-catalogue" / "matterhorn_products.json"
     raw_products = MATTERHORN_TRIAL_SNAPSHOT
+    catalogue_source = "matterhorn_xml_trial_snapshot"
     if catalogue_path.is_file():
         try:
             with catalogue_path.open("r", encoding="utf-8") as handle:
                 imported = json.load(handle)
             if isinstance(imported, list):
                 raw_products = imported
+                catalogue_source = "matterhorn_imported_xml_snapshot"
         except (OSError, ValueError) as exc:
             logger.warning("Could not read imported Matterhorn catalogue: %s", exc)
     normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
@@ -471,7 +473,7 @@ async def catalogue_recommendations():
         "recommendations": customer_recommendations(ranked),
         "count": len(ranked),
         "live_inventory_enabled": False,
-        "source": "matterhorn_xml_trial_snapshot",
+        "source": catalogue_source,
         "notice": "Trial catalogue snapshot; price and current stock are not claimed live.",
     }
 
