@@ -234,7 +234,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(503, "Verified storage deletion unavailable")
         try:
             await run_in_threadpool(delete_image, photo["path"])
-        except (NotImplementedError, OSError, ValueError) as exc:
+        except Exception as exc:  # storage error must fail closed without deleting metadata
             raise HTTPException(503, "Verified storage deletion unavailable") from exc
         await db.customer_photos.delete_one({"id": photo_id, "user_id": user_id})
         return {"success": True}
