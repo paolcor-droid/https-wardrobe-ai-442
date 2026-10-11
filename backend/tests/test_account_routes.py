@@ -99,7 +99,7 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     assert client.delete("/api/account/conversations/" + conversation["id"], headers=a).status_code == 200
     assert client.put("/api/account/profile", headers=a,
                       json={"notes": "first account"}).status_code == 200
-    assert client.get("/api/account/profile", headers=b).json().get("notes") is None
+    assert client.get("/api/account/profile", headers=b).json().get("notes") == ""
     item = client.post("/api/account/wardrobe", headers=a, json={"name": "Private shirt"}).json()
     assert len(client.get("/api/account/wardrobe", headers=b).json()) == 0
     assert client.post("/api/account/wardrobe/capsule", headers=b, json={}).json()["items"] == []
