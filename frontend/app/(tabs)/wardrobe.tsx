@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
+import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
@@ -136,7 +137,7 @@ export default function WardrobeScreen() {
         {isLoading ? <ActivityIndicator /> : items.length === 0 ? <Text style={styles.note}>Your wardrobe is empty. Add a garment to get started.</Text> : null}
         <View style={styles.grid}>{items.map((item) => (
           <View key={item.id} style={styles.item}>
-            <Image source={{ uri: fileUrl(item.image_path) }} style={styles.itemPhoto} contentFit="cover" />
+            <AccountPhoto path={item.image_path} style={styles.itemPhoto} contentFit="cover" />
             <Text style={styles.itemName}>{item.name}</Text>
             <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}</Text>
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
