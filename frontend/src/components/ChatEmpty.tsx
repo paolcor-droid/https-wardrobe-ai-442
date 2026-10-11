@@ -6,28 +6,29 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { makeStyles, fonts } from "@/src/theme";
 
-// Fifteen editorial fashion covers, sequenced by visual theme.
-// A different theme appears each time the home view is mounted.
+// Curated Unsplash editorial images; each source is individually documented.
+// Unsplash photo copyright license allows commercial use; model/trademark release
+// clearance remains a separate pre-launch review item.
 const HERO_PHOTOS = [
-  { id: "photo-1483985988355-763728e1935b", theme: "women" },
-  { id: "photo-1507679799987-c73779587ccf", theme: "men" },
-  { id: "photo-1496747611176-843222e1e57c", theme: "summer" },
-  { id: "photo-1441986300917-64674bd600d8", theme: "smart casual" },
-  { id: "photo-1515886657613-9f3515b0c78f", theme: "evening" },
-  { id: "photo-1529139574466-a303027c1d8b", theme: "women" },
-  { id: "photo-1503342217505-b0a15ec3261c", theme: "men" },
-  { id: "photo-1469334031218-e382a71b716b", theme: "summer" },
-  { id: "photo-1490481651871-ab68de25d43d", theme: "smart casual" },
-  { id: "photo-1487222477894-8943e31ef7b2", theme: "evening" },
-  { id: "photo-1512436991641-6745cdb1723f", theme: "couples" },
-  { id: "photo-1524504388940-b1c1722653e1", theme: "women" },
-  { id: "photo-1500917293891-ef795e70e1f6", theme: "smart casual" },
-  { id: "photo-1506629905607-d9d116f6837b", theme: "couples" },
-  { id: "photo-1521572163474-6864f9cf17ab", theme: "summer" },
+  { id: "SS1Oldoervo", category: "women", theme: "evening", source: "https://unsplash.com/photos/woman-in-beige-suit-sitting-on-a-white-chair-SS1Oldoervo" },
+  { id: "rArKfPZE-sg", category: "men", theme: "smart casual", source: "https://unsplash.com/photos/young-man-in-a-light-suit-sits-on-a-couch-rArKfPZE-sg" },
+  { id: "eaUfKxpGCwM", category: "couples", theme: "summer", source: "https://unsplash.com/photos/a-couple-sitting-on-wooden-steps-outdoors-eaUfKxpGCwM" },
+  { id: "CS2qxYl7GOo", category: "women", theme: "smart casual", source: "https://unsplash.com/photos/woman-in-a-beige-dress-and-scarf-holding-a-purse-CS2qxYl7GOo" },
+  { id: "gokSMn1wzkc", category: "men", theme: "evening", source: "https://unsplash.com/photos/stylish-man-in-a-suit-adjusting-his-collar-gokSMn1wzkc" },
+  { id: "vAULw-BRQcM", category: "couples", theme: "evening", source: "https://unsplash.com/photos/a-stylish-couple-posing-in-black-outfits-outdoors-vAULw-BRQcM" },
+  { id: "bEN4kFj4Fm8", category: "women", theme: "summer", source: "https://unsplash.com/photos/a-woman-in-a-beige-strapless-top-and-skirt-bEN4kFj4Fm8" },
+  { id: "5ENo-nQayzU", category: "men", theme: "smart casual", source: "https://unsplash.com/photos/a-man-in-a-suit-standing-on-a-dirt-road-5ENo-nQayzU" },
+  { id: "yCwNqx6napk", category: "couples", theme: "smart casual", source: "https://unsplash.com/photos/stylish-couple-wearing-sunglasses-and-retro-fashion-yCwNqx6napk" },
+  { id: "tO-fzwJ-mbc", category: "women", theme: "evening", source: "https://unsplash.com/photos/a-woman-in-a-beige-outfit-with-a-pink-scarf-tO-fzwJ-mbc" },
+  { id: "MO1159nvYkE", category: "men", theme: "evening", source: "https://unsplash.com/photos/man-in-black-suit-and-sunglasses-with-hand-on-face-MO1159nvYkE" },
+  { id: "-x1eLzEH2zo", category: "couples", theme: "evening", source: "https://unsplash.com/photos/couple-holding-hands-in-stylish-outfits--x1eLzEH2zo" },
+  { id: "j3Gg3CMiyzs", category: "women", theme: "smart casual", source: "https://unsplash.com/photos/a-woman-in-a-hijab-and-loose-clothing-sits-gracefully-j3Gg3CMiyzs" },
+  { id: "tjxuD1gSInM", category: "men", theme: "smart casual", source: "https://unsplash.com/photos/man-in-suit-bending-over-with-hands-on-hips-tjxuD1gSInM" },
+  { id: "CgCLSjTULbo", category: "couples", theme: "summer", source: "https://unsplash.com/photos/a-couple-poses-in-a-park-with-a-cat-CgCLSjTULbo" },
 ] as const;
-const HERO_INDEX_KEY = "lumiere-home-hero-index-v2";
+const HERO_INDEX_KEY = "lumiere-home-hero-index-v3";
 const heroUrl = (id: string) =>
-  "https://images.unsplash.com/" + id + "?auto=format&fit=crop&w=1600&q=85";
+  "https://unsplash.com/photos/" + encodeURIComponent(id) + "/download?force=true&w=1600";
 
 const SUGGESTIONS = [
   "Build me a smart-casual capsule wardrobe",
