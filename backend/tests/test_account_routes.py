@@ -485,3 +485,33 @@ def test_customer_feedback_is_isolated():
                       json={"sentiment": "disliked"}).status_code == 200
     assert client.get("/api/account/feedback", headers=alice).json()[0]["sentiment"] == "liked"
     assert client.get("/api/account/feedback", headers=bob).json()[0]["sentiment"] == "disliked"
+
+
+def test_expired_session_is_rejected_without_revoking_other_customers():
+    from datetime import timedelta
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/fake.png", lambda path: (b"image", "image/png"),
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("expiry-a@example.com", "expiry-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "a secure account passphrase"
+        }).status_code == 201
+        token = client.post("/api/account/login", json={
+            "email": email, "password": "a secure account passphrase"
+        }).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    a, b = headers
+    assert client.get("/api/account/me", headers=a).status_code == 200
+    assert client.get("/api/account/me", headers=b).status_code == 200
+    digest = token_digest(a["Authorization"].removeprefix("Bearer "))
+    for record in db.customer_sessions.docs:
+        if record["digest"] == digest:
+            record["expires_at"] = datetime.now(timezone.utc) - timedelta(minutes=1)
+    assert client.get("/api/account/me", headers=a).status_code == 401
+    assert client.get("/api/account/profile", headers=a).status_code == 401
+    assert client.get("/api/account/me", headers=b).status_code == 200
