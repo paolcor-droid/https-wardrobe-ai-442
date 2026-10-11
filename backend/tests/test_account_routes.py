@@ -146,3 +146,50 @@ def test_remote_photo_deletion_unavailable_keeps_record():
     path = "/api/account/photos/" + photo["id"]
     assert client.delete(path, headers=headers).status_code == 503
     assert client.get(path, headers=headers).status_code == 200
+
+
+def test_authenticated_chat_requires_owner_and_uses_only_that_user_profile():
+    db = Database()
+    app = FastAPI()
+    calls = []
+
+    async def reply(conversation_id, profile, prior, message, provider):
+        calls.append((profile.get("notes"), [p["content"] for p in prior], message))
+        return "Private style advice"
+
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/fake.png",
+        lambda path: (b"photo", "image/png"), lambda path: None, reply,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("style-a@example.com", "style-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        logged_in = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        })
+        headers.append({"Authorization": "Bearer " + logged_in.json()["access_token"]})
+
+    a, b = headers
+    assert client.put("/api/account/profile", headers=a,
+                      json={"notes": "Private preference A"}).status_code == 200
+    conversation = client.post("/api/account/conversations", headers=a).json()
+    url = "/api/account/conversations/" + conversation["id"] + "/chat"
+    assert client.post(url, headers=b, json={"message": "style me"}).status_code == 404
+    assert client.post(url, json={"message": "style me"}).status_code == 401
+    assert client.post(url, headers=a, json={
+        "message": "style me", "image_path": "somebody-elses-photo"
+    }).status_code == 422
+    response = client.post(url, headers=a, json={"message": "style me"})
+    assert response.status_code == 200
+    assert '"delta": "Private style advice"' in response.text
+    assert '"done": true' in response.text
+    assert calls == [("Private preference A", [], "style me")]
+    assert client.get("/api/account/conversations/" + conversation["id"] + "/messages",
+                      headers=b).status_code == 404
+    messages = client.get("/api/account/conversations/" + conversation["id"] + "/messages",
+                          headers=a).json()
+    assert [message["role"] for message in messages] == ["user", "assistant"]
