@@ -24,7 +24,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None):
     async def current_user(authorization: Annotated[str | None, Header()] = None):
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(401, "Authentication required")
@@ -183,6 +183,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "Content-Security-Policy": "default-src 'none'; sandbox",
         })
 
+
+
+    @router.delete("/photos/{photo_id}")
+    async def delete_photo(photo_id: str, user_id: str = Depends(current_user)):
+        photo = await db.customer_photos.find_one({"id": photo_id, "user_id": user_id})
+        if not photo:
+            raise HTTPException(404, "Photo not found")
+        if delete_image is None:
+            raise HTTPException(503, "Verified storage deletion unavailable")
+        try:
+            await run_in_threadpool(delete_image, photo["path"])
+        except (NotImplementedError, OSError, ValueError) as exc:
+            raise HTTPException(503, "Verified storage deletion unavailable") from exc
+        await db.customer_photos.delete_one({"id": photo_id, "user_id": user_id})
+        return {"success": True}
 
     @router.put("/feedback/{product_id}")
     async def set_feedback(product_id: str, payload: dict, user_id: str = Depends(current_user)):
