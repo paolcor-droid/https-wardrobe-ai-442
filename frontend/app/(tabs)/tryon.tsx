@@ -90,13 +90,19 @@ export default function TryOnScreen() {
     if (which === "person") setPersonPreview(asset.uri);
     else if (which === "secondGarment") setSecondGarmentPreview(asset.uri);
     else setGarmentPreview(asset.uri);
+    // Never reuse a previous uploaded path when the replacement upload fails.
+    if (which === "person") setPersonPath(null);
+    else if (which === "secondGarment") setSecondGarmentPath(null);
+    else setGarmentPath(null);
     setUploadingTarget(which);
+    setError(null);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
       if (which === "person") setPersonPath(path);
       else if (which === "secondGarment") setSecondGarmentPath(path);
       else setGarmentPath(path);
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Image upload failed. Please try again.");
       if (which === "person") setPersonPreview(null);
       else if (which === "secondGarment") setSecondGarmentPreview(null);
       else setGarmentPreview(null);
