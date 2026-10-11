@@ -1494,6 +1494,10 @@ async def startup_storage():
     await db.customer_saved.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_tryons.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
+    if LOCAL_IMAGE_STORAGE:
+        LOCAL_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info("Local private image storage initialized")
+        return
     try:
         await run_in_threadpool(init_storage)
         logger.info("Object storage initialized")
