@@ -164,9 +164,9 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open account sign in or registration"
           onPress={() => router.push("/account" as any)}
-          style={{ alignSelf: "flex-start", backgroundColor: colors.text, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 16, marginTop: 10 }}
+          style={{ alignSelf: "flex-start", backgroundColor: colors.onSurface, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 16, marginTop: 10 }}
         >
-          <Text style={{ color: colors.background, fontWeight: "700" }}>Sign in / Create account  →</Text>
+          <Text style={{ color: colors.surface, fontWeight: "700" }}>Sign in / Create account  →</Text>
         </Pressable>
       </View>
 
