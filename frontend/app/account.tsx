@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -11,6 +12,7 @@ const BASE = Platform.OS === "web" ? "" : (process.env.EXPO_PUBLIC_BACKEND_URL ?
 const TOKEN_KEY = "lumiere_customer_session";
 
 export default function AccountScreen() {
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"register" | "login">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +36,7 @@ export default function AccountScreen() {
         setMessage("Account created. Sign in to continue.");
       } else {
         await saveAccountSession(body.access_token);
+        queryClient.clear(); // Never show cached data from a previous customer.
         setToken(body.access_token);
         setPassword("");
         setMessage("Signed in to your private account.");
@@ -56,6 +59,7 @@ export default function AccountScreen() {
         if (!res.ok) throw new Error("Unable to revoke the session. Try again.");
       }
       await clearAccountSession();
+      queryClient.clear();
       setToken("");
       setMessage("Signed out.");
     } catch (error) {
@@ -69,7 +73,7 @@ export default function AccountScreen() {
     <ScrollView contentContainerStyle={{ padding: 24, gap: 16, flexGrow: 1 }}>
       <Stack.Screen options={{ title: "LUMIÈRE account", headerShown: true }} />
       <Text style={{ fontSize: 28, fontWeight: "600" }}>Your LUMIÈRE account</Text>
-      <Text>Private account preview. The existing stylist and wardrobe tabs are not connected to this account yet.</Text>
+      <Text>Private account preview. Profile, wardrobe, Discover and text styling now use your account. Photo analysis and the existing Try-On screen still require migration.</Text>
       <TextInput placeholder="Email" value={email} autoCapitalize="none"
         keyboardType="email-address" onChangeText={setEmail}
         style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
