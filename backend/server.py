@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
+from services.security_gate import allow_legacy_dev_request
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
@@ -1253,8 +1254,13 @@ async def delete_tryon(tryon_id: str):
 # object ownership are implemented. Development mode remains available locally.
 @app.middleware("http")
 async def block_unauthenticated_public_deployment(request, call_next):
-    if (os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT", "0") == "1"
-            or os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"}):
+    production = (os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT", "0") == "1"
+                  or os.environ.get("ENVIRONMENT", "").lower() in {"production", "prod"})
+    # Existing routes still use a shared development profile. Never expose
+    # them to network clients, including private/LAN addresses, or trust an
+    # X-Forwarded-For header supplied by the caller.
+    client_host = request.client.host if request.client else None
+    if not allow_legacy_dev_request(client_host, production):
         return Response(
             content=json.dumps({"detail": "Public access disabled until authenticated user isolation is configured"}),
             status_code=503,
