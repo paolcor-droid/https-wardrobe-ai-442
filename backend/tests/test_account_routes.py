@@ -321,3 +321,84 @@ def test_skin_analysis_and_wardrobe_photo_links_require_ownership():
     assert client.post("/api/account/wardrobe", headers=a, json={
         "name": "Owned item", "image_path": private_path
     }).status_code == 201
+
+
+def test_multi_feature_two_customer_e2e():
+    db = Database()
+    app = FastAPI()
+
+    async def chat_reply(conversation_id, profile, prior, message, provider):
+        return "Private advice for " + profile.get("notes", "anonymous")
+
+    async def recommendations(user_id):
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        return {"count": 1, "recommendations": [{"name": profile.get("notes", "new user")}],
+                "source": "test", "live_inventory_enabled": False}
+
+    async def tryon(person, garment, second, prompt):
+        return b"generated image", "image/png"
+
+    async def scan(data, mime, provider):
+        return {"undertone": "neutral", "depth": "medium", "chroma": "muted",
+                "contrast": "low", "summary": "private scan"}
+
+    async def prepare(product_id):
+        if product_id != "trusted":
+            raise ValueError("Untrusted product")
+        return b"trusted bytes", "image/png", "Trusted garment"
+
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/fake.png",
+        lambda path: (b"private bytes", "image/png"),
+        lambda path: None, chat_reply, recommendations, tryon, scan, prepare,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("journey-a@example.com", "journey-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        login = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        })
+        assert login.status_code == 200
+        headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
+    a, b = headers
+    assert client.put("/api/account/profile", headers=a, json={"notes": "linen lover"}).status_code == 200
+    photo = client.post("/api/account/photos", headers=a,
+                        files={"file": ("person.png", b"private bytes", "image/png")})
+    assert photo.status_code == 201
+    photo_id = photo.json()["id"]
+    assert client.post("/api/account/skin-analysis", headers=a, json={
+        "image_path": "private:" + photo_id
+    }).status_code == 200
+    assert client.get("/api/account/profile", headers=b).json()["skin"] is None
+    assert client.post("/api/account/wardrobe", headers=a, json={
+        "name": "Linen shirt", "image_path": "private:" + photo_id
+    }).status_code == 201
+    assert client.get("/api/account/wardrobe", headers=b).json() == []
+    assert client.get("/api/account/catalogue/recommendations", headers=a).json()[
+        "recommendations"][0]["name"] == "linen lover"
+    assert client.get("/api/account/catalogue/recommendations", headers=b).json()[
+        "recommendations"][0]["name"] == "new user"
+    conversation = client.post("/api/account/conversations", headers=a).json()
+    url = "/api/account/conversations/" + conversation["id"] + "/chat"
+    assert client.post(url, headers=a, json={"message": "Style me"}).status_code == 200
+    assert client.post(url, headers=b, json={"message": "Spy"}).status_code == 404
+    garment = client.post("/api/account/catalogue/products/trusted/prepare-tryon", headers=a)
+    assert garment.status_code == 200, garment.text
+    garment_id = garment.json()["path"].removeprefix("private:")
+    generated = client.post("/api/account/tryons", headers=a, json={
+        "person_photo_id": photo_id, "garment_photo_id": garment_id,
+    })
+    assert generated.status_code == 201, generated.text
+    result_id = generated.json()["result_photo_id"]
+    assert client.get("/api/account/photos/" + result_id, headers=b).status_code == 404
+    assert client.get("/api/account/tryons", headers=b).json() == []
+    assert client.delete("/api/account/photos/" + result_id, headers=b).status_code == 404
+    assert client.delete("/api/account/photos/" + result_id, headers=a).status_code == 200
+    assert client.get("/api/account/photos/" + result_id, headers=a).status_code == 404
+    assert client.post("/api/account/logout", headers=a).status_code == 200
+    assert client.get("/api/account/profile", headers=a).status_code == 401
+    assert client.get("/api/account/profile", headers=b).status_code == 200
