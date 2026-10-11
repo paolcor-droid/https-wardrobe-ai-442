@@ -20,6 +20,7 @@ from services.customer_auth import (
 class PrivateTryOnInput(BaseModel):
     person_photo_id: str
     garment_photo_id: str | None = None
+    second_garment_photo_id: str | None = None
     garment_prompt: str | None = Field(default=None, max_length=1000)
 
 
@@ -256,6 +257,15 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             })
             if not garment:
                 raise HTTPException(404, "Garment photograph not found")
+        second_garment = None
+        if payload.second_garment_photo_id is not None:
+            if garment is None:
+                raise HTTPException(422, "First garment photo required")
+            second_garment = await db.customer_photos.find_one({
+                "id": payload.second_garment_photo_id, "user_id": user_id,
+            })
+            if not second_garment:
+                raise HTTPException(404, "Second garment photograph not found")
         if garment is None and not (payload.garment_prompt or "").strip():
             raise HTTPException(422, "A garment photo or description is required")
         if generate_tryon is None:
@@ -265,8 +275,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             garment_bytes = None
             if garment:
                 garment_bytes, _ = await run_in_threadpool(read_image, garment["path"])
+            second_bytes = None
+            if second_garment:
+                second_bytes, _ = await run_in_threadpool(read_image, second_garment["path"])
             result_bytes, mime = await generate_tryon(
-                person_bytes, garment_bytes, payload.garment_prompt or ""
+                person_bytes, garment_bytes, second_bytes, payload.garment_prompt or ""
             )
             ext, verified_mime = validate_image(result_bytes, mime, "generated.png")
             clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
@@ -283,6 +296,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "id": str(uuid.uuid4()), "user_id": user_id,
             "person_photo_id": payload.person_photo_id,
             "garment_photo_id": payload.garment_photo_id,
+            "second_garment_photo_id": payload.second_garment_photo_id,
             "garment_prompt": payload.garment_prompt,
             "result_photo_id": photo_id, "created_at": now, "deleted_at": None,
         }
