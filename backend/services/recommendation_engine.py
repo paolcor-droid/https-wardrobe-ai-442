@@ -108,11 +108,14 @@ def recommendation_score(product: dict, colour_profile: dict | None, occasion: s
         " ".join(product.get("colour_names", product.get("color_names", []))),
         " ".join(product.get("materials", []) or []),
     ]).lower()
-    preferred = [c.lower() for c in (preferred_colours or [])]
-    avoided = [c.lower() for c in (avoided_colours or [])]
-    if any(c in text for c in avoided):
+    # Colour evidence must come from the supplier's actual colour field.
+    # Product descriptions may mention colours that the garment does not have.
+    product_colours = _product_colour_names(product)
+    preferred = {_norm_colour(str(c)) for c in (preferred_colours or []) if c}
+    avoided = {_norm_colour(str(c)) for c in (avoided_colours or []) if c}
+    if _colour_match(product_colours, avoided):
         score -= 35
-    if any(c in text for c in preferred):
+    if _colour_match(product_colours, preferred):
         score += 8
     if climate == "hot" and any(t in text for t in HOT_PREFER_TERMS):
         score += 8
