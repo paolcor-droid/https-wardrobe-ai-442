@@ -58,6 +58,9 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export function fileUrl(path: string): string {
+  if (path.startsWith("private:")) {
+    return `${BASE}/api/account/photos/${encodeURIComponent(path.slice(8))}`;
+  }
   return `${BASE}/api/files/${path}`;
 }
 
@@ -105,18 +108,21 @@ export async function uploadImage(uri: string, name: string, type: string): Prom
     // @ts-expect-error React Native FormData file shape
     form.append("file", { uri, name, type });
   }
+  const token = await accountAccessToken();
   // Upload via XMLHttpRequest (React Native's built-in networking, and standard on web)
   // rather than the global fetch. In Expo SDK 54+ the global `fetch` is `expo/fetch`
   // (WinterCG), whose convertFormData rejects the RN `{ uri, name, type }` part with
   // "Unsupported FormDataPart implementation". XHR handles that part natively on Android/iOS.
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${BASE}/api/upload`);
+    xhr.open("POST", `${BASE}/api/account/photos`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const data = JSON.parse(xhr.responseText) as { path: string };
-          resolve(data.path);
+          const data = JSON.parse(xhr.responseText) as { id: string };
+          if (!data.id) throw new Error("Missing private photo ID");
+          resolve(`private:${data.id}`);
         } catch {
           reject(new Error("Upload succeeded but the response was invalid"));
         }
