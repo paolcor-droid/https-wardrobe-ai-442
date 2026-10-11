@@ -265,6 +265,7 @@ export type TryOn = {
   person_image_path: string;
   garment_image_path?: string | null;
   garment_prompt?: string | null;
+  second_garment_image_path?: string | null;
   result_path: string;
   created_at: string;
 };
@@ -295,6 +296,7 @@ export async function analyzeSkin(imagePath: string, provider?: string | null): 
 export async function createTryOn(body: {
   person_image_path: string;
   garment_image_path?: string | null;
+  second_garment_image_path?: string | null;
   garment_prompt?: string | null;
 }): Promise<TryOn> {
   const res = await fetch(`${BASE}/api/tryon`, {
