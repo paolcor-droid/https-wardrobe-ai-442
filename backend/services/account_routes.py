@@ -126,6 +126,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "revoked_at": None,
         })
         if request.headers.get("X-Lumiere-Web-Login") == "1":
+            origin = request.headers.get("origin")
+            if origin:
+                from urllib.parse import urlsplit
+                if urlsplit(origin).netloc != request.headers.get("host", ""):
+                    raise HTTPException(403, "Cross-site login blocked")
             browser_session(response, token)
             return {"success": True, "token_type": "cookie", "expires_at": expiry.isoformat()}
         return {"access_token": token, "token_type": "bearer", "expires_at": expiry.isoformat()}
