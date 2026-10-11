@@ -490,6 +490,49 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         await db.customer_photos.delete_one({"id": photo_id, "user_id": user_id})
         return {"success": True}
 
+    @router.post("/saved", status_code=201)
+    async def save_look(payload: dict, user_id: str = Depends(current_user)):
+        message_id = payload.get("message_id")
+        if not isinstance(message_id, str) or not message_id or len(message_id) > 150:
+            raise HTTPException(422, "Invalid message")
+        message = await db.customer_messages.find_one({
+            "id": message_id, "user_id": user_id, "role": "assistant",
+        })
+        if not message:
+            raise HTTPException(404, "Message not found")
+        conversation = await db.customer_conversations.find_one({
+            "id": message["conversation_id"], "user_id": user_id, "deleted_at": None,
+        })
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+        found = await db.customer_saved.find_one({
+            "user_id": user_id, "message_id": message_id,
+        })
+        if found:
+            found.pop("_id", None)
+            return found
+        record = {
+            "id": str(uuid.uuid4()), "user_id": user_id,
+            "message_id": message_id, "conversation_id": message["conversation_id"],
+            "content": message["content"], "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.customer_saved.insert_one(record)
+        record.pop("user_id")
+        return record
+
+    @router.get("/saved")
+    async def saved_looks(user_id: str = Depends(current_user)):
+        records = await db.customer_saved.find({"user_id": user_id}, {"_id": 0}).to_list(200)
+        return [{k: v for k, v in record.items() if k != "user_id"} for record in records]
+
+    @router.delete("/saved/{saved_id}")
+    async def remove_saved_look(saved_id: str, user_id: str = Depends(current_user)):
+        record = await db.customer_saved.find_one({"id": saved_id, "user_id": user_id})
+        if not record:
+            raise HTTPException(404, "Saved look not found")
+        await db.customer_saved.delete_one({"id": saved_id, "user_id": user_id})
+        return {"success": True}
+
     @router.put("/feedback/{product_id}")
     async def set_feedback(product_id: str, payload: dict, user_id: str = Depends(current_user)):
         if not 1 <= len(product_id) <= 150 or payload.get("sentiment") not in {
