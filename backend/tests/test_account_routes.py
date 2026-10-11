@@ -70,6 +70,7 @@ class Database:
         self.customer_conversations = Collection()
         self.customer_messages = Collection()
         self.customer_tryons = Collection()
+        self.customer_saved = Collection()
 
 
 def test_account_profile_wardrobe_and_photo_access_isolation():
@@ -403,3 +404,84 @@ def test_multi_feature_two_customer_e2e():
     assert client.post("/api/account/logout", headers=a).status_code == 200
     assert client.get("/api/account/profile", headers=a).status_code == 401
     assert client.get("/api/account/profile", headers=b).status_code == 200
+
+
+def test_saved_looks_are_customer_owned_and_revocable():
+    db = Database()
+    app = FastAPI()
+
+    async def chat_reply(conversation_id, profile, prior, message, provider):
+        return "Private outfit suggestion"
+
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/fake.png", lambda path: (b"image", "image/png"),
+        lambda path: None, generate_chat=chat_reply,
+    ))
+    client = TestClient(app)
+    users = []
+    for email in ("saved-a@example.com", "saved-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "secure password for testing"
+        }).status_code == 201
+        token = client.post("/api/account/login", json={
+            "email": email, "password": "secure password for testing"
+        }).json()["access_token"]
+        users.append({"Authorization": "Bearer " + token})
+    alice, bob = users
+    assert client.get("/api/account/saved").status_code == 401
+    conversation = client.post("/api/account/conversations", headers=alice).json()
+    assert client.post(
+        "/api/account/conversations/" + conversation["id"] + "/chat",
+        headers=alice, json={"message": "Find an outfit"},
+    ).status_code == 200
+    messages = client.get(
+        "/api/account/conversations/" + conversation["id"] + "/messages",
+        headers=alice,
+    ).json()
+    assistant = next(message for message in messages if message["role"] == "assistant")
+    url = "/api/account/saved"
+    assert client.post(url, headers=bob, json={"message_id": assistant["id"]}).status_code == 404
+    assert client.post(url, headers=alice, json={"message_id": messages[0]["id"]}).status_code == 404
+    saved = client.post(url, headers=alice, json={"message_id": assistant["id"]})
+    assert saved.status_code == 201, saved.text
+    saved_id = saved.json()["id"]
+    assert saved.json()["content"] == "Private outfit suggestion"
+    assert len(client.get(url, headers=alice).json()) == 1
+    assert client.get(url, headers=bob).json() == []
+    assert client.delete(url + "/" + saved_id, headers=bob).status_code == 404
+    assert client.delete(url + "/" + saved_id, headers=alice).status_code == 200
+    assert client.get(url, headers=alice).json() == []
+    assert client.post("/api/account/logout", headers=alice).status_code == 200
+    assert client.get(url, headers=alice).status_code == 401
+
+
+def test_customer_feedback_is_isolated():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/fake.png", lambda path: (b"image", "image/png"),
+    ))
+    client = TestClient(app)
+    users = []
+    for email in ("feedback-a@example.com", "feedback-b@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "secure password for testing"
+        }).status_code == 201
+        token = client.post("/api/account/login", json={
+            "email": email, "password": "secure password for testing"
+        }).json()["access_token"]
+        users.append({"Authorization": "Bearer " + token})
+    alice, bob = users
+    assert client.put("/api/account/feedback/item42", json={"sentiment": "liked"}).status_code == 401
+    assert client.put("/api/account/feedback/item42", headers=alice,
+                      json={"sentiment": "liked"}).status_code == 200
+    assert client.get("/api/account/feedback", headers=alice).json() == [
+        {"product_id": "item42", "sentiment": "liked"}
+    ]
+    assert client.get("/api/account/feedback", headers=bob).json() == []
+    assert client.put("/api/account/feedback/item42", headers=bob,
+                      json={"sentiment": "disliked"}).status_code == 200
+    assert client.get("/api/account/feedback", headers=alice).json()[0]["sentiment"] == "liked"
+    assert client.get("/api/account/feedback", headers=bob).json()[0]["sentiment"] == "disliked"
