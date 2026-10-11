@@ -1304,6 +1304,36 @@ async def block_unauthenticated_public_deployment(request, call_next):
     return await call_next(request)
 
 
+async def recommend_catalogue_for_customer(user_id):
+    """Rank only against this account's profile and explicit product feedback."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    catalogue_path = ROOT_DIR / ".lumiere-private-catalogue" / "matterhorn_products.json"
+    raw_products = MATTERHORN_TRIAL_SNAPSHOT
+    source = "matterhorn_xml_trial_snapshot"
+    if catalogue_path.is_file():
+        try:
+            with catalogue_path.open("r", encoding="utf-8") as handle:
+                imported = json.load(handle)
+            if isinstance(imported, list):
+                raw_products = imported
+                source = "matterhorn_imported_xml_snapshot"
+        except (OSError, ValueError) as exc:
+            logger.warning("Private catalogue could not be read: %s", exc)
+    normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
+    ranked = rank_verified_products(normalized, profile, limit=60)
+    recommendations = customer_recommendations(ranked)
+    feedback_docs = await db.customer_feedback.find({"user_id": user_id}).to_list(500)
+    feedback = {row["product_id"]: row["sentiment"] for row in feedback_docs}
+    recommendations = [
+        entry for entry in recommendations if feedback.get(entry.get("product_id")) != "disliked"
+    ]
+    weights = {"purchased": 3, "saved": 2, "liked": 1}
+    recommendations.sort(key=lambda entry: -weights.get(feedback.get(entry.get("product_id")), 0))
+    return {"recommendations": recommendations, "count": len(recommendations),
+            "live_inventory_enabled": False, "source": source,
+            "notice": "Trial catalogue snapshot; price and stock are not live."}
+
+
 async def generate_customer_styling_reply(conversation_id, profile, prior, message, provider):
     """Generate text-only style advice using an authenticated customer's own context."""
     if not EMERGENT_LLM_KEY:
@@ -1329,7 +1359,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
