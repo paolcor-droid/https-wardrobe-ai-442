@@ -1490,6 +1490,8 @@ async def startup_storage():
     await db.customer_photos.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_conversations.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_messages.create_index([("user_id", 1), ("conversation_id", 1)])
+    await db.customer_saved.create_index([("user_id", 1), ("message_id", 1)], unique=True)
+    await db.customer_saved.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_tryons.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
     try:
