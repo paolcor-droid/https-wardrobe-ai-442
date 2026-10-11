@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette, suggested_season
+from services.photo_privacy import sanitize_photo
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
@@ -607,7 +608,8 @@ async def upload(file: UploadFile = File(...)):
     data = await file.read(8 * 1024 * 1024 + 1)
     ext, content_type = validate_uploaded_image(data, file.content_type or "", file.filename or "")
     try:
-        path = await run_in_threadpool(store_bytes, data, ext, content_type)
+        clean_data = await run_in_threadpool(sanitize_photo, data, ext)
+        path = await run_in_threadpool(store_bytes, clean_data, ext, content_type)
     except Exception:  # noqa: BLE001
         logger.exception("Upload failed")
         raise HTTPException(status_code=502, detail="Upload failed")
