@@ -276,6 +276,7 @@ def test_private_tryon_requires_owned_person_and_garment_and_hides_results():
     assert client.get(result_uri, headers=a).status_code == 200
     assert client.delete(uri + "/" + item["id"], headers=b).status_code == 404
     assert client.delete(uri + "/" + item["id"], headers=a).status_code == 200
+    assert client.get(result_uri, headers=a).status_code == 404
 
 
 def test_skin_analysis_and_wardrobe_photo_links_require_ownership():
