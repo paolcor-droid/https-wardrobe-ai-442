@@ -55,7 +55,7 @@ def read(path, http=None):
     url, key, bucket = settings()
     if not path.startswith("supabaseprivate:"):
         raise ValueError("Invalid Supabase path")
-    address = object_url(url, bucket, path.removeprefix("supabaseprivate:"))
+    object_url(url, bucket, path.removeprefix("supabaseprivate:"))
     result = (http or requests).get(url + "/storage/v1/object/authenticated/" + quote(bucket, safe="") + "/" + quote(path.removeprefix("supabaseprivate:"), safe="/"),
                                     headers=headers(key), timeout=45)
     if result.status_code != 200:
@@ -76,5 +76,12 @@ def delete_verified(path, http=None):
         url + "/storage/v1/object/authenticated/" + quote(bucket, safe="") + "/" + quote(path.removeprefix("supabaseprivate:"), safe="/"),
         headers=headers(key), timeout=45,
     )
-    if readback.status_code not in (400, 404):
-        raise RuntimeError("Deleted object still accessible or deletion unverified")
+    if readback.status_code == 404:
+        return
+    if readback.status_code == 400:
+        # Some Supabase Storage versions report a missing object as 400.
+        # Accept only an explicit not-found payload, never an arbitrary 400.
+        body = readback.text.lower() if hasattr(readback, "text") else ""
+        if "not found" in body or "not_found" in body or "no such object" in body:
+            return
+    raise RuntimeError("Deleted object still accessible or deletion unverified")
