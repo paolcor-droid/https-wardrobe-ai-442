@@ -32,7 +32,8 @@ def test_recovery_sends_only_one_private_https_link(monkeypatch):
             return self
         def __exit__(self, *args):
             return False
-        def starttls(self):
+        def starttls(self, context=None):
+            assert context is not None
             sent.append("tls")
         def login(self, user, password):
             assert (user, password) == ("test", "dummy-not-a-real-secret")
