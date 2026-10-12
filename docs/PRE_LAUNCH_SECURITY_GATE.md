@@ -53,8 +53,8 @@ Its existing customer-controlled **local** storage remains usable for developmen
 Existing Emergent photos are an unresolved retention issue requiring provider
 support and/or policy review; do not claim those objects have been erased.
 
-Private S3 storage is available behind \`LUMIERE_PHOTO_STORAGE=s3\` plus
-\`LUMIERE_S3_BUCKET\` and host-provided AWS IAM credentials. The adapter uses
+Private S3 storage is available behind `LUMIERE_PHOTO_STORAGE=s3` plus
+`LUMIERE_S3_BUCKET` and host-provided AWS IAM credentials. The adapter uses
 encryption, private application routes, deletion of object versions and markers,
 then HEAD 404 verification. It refuses metadata deletion on a storage failure.
 Configure bucket-level block-public-access, no public ACLs, no unreviewed Object
@@ -63,12 +63,12 @@ policies. IAM requires S3 Put/Get/DeleteObject, ListBucketVersions and
 DeleteObjectVersion. Do not commit AWS credentials to GitHub.
 
 Run a real deletion check only in a dedicated disposable non-production bucket:
-\`\`\`bash
+```bash
 export LUMIERE_S3_BUCKET=your-lumiere-test-bucket
 export LUMIERE_S3_TEST_BUCKET=your-lumiere-test-bucket
 export LUMIERE_S3_TEST_ACK=delete-disposable-photo
 python backend/scripts/verify_s3_photo_deletion.py
-\`\`\`
+```
 No S3 test bucket/IAM role was connected here; the live cloud deletion test is
 **NOT executed**. A 404 after deletion does not prove purge from provider
 backups, replicas, CDNs or legally retained copies. Verify contracts separately.
@@ -80,7 +80,7 @@ backups, replicas, CDNs or legally retained copies. Verify contracts separately.
 - One-time hashed password recovery token, 30-minute expiry, old-session
   revocation and recovery UI implemented and unit-tested.
 - Recovery mail is **disabled without configured SMTP credentials**, a sender
-  address, and HTTPS \`LUMIERE_RECOVERY_BASE_URL\`; it returns 503 instead of
+  address, and HTTPS `LUMIERE_RECOVERY_BASE_URL`; it returns 503 instead of
   falsely claiming successful delivery.
 - Session expiry and revocation have automated tests. Real timed expiry,
   multi-device refresh, shared-store throttle and account recovery mail
@@ -89,10 +89,10 @@ backups, replicas, CDNs or legally retained copies. Verify contracts separately.
 ## AI integration testing and provider choice
 ChatGPT is the only customer-selectable text/analysis provider and the
 Claude/ChatGPT selector and technical model label were removed. The backend
-OpenAI chat model remains configurable via \`LUMIERE_OPENAI_CHAT_MODEL\`.
+OpenAI chat model remains configurable via `LUMIERE_OPENAI_CHAT_MODEL`.
 Gemini remains the image-rendering backend for virtual Try-On.
 
-The repository includes \`backend/scripts/live_ai_e2e.py\` to validate real
+The repository includes `backend/scripts/live_ai_e2e.py` to validate real
 ChatGPT styling, colour analysis, catalogue recommendations and Gemini Try-On.
 It is opt-in because it incurs AI service charges and requires two consented
 test photos, a local disposable backend, and configured API credentials. Do
