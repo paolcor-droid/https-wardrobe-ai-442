@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if os.environ.get("LUMIERE_SHARED_THROTTLE_TEST_ACK") != "disposable-mongo":
     raise SystemExit("Refusing without disposable-mongo acknowledgement")
-url = "http://127.0.0.1:8013"
+urls = ["http://127.0.0.1:8013", "http://127.0.0.1:8014"]
 env = {**os.environ,
        "MONGO_URL": "mongodb://127.0.0.1:27018",
        "DB_NAME": "lumiere_distributed_throttle_disposable",
@@ -25,35 +25,41 @@ env = {**os.environ,
        "LUMIERE_PHOTO_STORAGE": "local",
        "LUMIERE_LOCAL_IMAGE_STORAGE": "1",
        "ENVIRONMENT": "development"}
-log_path = ROOT.parent / ".lumiere-dev" / "shared-throttle-test.log"
-log_path.parent.mkdir(parents=True, exist_ok=True)
-log_file = log_path.open("w")
-process = subprocess.Popen(
-    [sys.executable, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8013"],
-    cwd=ROOT, env=env, stdout=log_file, stderr=subprocess.STDOUT,
-)
+log_dir = ROOT.parent / ".lumiere-dev"
+log_dir.mkdir(parents=True, exist_ok=True)
+processes = []
+logs = []
 try:
-    for _ in range(45):
-        if process.poll() is not None:
-            raise RuntimeError(f"Isolated backend stopped before ready (exit {process.returncode}). Inspect private log: {log_path}")
-        try:
-            urllib.request.urlopen(url + "/api/account/me", timeout=1)
-        except urllib.error.HTTPError as error:
-            if error.code == 401:
-                break
-        except (urllib.error.URLError, TimeoutError):
-            pass
-        time.sleep(1)
-    else:
-        raise RuntimeError(f"Isolated backend not ready. Inspect private log: {log_path}")
-    # A fresh, randomly chosen synthetic unknown user; no password is changed.
+    for port in (8013, 8014):
+        log_path = log_dir / f"shared-throttle-{port}.log"
+        log_handle = log_path.open("w")
+        logs.append(log_handle)
+        process = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", str(port)],
+            cwd=ROOT, env=env, stdout=log_handle, stderr=subprocess.STDOUT,
+        )
+        processes.append(process)
+    for url, process in zip(urls, processes):
+        for _ in range(45):
+            if process.poll() is not None:
+                raise RuntimeError(f"Test backend at {url} exited; inspect {log_dir}/shared-throttle-*.log")
+            try:
+                urllib.request.urlopen(url + "/api/account/me", timeout=1)
+            except urllib.error.HTTPError as error:
+                if error.code == 401:
+                    break
+            except (urllib.error.URLError, TimeoutError):
+                pass
+            time.sleep(1)
+        else:
+            raise RuntimeError(f"Backend at {url} not ready; inspect private test logs")
     import secrets
     email = "test-" + secrets.token_hex(12) + "@example.invalid"
     results = []
-    for _ in range(6):
+    for attempt in range(6):
         body = json.dumps({"email": email, "password": "invalid test password 123"}).encode()
         req = urllib.request.Request(
-            url + "/api/account/login", data=body,
+            urls[attempt % 2] + "/api/account/login", data=body,
             headers={"Content-Type": "application/json"}, method="POST",
         )
         try:
@@ -61,15 +67,18 @@ try:
                 results.append(response.status)
         except urllib.error.HTTPError as error:
             results.append(error.code)
-    assert results == [401] * 5 + [429], f"Unexpected login rate limit behavior: {results}"
-    print("PASS: MongoDB shared login limiter returned 401 x5 then 429 on sixth attempt")
-    print("No existing profiles, production secrets, photographs or mail used.")
+    assert results == [401] * 5 + [429], f"Unexpected cross-process result: {results}"
+    print("PASS: two independent FastAPI processes shared MongoDB login limiter (401 x5 then 429)")
+    print("No existing customer records, photographs, real passwords or mail were used.")
 finally:
-    if process.poll() is None:
-        process.terminate()
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
-    log_file.close()
+    for process in processes:
+        if process.poll() is None:
+            process.terminate()
+    for process in processes:
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    for log in logs:
+        log.close()
