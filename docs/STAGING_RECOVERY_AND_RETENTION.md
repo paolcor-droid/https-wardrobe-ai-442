@@ -67,3 +67,13 @@ without a documented basis.
 | Shared multi-instance rate limiting | Implementation and load/abuse tests required | BLOCKED |
 | Signed Android & iOS M01–M18 | Separate device reports required | BLOCKED |
 | Production HTTPS/CORS/CSRF/security/privacy review | Owner-approved report required | BLOCKED |
+
+## Live reset acceptance with Resend testing domain (pending)
+The tester must use a disposable LUMIÈRE account registered to the Resend account's authorized test recipient. On the app's private account page, request a password reset and open the received link in the same private Codespaces browser origin. Enter a newly generated disposable password (never paste it into chat). Verify the old password fails, the new password signs in, any previously active session becomes invalid, and the link cannot be reused. A delivered email alone does not complete this check. Keep the private port 8081 private and don't share screenshots containing reset_token parameters.
+
+## Two-process MongoDB throttle verification
+Run, from the repository root, after the existing local Mongo container responds to a ping:
+```bash
+LUMIERE_SHARED_THROTTLE_TEST_ACK=disposable-mongo python backend/scripts/verify_distributed_throttle.py
+```
+It starts isolated backend processes on ports 8013 and 8014 that share a disposable Mongo database, alternates failed synthetic logins across the processes, and expects 401 five times followed by 429. Existing app and profiles remain untouched.
