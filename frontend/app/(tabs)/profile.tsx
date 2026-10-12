@@ -23,7 +23,6 @@ import {
   type SkinAnalysis,
 } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
-import { ModelSelector } from "@/src/components/ModelSelector";
 import { useModel } from "@/src/model-provider";
 import { RETAILERS } from "@/src/retailers";
 import type { PickResult } from "@/src/utils/media";
@@ -209,9 +208,7 @@ export default function ProfileScreen() {
       >
         {/* Skin tone */}
         <Text style={styles.sectionTitle}>Skin tone & colors</Text>
-        <View style={styles.modelSelectorWrap}>
-          <ModelSelector />
-        </View>
+
         {skin && skin.undertone ? (
           <View style={styles.skinCard} testID="skin-result">
             <View style={styles.skinTop}>
