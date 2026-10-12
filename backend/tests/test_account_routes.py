@@ -597,3 +597,43 @@ def test_recovery_token_single_use_and_revokes_active_sessions(monkeypatch):
     assert client.get("/api/account/me", headers={"Authorization": "Bearer " + session}).status_code == 401
     assert client.post("/api/account/login", json=creds).status_code == 401
     assert client.post("/api/account/login", json={**creds, "password": reset["password"]}).status_code == 200
+
+def test_photo_deletion_clears_skin_wardrobe_and_derived_tryon():
+    db = Database()
+    deleted_paths = []
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/synthetic.png", lambda path: (b"synthetic", "image/png"),
+        lambda path: deleted_paths.append(path),
+    ))
+    client = TestClient(app)
+    creds = {"email": "cascade@example.test", "password": "safe testing password 123"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    login = client.post("/api/account/login", json=creds).json()
+    token = {"Authorization": "Bearer " + login["access_token"]}
+    face = client.post("/api/account/photos", headers=token,
+                       files={"file": ("face.png", b"bytes", "image/png")}).json()["id"]
+    generated = client.post("/api/account/photos", headers=token,
+                            files={"file": ("tryon.png", b"bytes", "image/png")}).json()["id"]
+    client_profile = client.get("/api/account/profile", headers=token).json()
+    db.customer_profiles.docs.append({
+        "user_id": client_profile["id"], "skin": {"image_path": "private:" + face},
+    })
+    item = client.post("/api/account/wardrobe", headers=token, json={
+        "name": "Test garment", "image_path": "private:" + face,
+    }).json()
+    db.customer_tryons.docs.append({
+        "id": "synthetic-tryon", "user_id": client_profile["id"],
+        "person_photo_id": face, "result_photo_id": generated,
+        "garment_photo_id": None, "second_garment_photo_id": None, "deleted_at": None,
+    })
+    assert client.delete("/api/account/photos/" + face, headers=token).status_code == 200
+    assert len(deleted_paths) == 2
+    assert client.get("/api/account/photos/" + face, headers=token).status_code == 404
+    assert client.get("/api/account/photos/" + generated, headers=token).status_code == 404
+    assert client.get("/api/account/profile", headers=token).json()["skin"] is None
+    items = client.get("/api/account/wardrobe", headers=token).json()
+    assert next(v for v in items if v["id"] == item["id"])["image_path"] == ""
+    assert client.get("/api/account/tryons", headers=token).json() == []
+
