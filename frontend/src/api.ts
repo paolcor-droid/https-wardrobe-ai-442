@@ -98,6 +98,11 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   void res;
 }
 
+export async function deletePrivatePhoto(imagePath: string): Promise<void> {
+  if (!/^private:[a-f0-9-]{36}$/.test(imagePath)) throw new Error("Invalid private photo identifier");
+  await accountRequest(`/photos/${encodeURIComponent(imagePath.slice(8))}`, { method: "DELETE" });
+}
+
 export async function uploadImage(uri: string, name: string, type: string): Promise<string> {
   const form = new FormData();
   if (Platform.OS === "web") {
