@@ -38,10 +38,10 @@ def upload_test_photo(token):
     out = io.BytesIO()
     Image.new("RGB", (16, 16), (128, 142, 158)).save(out, format="PNG")
     boundary = "lumiere" + secrets.token_hex(12)
-    payload = (("--" + boundary + "\\r\\n"
-        'Content-Disposition: form-data; name="file"; filename="test.png"\\r\\n'
-        "Content-Type: image/png\\r\\n\\r\\n").encode()
-        + out.getvalue() + ("\\r\\n--" + boundary + "--\\r\\n").encode())
+    payload = (("--" + boundary + "\r\n"
+        'Content-Disposition: form-data; name="file"; filename="test.png"\r\n'
+        "Content-Type: image/png\r\n\r\n").encode()
+        + out.getvalue() + ("\r\n--" + boundary + "--\r\n").encode())
     req = urllib.request.Request(
         BASE + "/api/account/photos", data=payload, method="POST",
         headers={"Content-Type": "multipart/form-data; boundary=" + boundary,
