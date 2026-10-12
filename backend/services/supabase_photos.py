@@ -85,3 +85,21 @@ def delete_verified(path, http=None):
         if "not found" in body or "not_found" in body or "no such object" in body:
             return
     raise RuntimeError("Deleted object still accessible or deletion unverified")
+
+
+def verify_private_bucket(http=None):
+    """Require the configured bucket to be private before accepting uploads."""
+    url, key, bucket = settings()
+    response = (http or requests).get(
+        url + "/storage/v1/bucket/" + quote(bucket, safe=""),
+        headers=headers(key), timeout=15,
+    )
+    if response.status_code != 200:
+        raise RuntimeError("Supabase bucket privacy check failed")
+    try:
+        details = response.json()
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("Supabase bucket configuration unreadable") from exc
+    if details.get("public") is not False:
+        raise RuntimeError("Supabase photo bucket must be private")
+    return True
