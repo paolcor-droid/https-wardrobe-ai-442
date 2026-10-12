@@ -231,7 +231,7 @@ export default function ProfileScreen() {
                 <Text style={styles.skinQuality}>Colour analysis is an estimate. If the result feels wrong, you can re-scan or adjust preferred colours below.</Text>
                 {skin.analyzed_with ? (
                   <Text style={styles.skinQuality}>
-                    Analysed with {skin.analyzed_with === "openai" ? "ChatGPT" : "Claude"}
+                    Analysed with {skin.analyzed_with === "openai" ? "ChatGPT" : "AI"}
                   </Text>
                 ) : null}
                 {skin.summary ? <Text style={styles.skinSummary}>{skin.summary}</Text> : null}
