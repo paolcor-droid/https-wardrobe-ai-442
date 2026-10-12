@@ -48,3 +48,19 @@ export const privateProfile = () => accountRequest<Record<string, unknown>>("/pr
 export const privateWardrobe = () => accountRequest<PrivateWardrobeItem[]>("/wardrobe");
 export const privateConversations = () => accountRequest<Array<{id: string; title: string}>>("/conversations");
 export const privateFeedback = () => accountRequest<Array<{product_id: string; sentiment: string}>>("/feedback");
+
+export type AccountIdentity = { id: string; email: string };
+
+// An anonymous visitor is not an error; backend/network failures remain visible.
+export async function currentAccount(): Promise<AccountIdentity | null> {
+  let headers: Record<string, string> = {};
+  if (Platform.OS !== "web") {
+    const token = await SecureStore.getItemAsync(KEY);
+    if (!token) return null;
+    headers = { Authorization: `Bearer ${token}` };
+  }
+  const response = await fetch(`${BASE}/api/account/me`, { credentials: "same-origin", headers });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Unable to verify account (${response.status})`);
+  return response.json() as Promise<AccountIdentity>;
+}
