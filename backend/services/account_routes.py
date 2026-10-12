@@ -606,11 +606,54 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(404, "Photo not found")
         if delete_image is None:
             raise HTTPException(503, "Verified storage deletion unavailable")
+        # Deleting a face, person or garment photo also invalidates try-ons
+        # containing it. Their generated results can retain a person's likeness.
+        active_tryons = await db.customer_tryons.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0},
+        ).to_list(2000)
+        referenced = ("person_photo_id", "garment_photo_id", "second_garment_photo_id", "result_photo_id")
+        linked = [t for t in active_tryons if photo_id in (t.get(k) for k in referenced)]
+        generated_ids = {
+            t["result_photo_id"] for t in linked
+            if t.get("result_photo_id") and t["result_photo_id"] != photo_id
+        }
+        # Verify all derived object deletions before removing their metadata.
+        # A retry is safe for previously removed objects.
         try:
+            for derived_id in generated_ids:
+                derived = await db.customer_photos.find_one(
+                    {"id": derived_id, "user_id": user_id},
+                )
+                if derived:
+                    await run_in_threadpool(delete_image, derived["path"])
             await run_in_threadpool(delete_image, photo["path"])
-        except Exception as exc:  # storage error must fail closed without deleting metadata
+        except Exception as exc:
             raise HTTPException(503, "Verified storage deletion unavailable") from exc
+
+        for derived_id in generated_ids:
+            await db.customer_photos.delete_one({"id": derived_id, "user_id": user_id})
         await db.customer_photos.delete_one({"id": photo_id, "user_id": user_id})
+        now = datetime.now(timezone.utc).isoformat()
+        for record in linked:
+            await db.customer_tryons.update_one(
+                {"id": record["id"], "user_id": user_id},
+                {"$set": {"deleted_at": now}},
+            )
+        profile = await db.customer_profiles.find_one({"user_id": user_id})
+        skin = (profile or {}).get("skin") or {}
+        if skin.get("image_path") == "private:" + photo_id:
+            await db.customer_profiles.update_one(
+                {"user_id": user_id}, {"$set": {"skin": None, "updated_at": now}},
+            )
+        wardrobe = await db.customer_wardrobe.find(
+            {"user_id": user_id}, {"_id": 0},
+        ).to_list(1000)
+        for item in wardrobe:
+            if item.get("image_path") == "private:" + photo_id:
+                await db.customer_wardrobe.update_one(
+                    {"id": item["id"], "user_id": user_id},
+                    {"$set": {"image_path": ""}},
+                )
         return {"success": True}
 
     @router.post("/saved", status_code=201)
