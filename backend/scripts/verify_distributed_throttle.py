@@ -25,14 +25,17 @@ env = {**os.environ,
        "LUMIERE_PHOTO_STORAGE": "local",
        "LUMIERE_LOCAL_IMAGE_STORAGE": "1",
        "ENVIRONMENT": "development"}
+log_path = ROOT.parent / ".lumiere-dev" / "shared-throttle-test.log"
+log_path.parent.mkdir(parents=True, exist_ok=True)
+log_file = log_path.open("w")
 process = subprocess.Popen(
     [sys.executable, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", "8013"],
-    cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    cwd=ROOT, env=env, stdout=log_file, stderr=subprocess.STDOUT,
 )
 try:
     for _ in range(45):
         if process.poll() is not None:
-            raise RuntimeError("Isolated backend stopped before ready")
+            raise RuntimeError(f"Isolated backend stopped before ready (exit {process.returncode}). Inspect private log: {log_path}")
         try:
             urllib.request.urlopen(url + "/api/account/me", timeout=1)
         except urllib.error.HTTPError as error:
@@ -42,7 +45,7 @@ try:
             pass
         time.sleep(1)
     else:
-        raise RuntimeError("Isolated backend not ready")
+        raise RuntimeError(f"Isolated backend not ready. Inspect private log: {log_path}")
     # A fresh, randomly chosen synthetic unknown user; no password is changed.
     import secrets
     email = "test-" + secrets.token_hex(12) + "@example.invalid"
@@ -62,9 +65,11 @@ try:
     print("PASS: MongoDB shared login limiter returned 401 x5 then 429 on sixth attempt")
     print("No existing profiles, production secrets, photographs or mail used.")
 finally:
-    process.terminate()
+    if process.poll() is None:
+        process.terminate()
     try:
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+    log_file.close()
