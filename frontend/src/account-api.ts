@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 // Staged client for ownership-enforcing account endpoints only.
 // Never send this token to /api/profile, /api/wardrobe, /api/tryon
 // or any other unauthenticated legacy endpoint.
-const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
+
 const KEY = "lumiere_customer_session";
 
 export function webCsrfHeaders(): Record<string, string> {
@@ -34,7 +34,7 @@ export async function accountAccessToken(): Promise<string> {
 export async function accountRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = Platform.OS === "web" ? "" : await accountAccessToken();
   if (!path.startsWith("/") || path.startsWith("//")) throw new Error("Invalid account path");
-  const response = await fetch(`${BASE}/api/account${path}`, {
+  const response = await fetch(`${backendBaseUrl()}/api/account${path}`, {
     ...init, credentials: "same-origin", headers: { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : webCsrfHeaders()) },
   });
   if (!response.ok) throw new Error(response.status === 401 ? "Session expired. Sign in again." : `Account request failed (${response.status})`);
@@ -60,7 +60,7 @@ export async function currentAccount(): Promise<AccountIdentity | null> {
     if (!token) return null;
     headers = { Authorization: `Bearer ${token}` };
   }
-  const response = await fetch(`${BASE}/api/account/me`, { credentials: "same-origin", headers });
+  const response = await fetch(`${backendBaseUrl()}/api/account/me`, { credentials: "same-origin", headers });
   if (response.status === 401) return null;
   if (!response.ok) throw new Error(`Unable to verify account (${response.status})`);
   return response.json() as Promise<AccountIdentity>;
