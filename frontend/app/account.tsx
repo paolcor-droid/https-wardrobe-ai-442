@@ -48,6 +48,7 @@ export default function AccountScreen() {
         setToken(Platform.OS === "web" ? "web-session" : body.access_token);
         setPassword("");
         setMessage("Signed in to your private account.");
+        router.replace("/(tabs)/profile" as any);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to connect.");
@@ -110,6 +111,16 @@ export default function AccountScreen() {
         <>
           <Text>Signed in as {account.email}</Text>
           <Text>Your styling, wardrobe and photographs are linked to this account.</Text>
+          <Pressable testID="account-go-to-you" accessibilityRole="button"
+            onPress={() => router.replace("/(tabs)/profile" as any)}
+            style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
+            <Text style={{ color: "white" }}>Go to You</Text>
+          </Pressable>
+          <Pressable testID="account-go-to-discover" accessibilityRole="button"
+            onPress={() => router.replace("/(tabs)/discover" as any)}
+            style={{ borderWidth: 1, borderColor: "#777", padding: 16, borderRadius: 8 }}>
+            <Text>Go to Discover</Text>
+          </Pressable>
           <Pressable disabled={busy} onPress={logout}
             accessibilityRole="button"
             style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
