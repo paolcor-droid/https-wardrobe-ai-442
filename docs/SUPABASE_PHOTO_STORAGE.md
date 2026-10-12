@@ -90,3 +90,10 @@ Sources:
 - https://supabase.com/docs/guides/storage/management/delete-objects
 - https://supabase.com/docs/guides/storage/cdn/fundamentals
 - https://supabase.com/docs/guides/storage/cdn/smart-cdn
+
+## Current staged rollout (October 2026)
+1. Intended customer bucket read-only privacy preflight: `bash scripts/verify-customer-bucket.sh`. It fails closed if missing, unreachable or public; requires the existing GitHub Codespaces secret. The successful private **test** bucket verification does not prove the **customer** bucket is private.
+2. Backend supports `LUMIERE_PHOTO_STORAGE=supabase` for **new uploads** and still reads/deletes pre-existing `local/<id>.png` images when `LUMIERE_LOCAL_IMAGE_STORAGE=1`. Preserve the Codespaces `backend/.lumiere-private-images` directory. This is not an automatic migration. Startup fails if Supabase bucket privacy cannot be verified.
+3. First run a staging instance with the same account database but a separate private port, or explicitly switch the Codespaces backend after step 1, preserving all local image files and database records. Do not change a production deployment or expose a private Codespaces port.
+4. The You screen now has a two-tap **Delete this photograph** action for the saved colour analysis photo. It calls the authenticated account API, removes linked analysis/try-on references and refreshes the profile. Test only on a new disposable customer and generated test image, not an existing personal photograph.
+5. Before public launch document response to deletion requests, service provider cache retention, internal backup copies and incident response; REST delete+404 does not certify erasure from every backup copy. Official documentation: https://supabase.com/docs/guides/storage/management/delete-objects and https://supabase.com/docs/guides/storage/cdn/fundamentals .
