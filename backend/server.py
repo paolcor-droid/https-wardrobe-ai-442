@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
 from services.remote_photo_deletion import delete_and_verify_remote
-from services.security_gate import allow_legacy_dev_request
+from services.security_gate import allow_legacy_dev_request, allow_account_preview_request
 from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
@@ -1279,7 +1279,7 @@ async def block_unauthenticated_public_deployment(request, call_next):
     # them to network clients, including private/LAN addresses, or trust an
     # X-Forwarded-For header supplied by the caller.
     client_host = request.client.host if request.client else None
-    if not allow_legacy_dev_request(client_host, production):
+    if not (allow_legacy_dev_request(client_host, production) or allow_account_preview_request(request.url.path, production)):
         return Response(
             content=json.dumps({"detail": "Public access disabled until authenticated user isolation is configured"}),
             status_code=503,
