@@ -199,11 +199,6 @@ export default function ProfileScreen() {
               profileError ? "Unable to load your private profile." :
               "Loading your private profile…"}
           </Text>
-          {!account?.id && !accountChecking ? (
-            <Pressable accessibilityRole="button" onPress={() => router.push("/account" as any)}>
-              <Text style={{ color: colors.onSurface, fontWeight: "700" }}>Sign in / Create account →</Text>
-            </Pressable>
-          ) : null}
         </View>
       ) : (
       <KeyboardAwareScrollView
