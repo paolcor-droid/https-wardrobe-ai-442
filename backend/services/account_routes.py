@@ -6,7 +6,7 @@ import uuid
 import os
 import secrets
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Request
@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.login_throttle import LoginThrottle
+from services.account_recovery import recovery_configured, send_recovery_email
 from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
@@ -31,6 +32,15 @@ class AccountChatInput(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     provider: str | None = None
     image_path: str | None = None
+
+
+class RecoveryRequest(BaseModel):
+    email: str
+
+
+class RecoveryConfirm(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+    password: str = Field(min_length=12, max_length=1024)
 
 
 class Credentials(BaseModel):
@@ -144,6 +154,58 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             browser_session(response, token)
             return {"success": True, "token_type": "cookie", "expires_at": expiry.isoformat()}
         return {"access_token": token, "token_type": "bearer", "expires_at": expiry.isoformat()}
+
+    @router.post("/recovery/request")
+    async def request_recovery(payload: RecoveryRequest):
+        # Never claim a reset was delivered if the mail provider is unavailable.
+        if not recovery_configured():
+            raise HTTPException(503, "Account recovery is not configured")
+        try:
+            address = normalize_email(payload.email)
+        except ValueError:
+            raise HTTPException(422, "Invalid email")
+        user = await db.customer_accounts.find_one({"email": address})
+        if user:
+            token = secrets.token_urlsafe(40)
+            record = {
+                "digest": token_digest(token), "user_id": user["id"],
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=30),
+                "used_at": None,
+            }
+            await db.customer_recovery.insert_one(record)
+            try:
+                await run_in_threadpool(send_recovery_email, address, token)
+            except Exception as exc:
+                await db.customer_recovery.delete_one({"digest": record["digest"]})
+                raise HTTPException(503, "Recovery email could not be delivered") from exc
+        return {"message": "If that email is registered, recovery instructions will be sent."}
+
+    @router.post("/recovery/confirm")
+    async def confirm_recovery(payload: RecoveryConfirm):
+        if not recovery_configured():
+            raise HTTPException(503, "Account recovery is not configured")
+        digest = token_digest(payload.token)
+        record = await db.customer_recovery.find_one({
+            "digest": digest, "used_at": None,
+            "expires_at": {"$gt": datetime.now(timezone.utc)},
+        })
+        if not record:
+            raise HTTPException(400, "Invalid or expired recovery link")
+        new_hash = await run_in_threadpool(hash_password, payload.password)
+        consumed = await db.customer_recovery.update_one(
+            {"digest": digest, "used_at": None, "expires_at": {"$gt": datetime.now(timezone.utc)}},
+            {"$set": {"used_at": datetime.now(timezone.utc)}},
+        )
+        if not consumed.matched_count:
+            raise HTTPException(400, "Recovery link already used")
+        await db.customer_accounts.update_one(
+            {"id": record["user_id"]}, {"$set": {"password_hash": new_hash}},
+        )
+        await db.customer_sessions.update_many(
+            {"user_id": record["user_id"], "revoked_at": None},
+            {"$set": {"revoked_at": datetime.now(timezone.utc)}},
+        )
+        return {"success": True}
 
     @router.post("/logout")
     async def logout(request: Request, response: Response, authorization: Annotated[str | None, Header()] = None, user_id: str = Depends(current_user)):
