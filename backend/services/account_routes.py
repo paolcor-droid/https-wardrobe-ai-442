@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from services.wardrobe_planner import plan_outfits, capsule_plan
+from services.login_throttle import LoginThrottle
 from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
 )
@@ -42,6 +43,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
     CSRF_NAME = "lumiere_csrf"
+    login_throttle = LoginThrottle()
 
     def browser_session(response, token):
         # Host-only cookies, never shared with unrelated domains.
@@ -117,9 +119,17 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             email = normalize_email(payload.email)
         except ValueError:
             raise HTTPException(401, "Invalid credentials")
+        # Process-local throttle limits repeated failures in private development.
+        # Production requires a shared-store limiter across workers and instances.
+        client_ip = request.client.host if request.client else "unknown"
+        throttle_key = client_ip + ":" + email
+        if login_throttle.is_blocked(throttle_key):
+            raise HTTPException(429, "Too many login attempts. Try again later")
         user = await db.customer_accounts.find_one({"email": email})
         if not user or not verify_password(payload.password, user["password_hash"]):
+            login_throttle.fail(throttle_key)
             raise HTTPException(401, "Invalid credentials")
+        login_throttle.clear(throttle_key)
         token, digest, expiry = create_session()
         await db.customer_sessions.insert_one({
             "digest": digest, "user_id": user["id"], "expires_at": expiry,
