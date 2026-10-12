@@ -28,7 +28,6 @@ import { MessageBubble } from "@/src/components/MessageBubble";
 import { Composer } from "@/src/components/Composer";
 import { ChatEmpty } from "@/src/components/ChatEmpty";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
-import { ModelSelector } from "@/src/components/ModelSelector";
 import { useModel } from "@/src/model-provider";
 
 type LocalMsg = Pick<ChatMessage, "role" | "content" | "image_path"> & { id: string };
@@ -209,9 +208,7 @@ export default function ChatScreen() {
       >
         {showEmpty ? (
           <View style={[styles.flex, { paddingTop: headerHeight }]}>
-            <View style={styles.selectorBar}>
-              <ModelSelector />
-            </View>
+
             <ChatEmpty onPick={(p) => handleSend(p)} />
           </View>
         ) : (
