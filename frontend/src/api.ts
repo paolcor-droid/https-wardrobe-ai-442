@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 
 // On web, same-origin /api calls are forwarded by Metro to local FastAPI.
 // Native apps still require an explicit reachable backend URL.
-const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
+
 
 export type Conversation = {
   id: string;
@@ -46,7 +46,7 @@ export type ModelsResponse = {
 };
 
 export async function getModels(): Promise<ModelsResponse> {
-  const res = await fetch(`${BASE}/api/models`);
+  const res = await fetch(`${backendBaseUrl()}/api/models`);
   return json<ModelsResponse>(res);
 }
 
@@ -60,9 +60,9 @@ async function json<T>(res: Response): Promise<T> {
 
 export function fileUrl(path: string): string {
   if (path.startsWith("private:")) {
-    return `${BASE}/api/account/photos/${encodeURIComponent(path.slice(8))}`;
+    return `${backendBaseUrl()}/api/account/photos/${encodeURIComponent(path.slice(8))}`;
   }
-  return `${BASE}/api/files/${path}`;
+  return `${backendBaseUrl()}/api/files/${path}`;
 }
 
 export async function createConversation(): Promise<Conversation> {
@@ -121,7 +121,7 @@ export async function uploadImage(uri: string, name: string, type: string): Prom
   // "Unsupported FormDataPart implementation". XHR handles that part natively on Android/iOS.
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${BASE}/api/account/photos`);
+    xhr.open("POST", `${backendBaseUrl()}/api/account/photos`);
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     else Object.entries(webCsrfHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
     xhr.onload = () => {
@@ -219,7 +219,7 @@ export function streamChat(
         handlers.onError("Private image attachments are not yet supported by account chat.");
         return;
       }
-      xhr.open("POST", `${BASE}/api/account/conversations/${encodeURIComponent(conversationId)}/chat`);
+      xhr.open("POST", `${backendBaseUrl()}/api/account/conversations/${encodeURIComponent(conversationId)}/chat`);
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       else Object.entries(webCsrfHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
       xhr.setRequestHeader("Content-Type", "application/json");
