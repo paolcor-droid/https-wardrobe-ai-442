@@ -47,3 +47,46 @@ This **has not run yet** because no Supabase project credentials exist.
 - Until Supabase is configured and deletion tested, public launch stays blocked.
 - Keep bucket private; never use public Storage URLs or persistent signed URLs
   for sensitive face photographs.
+
+## Live two-account Supabase storage and API isolation test
+After the synthetic test-bucket deletion check has passed, run the new
+isolated integration test against the **same PRIVATE TEST bucket only**:
+```bash
+cd /workspaces/https-wardrobe-ai-442
+LUMIERE_SUPABASE_URL=https://sicszettmpnyniyhbhsl.supabase.co \
+LUMIERE_SUPABASE_BUCKET=lumiere-private-test \
+LUMIERE_SUPABASE_TEST_BUCKET=lumiere-private-test \
+LUMIERE_SUPABASE_ACCOUNT_E2E_ACK=test-bucket-disposable-database \
+python backend/scripts/verify_supabase_account_isolation.py
+```
+The script checks Supabase bucket `public=false`, starts **a separate
+FastAPI process on 127.0.0.1:8012** with a disposable MongoDB database,
+creates two artificial accounts, uploads an in-memory synthetic image,
+verifies owner-only access and rejection of other-account reads/deletes,
+deletes the photo and checks 404, then stops the isolated test backend.
+
+Never make port 8012 public. This command does not switch the normal
+LUMIÈRE app on 8000/8081, edit real profiles, or migrate files. It
+requires a running local MongoDB container and the existing Codespaces
+Supabase service-role secret. Test credentials are not echoed.
+
+## Production-bucket rollout gate
+After the test passes:
+1. Verify `lumiere-private-photos` bucket is **private** in the dashboard.
+2. Configure `LUMIERE_PHOTO_STORAGE=supabase`,
+   `LUMIERE_SUPABASE_BUCKET=lumiere-private-photos` and project URL as
+   **staging backend** environment variables; do not store them in Expo.
+3. Keep the secret only in a privileged backend runtime, never in client
+   bundle variables, source control, screenshots or log output.
+4. Test two staging accounts end-to-end and the storage deletion cascade
+   before activating customer uploads. Plan legacy local/Emergent files as
+   a separately authorized migration; do not delete them automatically.
+5. Document retention and legal requirements. Supabase's Storage deletion
+   documentation describes removal of object bytes via Storage API, but
+   does not itself establish erasure from every provider backup or other
+   downstream copy.
+
+Sources:
+- https://supabase.com/docs/guides/storage/management/delete-objects
+- https://supabase.com/docs/guides/storage/cdn/fundamentals
+- https://supabase.com/docs/guides/storage/cdn/smart-cdn
