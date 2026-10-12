@@ -65,23 +65,20 @@ EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_SKIN_MODEL = os.environ.get("OPENAI_SKIN_MODEL", "gpt-4.1-mini")
 
-# Selectable chat / analysis providers. Claude remains the default so existing
-# behaviour is preserved; OpenAI (ChatGPT) is added ALONGSIDE it. The provider is
-# chosen per-request via an optional `provider` field (dev/testing selector).
+# ChatGPT is the sole supported customer-facing text/analysis provider.
+# Deployment can change the OpenAI model without changing the user interface.
 CHAT_MODELS: Dict[str, Dict[str, str]] = {
-    "claude": {"provider": "anthropic", "model": "claude-sonnet-5", "label": "Claude (Anthropic)"},
-    "openai": {"provider": "openai", "model": "gpt-5.6-sol", "label": "ChatGPT (OpenAI)"},
+    "openai": {"provider": "openai", "model": os.environ.get("LUMIERE_OPENAI_CHAT_MODEL", "gpt-5.6-sol"), "label": "ChatGPT"},
 }
-DEFAULT_CHAT_PROVIDER = "claude"
-# Backward-compatible default tuple used where no explicit provider is supplied.
-CHAT_MODEL = (CHAT_MODELS[DEFAULT_CHAT_PROVIDER]["provider"], CHAT_MODELS[DEFAULT_CHAT_PROVIDER]["model"])
+DEFAULT_CHAT_PROVIDER = "openai"
+CHAT_MODEL = (CHAT_MODELS["openai"]["provider"], CHAT_MODELS["openai"]["model"])
 IMAGE_MODEL = ("gemini", "gemini-3.1-flash-image-preview")
 
 
 def resolve_provider_id(provider: Optional[str]) -> str:
     """Normalise a requested provider id, falling back to the default."""
-    key = (provider or DEFAULT_CHAT_PROVIDER).strip().lower()
-    return key if key in CHAT_MODELS else DEFAULT_CHAT_PROVIDER
+    # Treat legacy Claude selection as ChatGPT; never dispatch to Anthropic.
+    return "openai"
 
 
 def resolve_chat_model(provider: Optional[str]) -> tuple:
@@ -1315,7 +1312,7 @@ async def prepare_trusted_garment_for_customer(product_id):
 
 async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
     """Fresh per-photo colour analysis without shared profile writes or cross-user cache."""
-    direct_openai = provider == "openai" or (provider is None and bool(OPENAI_API_KEY))
+    direct_openai = bool(OPENAI_API_KEY)
     if direct_openai:
         if not OPENAI_API_KEY:
             raise RuntimeError("OpenAI colour analysis is not configured")
