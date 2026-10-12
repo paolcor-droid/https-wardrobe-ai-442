@@ -1502,6 +1502,7 @@ async def startup_storage():
     await db.customer_sessions.create_index("digest", unique=True)
     await db.customer_recovery.create_index("digest", unique=True)
     await db.customer_recovery.create_index("expires_at", expireAfterSeconds=0)
+    await db.customer_rate_limits.create_index("expires_at", expireAfterSeconds=0)
     await db.customer_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.customer_profiles.create_index("user_id", unique=True)
     await db.customer_feedback.create_index([("user_id", 1), ("product_id", 1)], unique=True)
