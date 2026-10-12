@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { saveAccountSession, clearAccountSession, webCsrfHeaders, currentAccount } from "@/src/account-api";
 import { Platform } from "react-native";
@@ -13,6 +13,7 @@ const TOKEN_KEY = "lumiere_customer_session";
 
 export default function AccountScreen() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const params = useLocalSearchParams<{ reset_token?: string }>();
   const [recovering, setRecovering] = useState(false);
   const [mode, setMode] = useState<"register" | "login">("register");
@@ -71,6 +72,7 @@ export default function AccountScreen() {
       setMessage(resetToken ? "Password updated. Return to sign in." : body.message);
       setRecovering(false);
       setPassword("");
+      if (resetToken) { setMode("login"); router.replace("/account" as any); }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Account recovery unavailable");
     } finally {
@@ -117,9 +119,9 @@ export default function AccountScreen() {
       ) : (
         <>
           <Text>{recovering || params.reset_token ? "Recover your account securely." : "Sign in to keep your styling, wardrobe and photographs private to your account."}</Text>
-          <TextInput placeholder="Email" value={email} autoCapitalize="none"
+          {!params.reset_token && <TextInput placeholder="Email" value={email} autoCapitalize="none"
             keyboardType="email-address" onChangeText={setEmail}
-            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
+            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />}
           {(!recovering || !!params.reset_token) && <TextInput placeholder={params.reset_token ? "New password (12 characters minimum)" : "Password (12 characters minimum)"} value={password}
             secureTextEntry onChangeText={setPassword}
             style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />}
