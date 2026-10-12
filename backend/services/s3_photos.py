@@ -60,7 +60,9 @@ def delete_verified(path: str, s3=None) -> None:
     key = validate_key(path.removeprefix("s3private:"))
     c = s3 or client()
     name = bucket()
-    # Remove all versions first, so versioning cannot silently retain face photos.
+    # A bare DELETE on versioned buckets creates a deletion marker. Remove that
+    # marker and every retained object version afterwards.
+    c.delete_object(Bucket=name, Key=key)
     marker = None
     version_marker = None
     while True:
@@ -80,7 +82,10 @@ def delete_verified(path: str, s3=None) -> None:
         version_marker = page.get("NextVersionIdMarker")
         if not marker:
             raise RuntimeError("S3 version listing could not be completed")
-    c.delete_object(Bucket=name, Key=key)
+    # Ensure neither bytes nor versioned copies remain in the bucket.
+    remaining = c.list_object_versions(Bucket=name, Prefix=key)
+    if any(v.get("Key") == key for kind in ("Versions", "DeleteMarkers") for v in remaining.get(kind, [])):
+        raise RuntimeError("S3 photograph still has stored versions or delete markers")
     try:
         c.head_object(Bucket=name, Key=key)
     except ClientError as exc:
