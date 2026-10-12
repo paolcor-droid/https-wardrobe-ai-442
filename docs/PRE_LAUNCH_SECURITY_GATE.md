@@ -128,3 +128,8 @@ Do not claim production launch readiness until those checks have evidence.
 
 ## Read-only go/no-go preflight
 `PYTHONPATH=backend python backend/scripts/release_preflight.py` gives a non-secret configuration checklist and returns nonzero on blocked items. Environment flags are operator attestations **not technical proof**; attach vendor documentation and actual signed test records before a release decision. Never set these flags merely to make the checker green.
+
+## 12 October 2026 browser confirmations and automated regression
+- User confirmed that Resend testing-sender recovery email arrived at an authorized test inbox. **Full reset-token, prior-session revocation and expiry remain unverified in live SMTP flow.** Mocked backend test verifies single-use token and revocation, and new unit tests verify SMTP STARTTLS, message address and encoded HTTPS link.
+- User confirmed post-login redirect to You and access to Discover, Stylist, Wardrobe and Try-On after the navigation fix. This is a development browser check, not a device signoff.
+- No production secrets, real passwords or private customer photographs were used in the mocked recovery SMTP tests.
