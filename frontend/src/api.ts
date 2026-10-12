@@ -31,7 +31,7 @@ export type SavedLook = {
 };
 
 // Dev/testing model selector ------------------------------------------------
-export type ChatProvider = "claude" | "openai";
+export type ChatProvider = "openai";
 
 export type ProviderInfo = {
   id: string;
