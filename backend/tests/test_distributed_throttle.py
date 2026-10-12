@@ -24,13 +24,14 @@ class AtomicCollection:
             return dict(self.docs[k])
 
 
-@pytest.mark.asyncio
-async def test_shared_login_limit_across_workers():
+def test_shared_login_limit_across_workers():
     storage = AtomicCollection()
     first = MongoRateLimiter(storage, "login", 5, 300, clock=lambda: 1000)
     second = MongoRateLimiter(storage, "login", 5, 300, clock=lambda: 1000)
-    results = await asyncio.gather(*(limiter.check_and_count("same-ip:same-email")
+    async def attempt():
+        return await asyncio.gather(*(limiter.check_and_count("same-ip:same-email")
                                      for limiter in [first, second, first, second, first, second]))
+    results = asyncio.run(attempt())
     assert results == [True, True, True, True, True, False]
     assert len(storage.docs) == 1
     k = next(iter(storage.docs))
@@ -38,23 +39,21 @@ async def test_shared_login_limit_across_workers():
     assert storage.docs[k]["expires_at"] > datetime.fromtimestamp(1000, tz=timezone.utc)
 
 
-@pytest.mark.asyncio
-async def test_distinct_keys_and_fixed_window_rollover():
+def test_distinct_keys_and_fixed_window_rollover():
     storage = AtomicCollection()
     now = [1000]
     limiter = MongoRateLimiter(storage, "recovery", 1, 3600, clock=lambda: now[0])
-    assert await limiter.check_and_count("account-a")
-    assert not await limiter.check_and_count("account-a")
-    assert await limiter.check_and_count("account-b")
+    assert asyncio.run(limiter.check_and_count("account-a"))
+    assert not asyncio.run(limiter.check_and_count("account-a"))
+    assert asyncio.run(limiter.check_and_count("account-b"))
     now[0] = 3601
-    assert await limiter.check_and_count("account-a")
+    assert asyncio.run(limiter.check_and_count("account-a"))
 
 
-@pytest.mark.asyncio
-async def test_backend_storage_errors_are_not_silently_permitted():
+def test_backend_storage_errors_are_not_silently_permitted():
     class Failing:
         async def find_one_and_update(self, *args, **kwargs):
             raise RuntimeError("storage failed")
     limiter = MongoRateLimiter(Failing(), "login", 5, 300)
     with pytest.raises(RuntimeError, match="storage failed"):
-        await limiter.check_and_count("some-user")
+        asyncio.run(limiter.check_and_count("some-user"))
