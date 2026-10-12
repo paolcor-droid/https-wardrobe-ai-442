@@ -96,7 +96,7 @@ APP_NAME = "stylescan"
 # Never silently upload new customer photos to undeletable Emergent Object Store.
 # Development defaults to private local files; production must explicitly opt into S3.
 PHOTO_STORAGE_BACKEND = os.environ.get("LUMIERE_PHOTO_STORAGE", "local").strip().lower()
-LOCAL_IMAGE_STORAGE = PHOTO_STORAGE_BACKEND == "local" and os.environ.get("LUMIERE_LOCAL_IMAGE_STORAGE", "1") == "1"
+LOCAL_IMAGE_STORAGE = os.environ.get("LUMIERE_LOCAL_IMAGE_STORAGE", "1") == "1"
 LOCAL_IMAGE_DIR = ROOT_DIR / ".lumiere-private-images"
 _storage_key: Optional[str] = None
 
@@ -1512,13 +1512,13 @@ async def startup_storage():
     await db.customer_saved.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_tryons.create_index([("user_id", 1), ("id", 1)], unique=True)
     await db.customer_wardrobe.create_index([("user_id", 1), ("id", 1)], unique=True)
-    if LOCAL_IMAGE_STORAGE:
+    if PHOTO_STORAGE_BACKEND == "local" and LOCAL_IMAGE_STORAGE:
         LOCAL_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("Local private image storage initialized")
         return
     if PHOTO_STORAGE_BACKEND == "supabase":
-        await run_in_threadpool(supabase_photos.settings)
-        logger.info("Private Supabase photo storage configured")
+        await run_in_threadpool(supabase_photos.verify_private_bucket)
+        logger.info("Private Supabase photo storage verified")
         return
     if PHOTO_STORAGE_BACKEND == "s3":
         # Fail startup if a private bucket has not been explicitly provided.
