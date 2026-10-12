@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
 from services.remote_photo_deletion import delete_and_verify_remote
+from services import s3_photos
 from services.security_gate import allow_legacy_dev_request, allow_account_preview_request
 from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
@@ -92,7 +93,10 @@ STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 APP_NAME = "stylescan"
 # Codespaces development uses a local private directory when Emergent is unavailable.
 # Production deployments must provide authenticated persistent object storage.
-LOCAL_IMAGE_STORAGE = os.environ.get("LUMIERE_LOCAL_IMAGE_STORAGE", "1" if not EMERGENT_LLM_KEY else "0") == "1"
+# Never silently upload new customer photos to undeletable Emergent Object Store.
+# Development defaults to private local files; production must explicitly opt into S3.
+PHOTO_STORAGE_BACKEND = os.environ.get("LUMIERE_PHOTO_STORAGE", "local").strip().lower()
+LOCAL_IMAGE_STORAGE = PHOTO_STORAGE_BACKEND == "local" and os.environ.get("LUMIERE_LOCAL_IMAGE_STORAGE", "1") == "1"
 LOCAL_IMAGE_DIR = ROOT_DIR / ".lumiere-private-images"
 _storage_key: Optional[str] = None
 
@@ -136,6 +140,8 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def get_object(path: str) -> tuple[bytes, str]:
+    if path.startswith("s3private:"):
+        return s3_photos.read(path)
     if path.startswith("local/"):
         if not LOCAL_IMAGE_STORAGE:
             raise ValueError("Local image storage is disabled")
@@ -162,6 +168,8 @@ def delete_owned_object(path: str) -> None:
 
     Remote operation stays opt-in until validated on deployed storage.
     """
+    if path.startswith("s3private:"):
+        return s3_photos.delete_verified(path)
     if LOCAL_IMAGE_STORAGE and path.startswith("local/"):
         name = path.removeprefix("local/")
         if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
@@ -174,12 +182,14 @@ def delete_owned_object(path: str) -> None:
             raise RuntimeError("Local photograph deletion not verified")
         return
 
-    if LOCAL_IMAGE_STORAGE or os.environ.get("LUMIERE_REMOTE_DELETE_ENABLED") != "1":
-        raise NotImplementedError("Verified remote object deletion is not enabled")
-    delete_and_verify_remote(path, STORAGE_URL, init_storage(), requests.delete, requests.get)
+    # Emergent Object Store currently documents no object deletion.
+    # Never claim that a DELETE request could permanently remove such assets.
+    raise NotImplementedError("Legacy Emergent storage deletion is unsupported; migrate to private S3")
 
 
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
+    if PHOTO_STORAGE_BACKEND == "s3":
+        return s3_photos.upload(data, ext, content_type)
     if LOCAL_IMAGE_STORAGE:
         if ext not in ("jpg", "jpeg", "png", "webp"):
             raise ValueError("Local storage supports JPEG, PNG and WebP only")
@@ -193,9 +203,7 @@ def store_bytes(data: bytes, ext: str, content_type: str) -> str:
             os.chmod(target, 0o600)
             output.write(data)
         return f"local/{name}"
-    path = f"{APP_NAME}/uploads/anon/{uuid.uuid4()}.{ext}"
-    result = put_object(path, data, content_type)
-    return result["path"]
+    raise RuntimeError("Customer photo storage must be private local or configured S3; Emergent uploads disabled")
 
 
 def validate_uploaded_image(data: bytes, content_type: str, filename: str) -> tuple[str, str]:
