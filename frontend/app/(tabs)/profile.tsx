@@ -50,8 +50,11 @@ export default function ProfileScreen() {
 
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 40;
 
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
-  const { data: account, refetch: refreshAccount } = useQuery({ queryKey: ["account-session"], queryFn: currentAccount, retry: false });
+  const { data: account, refetch: refreshAccount, isPending: accountChecking, error: accountError } = useQuery({ queryKey: ["account-session"], queryFn: currentAccount, retry: false });
+  const { data: profile, isPending: profileChecking, error: profileError } = useQuery({
+    queryKey: ["profile", account?.id], queryFn: getProfile, enabled: !!account?.id,
+    retry: false,
+  });
   useFocusEffect(useCallback(() => { void refreshAccount(); }, [refreshAccount]));
 
   const [colorsSel, setColorsSel] = useState<string[]>([]);
@@ -68,13 +71,13 @@ export default function ProfileScreen() {
   const [avoidedColours, setAvoidedColours] = useState<string[]>([]);
   const [retailers, setRetailers] = useState<string[]>(["zara", "hm", "uniqlo"]);
   const [shopFor, setShopFor] = useState<"mens" | "womens" | "all">("all");
-  const [seeded, setSeeded] = useState(false);
+  const [seededOwner, setSeededOwner] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (profile && !seeded) {
+    if (profile && account?.id && profile.id === account.id && seededOwner !== account.id) {
       setColorsSel(profile.favorite_colors ?? []);
       setStylesSel(profile.styles ?? []);
       setSizeTop(profile.sizes?.top ?? "");
@@ -89,14 +92,24 @@ export default function ProfileScreen() {
       setAvoidedColours(profile.preferences?.avoided_colours ?? []);
       setRetailers(profile.preferences?.preferred_retailers ?? ["zara", "hm", "uniqlo"]);
       setShopFor(profile.preferences?.shop_for ?? "all");
-      setSeeded(true);
+      setSeededOwner(account.id);
     }
-  }, [profile, seeded]);
+  }, [profile, seededOwner, account?.id]);
+
+  // A new session must never inherit local editing state from another customer.
+  useEffect(() => {
+    setSeededOwner(null);
+    setColorsSel([]); setStylesSel([]); setSizeTop(""); setSizeBottom(""); setSizeShoe("");
+    setBudget(null); setNotes(""); setClimate("mild"); setPrefStyle("classic");
+    setPreferredFit("regular"); setLikedColours([]); setAvoidedColours([]);
+    setRetailers(["zara", "hm", "uniqlo"]); setShopFor("all");
+    setScanError(null); setSheetOpen(false);
+  }, [account?.id]);
 
   const save = useMutation({
     mutationFn: (body: Partial<Profile>) => updateProfile(body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", account?.id] });
       // Preferences (e.g. Shop for) drive Discover; force the catalogue to
       // refetch from the now-updated server so stale results never linger.
       queryClient.invalidateQueries({ queryKey: ["catalogue-recommendations"] });
@@ -104,7 +117,8 @@ export default function ProfileScreen() {
     },
   });
 
-  const skin: SkinAnalysis | null | undefined = profile?.skin;
+  const profileReady = !!account?.id && profile?.id === account.id && seededOwner === account.id;
+  const skin: SkinAnalysis | null | undefined = profileReady ? profile?.skin : null;
 
   const toggle = (list: string[], set: (v: string[]) => void, item: string) => {
     if (Platform.OS !== "web") Haptics.selectionAsync();
@@ -112,6 +126,7 @@ export default function ProfileScreen() {
   };
 
   const handleSave = () => {
+    if (!profileReady) return;
     save.mutate({
       favorite_colors: colorsSel,
       styles: stylesSel,
@@ -129,12 +144,13 @@ export default function ProfileScreen() {
 
   const onScanPicked = async (asset: PickResult) => {
     setSheetOpen(false);
+    if (!profileReady) return;
     setScanError(null);
     setScanning(true);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
       await analyzeSkin(path, provider);
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", account?.id] });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       // Surface the real cause (upload/network/analysis) instead of masking it as a
@@ -174,6 +190,22 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
+      {(!account?.id || !profileReady) ? (
+        <View style={{ padding: 24, gap: 12 }}>
+          <Text style={{ color: colors.onSurface }}>
+            {accountError ? "Unable to verify your account. Please try again." :
+              accountChecking ? "Checking your account…" :
+              !account?.id ? "Sign in to see your private colour analysis and preferences." :
+              profileError ? "Unable to load your private profile." :
+              "Loading your private profile…"}
+          </Text>
+          {!account?.id && !accountChecking ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push("/account" as any)}>
+              <Text style={{ color: colors.onSurface, fontWeight: "700" }}>Sign in / Create account →</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
       <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={{ padding: 20, paddingBottom: bottomPad }}
@@ -347,9 +379,10 @@ export default function ProfileScreen() {
         </Pressable>
         {save.isSuccess && !save.isPending && <Text style={styles.savedNote}>Saved ✓</Text>}
       </KeyboardAwareScrollView>
+      )}
 
       <PhotoSourceSheet
-        visible={sheetOpen}
+        visible={sheetOpen && profileReady}
         onClose={() => setSheetOpen(false)}
         onPicked={onScanPicked}
         title="Take a selfie"
