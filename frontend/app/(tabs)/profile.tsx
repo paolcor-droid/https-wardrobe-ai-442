@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import { currentAccount } from "@/src/account-api";
 import { View, Text, Pressable, TextInput, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -49,6 +51,8 @@ export default function ProfileScreen() {
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 40;
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
+  const { data: account, refetch: refreshAccount } = useQuery({ queryKey: ["account-session"], queryFn: currentAccount, retry: false });
+  useFocusEffect(useCallback(() => { void refreshAccount(); }, [refreshAccount]));
 
   const [colorsSel, setColorsSel] = useState<string[]>([]);
   const [stylesSel, setStylesSel] = useState<string[]>([]);
@@ -162,11 +166,11 @@ export default function ProfileScreen() {
         <Text style={styles.subtitle}>Your stylist learns from this</Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open account sign in or registration"
+          accessibilityLabel={account ? "View your account and sign out" : "Open account sign in or registration"}
           onPress={() => router.push("/account" as any)}
           style={{ alignSelf: "flex-start", backgroundColor: colors.onSurface, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 16, marginTop: 10 }}
         >
-          <Text style={{ color: colors.surface, fontWeight: "700" }}>Sign in / Create account  →</Text>
+          <Text style={{ color: colors.surface, fontWeight: "700" }}>{account ? "Account · " + account.email + "  →" : "Sign in / Create account  →"}</Text>
         </Pressable>
       </View>
 
