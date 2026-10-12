@@ -1,10 +1,11 @@
+import { backendBaseUrl } from "./backend-origin";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 // Staged client for ownership-enforcing account endpoints only.
 // Never send this token to /api/profile, /api/wardrobe, /api/tryon
 // or any other unauthenticated legacy endpoint.
-const BASE = Platform.OS === "web" ? "" : (process.env.EXPO_PUBLIC_BACKEND_URL ?? "");
+const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
 const KEY = "lumiere_customer_session";
 
 export function webCsrfHeaders(): Record<string, string> {
