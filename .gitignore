@@ -97,3 +97,6 @@ backend/.lumiere-private-images/
 # Supplier XML feeds and locally imported catalogue data
 backend/.lumiere-private-catalogue/
 productsAUD.xml
+
+# Private Codespaces startup logs and process identifiers
+.lumiere-dev/
