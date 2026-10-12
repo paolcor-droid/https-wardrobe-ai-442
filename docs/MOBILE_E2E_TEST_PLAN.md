@@ -8,7 +8,7 @@ do not demonstrate that the app works on physical devices.
 - Use a protected HTTPS FastAPI staging endpoint and disposable MongoDB. Do
   not make Codespaces private ports public to connect a phone.
 - Confirm device API origin, environment keys, valid TLS certificate, and
-  private photo storage (verified S3 or disposable local test-only environment).
+  private photo storage (verified Supabase private bucket; use an isolated staging bucket for disposable device tests).
 - Use two disposable accounts and explicitly consented non-sensitive test images.
 - Capture outcomes, build versions, OS versions and redacted error reports.
 
@@ -40,10 +40,13 @@ PASS/FAIL, redacted evidence and issue link. Stop release on any privacy,
 cross-account or deletion failure.
 
 ### Remaining prerequisites
-- Live S3 test deletion and provider retention signoff.
+- Supabase internal backup/replica retention confirmation (active-object deletion has passed private development tests).
 - Staging SMTP password-recovery deliverability.
 - Shared/distributed login and recovery rate limiting for production.
 - Real ChatGPT / Gemini provider credentials and consented photo fixtures.
 - Signed Android and iOS builds and actual physical devices.
 
 Do not mark this plan complete based solely on Expo web preview.
+
+## Execution record
+Browser-only You-screen Supabase upload/colour-analysis and deletion was manually confirmed on 12 October 2026. **This does not complete any of M01–M18 on real Android or iOS devices.** Record device model, OS, signed build identifier, staging API origin, case ID, outcome and issue ID for every test. Protect photo fixtures; avoid real customer accounts. Do not expose private Codespaces 8000/8012 ports to the internet.
