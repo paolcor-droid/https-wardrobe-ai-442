@@ -140,18 +140,22 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         if not user or not verify_password(payload.password, user["password_hash"]):
             login_throttle.fail(throttle_key)
             raise HTTPException(401, "Invalid credentials")
+        # Reject cross-origin web login BEFORE allocating a persistent session.
+        # A failed origin check must never leave an active orphaned token.
+        web_login = request.headers.get("X-Lumiere-Web-Login") == "1"
+        if web_login:
+            origin = request.headers.get("origin")
+            if origin:
+                from urllib.parse import urlsplit
+                if urlsplit(origin).netloc != request.headers.get("host", ""):
+                    raise HTTPException(403, "Cross-site login blocked")
         login_throttle.clear(throttle_key)
         token, digest, expiry = create_session()
         await db.customer_sessions.insert_one({
             "digest": digest, "user_id": user["id"], "expires_at": expiry,
             "revoked_at": None,
         })
-        if request.headers.get("X-Lumiere-Web-Login") == "1":
-            origin = request.headers.get("origin")
-            if origin:
-                from urllib.parse import urlsplit
-                if urlsplit(origin).netloc != request.headers.get("host", ""):
-                    raise HTTPException(403, "Cross-site login blocked")
+        if web_login:
             browser_session(response, token)
             return {"success": True, "token_type": "cookie", "expires_at": expiry.isoformat()}
         return {"access_token": token, "token_type": "bearer", "expires_at": expiry.isoformat()}
