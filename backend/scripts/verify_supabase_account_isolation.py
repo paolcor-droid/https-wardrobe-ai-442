@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,19 @@ if bucket != os.environ.get("LUMIERE_SUPABASE_TEST_BUCKET") or "test" not in buc
     raise SystemExit("Refusing to run against a non-test Supabase bucket")
 if os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT") == "1":
     raise SystemExit("Refusing production deployment")
+# Confirm the bucket is private using Supabase's admin API before any uploads.
+bucket_req = urllib.request.Request(
+    os.environ["LUMIERE_SUPABASE_URL"].rstrip("/") + "/storage/v1/bucket/" + bucket,
+    headers={
+        "apikey": os.environ["LUMIERE_SUPABASE_SERVICE_ROLE_KEY"],
+        "Authorization": "Bearer " + os.environ["LUMIERE_SUPABASE_SERVICE_ROLE_KEY"],
+    },
+)
+with urllib.request.urlopen(bucket_req, timeout=15) as response:
+    bucket_info = json.load(response)
+if bucket_info.get("public") is not False:
+    raise SystemExit("Refusing: Supabase test bucket is public or privacy cannot be confirmed")
+print("PASS: Supabase test bucket confirmed PRIVATE")
 env = dict(os.environ)
 env.update({
     "MONGO_URL": "mongodb://127.0.0.1:27018",
