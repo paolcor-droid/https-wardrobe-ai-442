@@ -54,6 +54,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     COOKIE_NAME = "lumiere_session"
     CSRF_NAME = "lumiere_csrf"
     login_throttle = LoginThrottle()
+    recovery_throttle = LoginThrottle(attempts=3, window=3600)
 
     def browser_session(response, token):
         # Host-only cookies, never shared with unrelated domains.
@@ -156,7 +157,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return {"access_token": token, "token_type": "bearer", "expires_at": expiry.isoformat()}
 
     @router.post("/recovery/request")
-    async def request_recovery(payload: RecoveryRequest):
+    async def request_recovery(payload: RecoveryRequest, request: Request):
         # Never claim a reset was delivered if the mail provider is unavailable.
         if not recovery_configured():
             raise HTTPException(503, "Account recovery is not configured")
@@ -164,6 +165,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             address = normalize_email(payload.email)
         except ValueError:
             raise HTTPException(422, "Invalid email")
+        request_ip = request.client.host if request.client else "unknown"
+        recovery_key = request_ip + ":" + address
+        if recovery_throttle.is_blocked(recovery_key):
+            raise HTTPException(429, "Too many recovery requests. Try again later")
+        recovery_throttle.fail(recovery_key)
         user = await db.customer_accounts.find_one({"email": address})
         if user:
             token = secrets.token_urlsafe(40)
