@@ -35,3 +35,19 @@ jobs:
           node-version: "20"
       - run: npm install --no-audit --no-fund
       - run: npx tsc --noEmit
+
+  mobile-bundles:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --no-audit --no-fund
+      - name: Export Android Metro bundle
+        run: npx expo export --platform android --output-dir /tmp/lumiere-android-export
+      - name: Export iOS Metro bundle
+        run: npx expo export --platform ios --output-dir /tmp/lumiere-ios-export
