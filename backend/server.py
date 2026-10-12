@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
 from services.remote_photo_deletion import delete_and_verify_remote
-from services import s3_photos
+from services import s3_photos, supabase_photos
 from services.security_gate import allow_legacy_dev_request, allow_account_preview_request
 from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
@@ -140,6 +140,8 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def get_object(path: str) -> tuple[bytes, str]:
+    if path.startswith("supabaseprivate:"):
+        return supabase_photos.read(path)
     if path.startswith("s3private:"):
         return s3_photos.read(path)
     if path.startswith("local/"):
@@ -168,6 +170,8 @@ def delete_owned_object(path: str) -> None:
 
     Remote operation stays opt-in until validated on deployed storage.
     """
+    if path.startswith("supabaseprivate:"):
+        return supabase_photos.delete_verified(path)
     if path.startswith("s3private:"):
         return s3_photos.delete_verified(path)
     if LOCAL_IMAGE_STORAGE and path.startswith("local/"):
@@ -188,6 +192,8 @@ def delete_owned_object(path: str) -> None:
 
 
 def store_bytes(data: bytes, ext: str, content_type: str) -> str:
+    if PHOTO_STORAGE_BACKEND == "supabase":
+        return supabase_photos.upload(data, ext, content_type)
     if PHOTO_STORAGE_BACKEND == "s3":
         return s3_photos.upload(data, ext, content_type)
     if LOCAL_IMAGE_STORAGE:
@@ -1509,6 +1515,10 @@ async def startup_storage():
     if LOCAL_IMAGE_STORAGE:
         LOCAL_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("Local private image storage initialized")
+        return
+    if PHOTO_STORAGE_BACKEND == "supabase":
+        await run_in_threadpool(supabase_photos.settings)
+        logger.info("Private Supabase photo storage configured")
         return
     if PHOTO_STORAGE_BACKEND == "s3":
         # Fail startup if a private bucket has not been explicitly provided.
