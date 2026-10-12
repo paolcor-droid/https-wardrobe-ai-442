@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { saveAccountSession, clearAccountSession, webCsrfHeaders } from "@/src/account-api";
+import { saveAccountSession, clearAccountSession, webCsrfHeaders, currentAccount } from "@/src/account-api";
 import { Platform } from "react-native";
 
 // Account UI is staged separately from the legacy shared-profile flow.
@@ -19,6 +19,10 @@ export default function AccountScreen() {
   const [token, setToken] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const { data: account, isPending: checking, error: sessionError } = useQuery({
+    queryKey: ["account-session"], queryFn: currentAccount, retry: false,
+    refetchOnMount: "always",
+  });
 
   async function submit() {
     setBusy(true);
@@ -37,6 +41,7 @@ export default function AccountScreen() {
       } else {
         if (Platform.OS !== "web") await saveAccountSession(body.access_token);
         queryClient.clear(); // Never show cached data from a previous customer.
+        await queryClient.fetchQuery({ queryKey: ["account-session"], queryFn: currentAccount, staleTime: 0 });
         setToken(Platform.OS === "web" ? "web-session" : body.access_token);
         setPassword("");
         setMessage("Signed in to your private account.");
@@ -60,6 +65,7 @@ export default function AccountScreen() {
       }
       await clearAccountSession();
       queryClient.clear();
+      queryClient.setQueryData(["account-session"], null);
       setToken("");
       setMessage("Signed out.");
     } catch (error) {
@@ -73,21 +79,35 @@ export default function AccountScreen() {
     <ScrollView contentContainerStyle={{ padding: 24, gap: 16, flexGrow: 1 }}>
       <Stack.Screen options={{ title: "LUMIÈRE account", headerShown: true }} />
       <Text style={{ fontSize: 28, fontWeight: "600" }}>Your LUMIÈRE account</Text>
-      <Text>Sign in to keep your styling, wardrobe and photographs private to your account.</Text>
-      <TextInput placeholder="Email" value={email} autoCapitalize="none"
-        keyboardType="email-address" onChangeText={setEmail}
-        style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
-      <TextInput placeholder="Password (12 characters minimum)" value={password}
-        secureTextEntry onChangeText={setPassword}
-        style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
-      <Pressable disabled={busy} onPress={submit}
-        style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
-        <Text style={{ color: "white" }}>{mode === "register" ? "Create account" : "Sign in"}</Text>
-      </Pressable>
-      <Pressable onPress={() => setMode(mode === "register" ? "login" : "register")}>
-        <Text>{mode === "register" ? "Already registered? Sign in" : "Create a new account"}</Text>
-      </Pressable>
-      <Pressable disabled={busy} onPress={logout}><Text>Sign out of account</Text></Pressable>
+      {checking ? <Text>Checking your account…</Text> : account ? (
+        <>
+          <Text>Signed in as {account.email}</Text>
+          <Text>Your styling, wardrobe and photographs are linked to this account.</Text>
+          <Pressable disabled={busy} onPress={logout}
+            accessibilityRole="button"
+            style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
+            <Text style={{ color: "white" }}>{busy ? "Signing out…" : "Sign out"}</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text>Sign in to keep your styling, wardrobe and photographs private to your account.</Text>
+          <TextInput placeholder="Email" value={email} autoCapitalize="none"
+            keyboardType="email-address" onChangeText={setEmail}
+            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
+          <TextInput placeholder="Password (12 characters minimum)" value={password}
+            secureTextEntry onChangeText={setPassword}
+            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
+          <Pressable disabled={busy} onPress={submit}
+            style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
+            <Text style={{ color: "white" }}>{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</Text>
+          </Pressable>
+          <Pressable disabled={busy} onPress={() => setMode(mode === "register" ? "login" : "register")}>
+            <Text>{mode === "register" ? "Already registered? Sign in" : "Create a new account"}</Text>
+          </Pressable>
+        </>
+      )}
+      {!!sessionError && <Text accessibilityRole="alert">{sessionError instanceof Error ? sessionError.message : "Unable to check your account."}</Text>}
       {!!message && <Text accessibilityRole="alert">{message}</Text>}
     </ScrollView>
   );
