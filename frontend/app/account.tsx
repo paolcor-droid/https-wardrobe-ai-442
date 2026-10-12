@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { saveAccountSession, clearAccountSession, webCsrfHeaders, currentAccount } from "@/src/account-api";
 import { Platform } from "react-native";
@@ -13,6 +13,8 @@ const TOKEN_KEY = "lumiere_customer_session";
 
 export default function AccountScreen() {
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{ reset_token?: string }>();
+  const [recovering, setRecovering] = useState(false);
   const [mode, setMode] = useState<"register" | "login">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,6 +50,29 @@ export default function AccountScreen() {
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to connect.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recover() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const resetToken = typeof params.reset_token === "string" ? params.reset_token : "";
+      const path = resetToken ? "/recovery/confirm" : "/recovery/request";
+      const payload = resetToken ? { token: resetToken, password } : { email };
+      const res = await fetch(`${BASE}/api/account${path}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Account recovery unavailable");
+      setMessage(resetToken ? "Password updated. Return to sign in." : body.message);
+      setRecovering(false);
+      setPassword("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Account recovery unavailable");
     } finally {
       setBusy(false);
     }
@@ -91,20 +116,21 @@ export default function AccountScreen() {
         </>
       ) : (
         <>
-          <Text>Sign in to keep your styling, wardrobe and photographs private to your account.</Text>
+          <Text>{recovering || params.reset_token ? "Recover your account securely." : "Sign in to keep your styling, wardrobe and photographs private to your account."}</Text>
           <TextInput placeholder="Email" value={email} autoCapitalize="none"
             keyboardType="email-address" onChangeText={setEmail}
             style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
-          <TextInput placeholder="Password (12 characters minimum)" value={password}
+          {(!recovering || !!params.reset_token) && <TextInput placeholder={params.reset_token ? "New password (12 characters minimum)" : "Password (12 characters minimum)"} value={password}
             secureTextEntry onChangeText={setPassword}
-            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />
-          <Pressable disabled={busy} onPress={submit}
+            style={{ borderWidth: 1, borderColor: "#aaa", padding: 12, borderRadius: 8 }} />}
+          <Pressable disabled={busy} onPress={recovering || params.reset_token ? recover : submit}
             style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
-            <Text style={{ color: "white" }}>{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</Text>
+            <Text style={{ color: "white" }}>{busy ? "Please wait…" : params.reset_token ? "Reset password" : recovering ? "Send recovery email" : mode === "register" ? "Create account" : "Sign in"}</Text>
           </Pressable>
-          <Pressable disabled={busy} onPress={() => setMode(mode === "register" ? "login" : "register")}>
+          {!recovering && !params.reset_token && <Pressable disabled={busy} onPress={() => setMode(mode === "register" ? "login" : "register")}>
             <Text>{mode === "register" ? "Already registered? Sign in" : "Create a new account"}</Text>
-          </Pressable>
+          </Pressable>}
+          {!params.reset_token && <Pressable disabled={busy} onPress={() => { setRecovering(!recovering); setMessage(""); }}><Text>{recovering ? "Back to sign in" : "Forgot password?"}</Text></Pressable>}
         </>
       )}
       {!!sessionError && <Text accessibilityRole="alert">{sessionError instanceof Error ? sessionError.message : "Unable to check your account."}</Text>}
