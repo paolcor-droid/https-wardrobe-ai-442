@@ -4,6 +4,7 @@ Disabled when required environment configuration is absent. Never log tokens.
 """
 import os
 import smtplib
+import ssl
 from email.message import EmailMessage
 from urllib.parse import quote
 
@@ -27,6 +28,6 @@ def send_recovery_email(email: str, token: str) -> None:
         + link + "\n\nIf you did not request this, ignore the message."
     )
     with smtplib.SMTP(os.environ["LUMIERE_SMTP_HOST"], int(os.environ.get("LUMIERE_SMTP_PORT", "587")), timeout=15) as smtp:
-        smtp.starttls()
+        smtp.starttls(context=ssl.create_default_context())
         smtp.login(os.environ["LUMIERE_SMTP_USER"], os.environ["LUMIERE_SMTP_PASSWORD"])
         smtp.send_message(message)
