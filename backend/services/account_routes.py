@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.login_throttle import LoginThrottle
+from services.distributed_throttle import MongoRateLimiter
 from services.account_recovery import recovery_configured, send_recovery_email
 from services.customer_auth import (
     normalize_email, hash_password, verify_password, create_session, token_digest,
@@ -55,6 +56,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     CSRF_NAME = "lumiere_csrf"
     login_throttle = LoginThrottle()
     recovery_throttle = LoginThrottle(attempts=3, window=3600)
+    distributed = os.environ.get("LUMIERE_DISTRIBUTED_RATE_LIMIT", "0") == "1"
+    if os.environ.get("LUMIERE_PUBLIC_DEPLOYMENT") == "1" and not distributed:
+        raise RuntimeError("Public account API requires distributed rate limiting")
+    shared_login = MongoRateLimiter(db.customer_rate_limits, "login", 5, 300) if distributed else None
+    shared_recovery = MongoRateLimiter(db.customer_rate_limits, "recovery", 3, 3600) if distributed else None
 
     def browser_session(response, token):
         # Host-only cookies, never shared with unrelated domains.
@@ -134,7 +140,14 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         # Production requires a shared-store limiter across workers and instances.
         client_ip = request.client.host if request.client else "unknown"
         throttle_key = client_ip + ":" + email
-        if login_throttle.is_blocked(throttle_key):
+        if shared_login:
+            try:
+                allowed = await shared_login.check_and_count(throttle_key)
+            except Exception as exc:
+                raise HTTPException(503, "Login temporarily unavailable") from exc
+            if not allowed:
+                raise HTTPException(429, "Too many login attempts. Try again later")
+        elif login_throttle.is_blocked(throttle_key):
             raise HTTPException(429, "Too many login attempts. Try again later")
         user = await db.customer_accounts.find_one({"email": email})
         if not user or not verify_password(payload.password, user["password_hash"]):
@@ -171,9 +184,17 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(422, "Invalid email")
         request_ip = request.client.host if request.client else "unknown"
         recovery_key = request_ip + ":" + address
-        if recovery_throttle.is_blocked(recovery_key):
-            raise HTTPException(429, "Too many recovery requests. Try again later")
-        recovery_throttle.fail(recovery_key)
+        if shared_recovery:
+            try:
+                allowed = await shared_recovery.check_and_count(recovery_key)
+            except Exception as exc:
+                raise HTTPException(503, "Recovery temporarily unavailable") from exc
+            if not allowed:
+                raise HTTPException(429, "Too many recovery requests. Try again later")
+        else:
+            if recovery_throttle.is_blocked(recovery_key):
+                raise HTTPException(429, "Too many recovery requests. Try again later")
+            recovery_throttle.fail(recovery_key)
         user = await db.customer_accounts.find_one({"email": address})
         if user:
             token = secrets.token_urlsafe(40)
