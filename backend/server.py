@@ -169,7 +169,12 @@ def delete_owned_object(path: str) -> None:
         name = path.removeprefix("local/")
         if not re.fullmatch(r"[0-9a-f]{32}\.(jpg|jpeg|png|webp)", name):
             raise ValueError("Invalid local media path")
-        (LOCAL_IMAGE_DIR / name).unlink(missing_ok=True)
+        target = LOCAL_IMAGE_DIR / name
+        # Do not erase the database record unless the local file is confirmed absent.
+        # A missing object is already absent (idempotent cleanup).
+        target.unlink(missing_ok=True)
+        if target.exists():
+            raise RuntimeError("Local photograph deletion not verified")
         return
 
     if LOCAL_IMAGE_STORAGE or os.environ.get("LUMIERE_REMOTE_DELETE_ENABLED") != "1":
