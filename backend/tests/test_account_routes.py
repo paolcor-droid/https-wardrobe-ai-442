@@ -637,3 +637,22 @@ def test_photo_deletion_clears_skin_wardrobe_and_derived_tryon():
     assert next(v for v in items if v["id"] == item["id"])["image_path"] == ""
     assert client.get("/api/account/tryons", headers=token).json() == []
 
+
+
+def test_cross_origin_browser_login_does_not_create_session():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/example.png", lambda path: (b"data", "image/png"),
+    ))
+    client = TestClient(app)
+    creds = {"email": "origin-test@example.invalid", "password": "secure password for test 123"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    denied = client.post(
+        "/api/account/login", json=creds,
+        headers={"X-Lumiere-Web-Login": "1", "Origin": "https://untrusted.example.invalid"},
+    )
+    assert denied.status_code == 403
+    assert db.customer_sessions.docs == []
+    assert client.post("/api/account/login", json=creds).status_code == 200
