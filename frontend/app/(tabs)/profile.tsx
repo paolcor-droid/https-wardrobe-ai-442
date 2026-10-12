@@ -18,6 +18,7 @@ import {
   updateProfile,
   analyzeSkin,
   uploadImage,
+  deletePrivatePhoto,
   fileUrl,
   type Profile,
   type SkinAnalysis,
@@ -74,6 +75,8 @@ export default function ProfileScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
 
   useEffect(() => {
     if (profile && account?.id && profile.id === account.id && seededOwner !== account.id) {
@@ -102,7 +105,7 @@ export default function ProfileScreen() {
     setBudget(null); setNotes(""); setClimate("mild"); setPrefStyle("classic");
     setPreferredFit("regular"); setLikedColours([]); setAvoidedColours([]);
     setRetailers(["zara", "hm", "uniqlo"]); setShopFor("all");
-    setScanError(null); setSheetOpen(false);
+    setScanError(null); setSheetOpen(false); setDeleteConfirm(false);
   }, [account?.id]);
 
   const save = useMutation({
@@ -255,6 +258,31 @@ export default function ProfileScreen() {
                 </View>
               </View>
             ))}
+            {skin.image_path?.startsWith("private:") && (
+              <Pressable
+                testID="delete-skin-photo"
+                disabled={deletingPhoto}
+                accessibilityRole="button"
+                onPress={async () => {
+                  if (!deleteConfirm) { setDeleteConfirm(true); return; }
+                  if (!account?.id || !skin.image_path) return;
+                  setDeletingPhoto(true);
+                  try {
+                    await deletePrivatePhoto(skin.image_path);
+                    setDeleteConfirm(false);
+                    setScanError(null);
+                    await queryClient.invalidateQueries({ queryKey: ["profile", account.id] });
+                  } catch (error) {
+                    setScanError(error instanceof Error ? error.message : "Unable to delete photograph");
+                  } finally { setDeletingPhoto(false); }
+                }}
+                style={styles.scanBtnSm}
+              >
+                <Text style={styles.scanBtnSmText}>
+                  {deletingPhoto ? "Deleting…" : deleteConfirm ? "Confirm permanent photo deletion" : "Delete this photograph"}
+                </Text>
+              </Pressable>
+            )}
             <Pressable testID="rescan-button" style={styles.scanBtnSm} onPress={() => setSheetOpen(true)}>
               <Feather name="refresh-ccw" size={15} color={colors.onSurface} />
               <Text style={styles.scanBtnSmText}>Re-scan</Text>
