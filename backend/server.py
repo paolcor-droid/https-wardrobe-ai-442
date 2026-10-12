@@ -1510,11 +1510,14 @@ async def startup_storage():
         LOCAL_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("Local private image storage initialized")
         return
-    try:
-        await run_in_threadpool(init_storage)
-        logger.info("Object storage initialized")
-    except Exception:  # noqa: BLE001
-        logger.exception("Storage init failed (will retry on first upload)")
+    if PHOTO_STORAGE_BACKEND == "s3":
+        # Fail startup if a private bucket has not been explicitly provided.
+        # Do not attempt to initialise Emergent's non-deletable Object Store.
+        await run_in_threadpool(s3_photos.bucket)
+        logger.info("Private S3 photo storage configured")
+        return
+    raise RuntimeError("Unsupported private photo storage; choose local development or configured S3")
+
 
 
 @app.on_event("shutdown")
