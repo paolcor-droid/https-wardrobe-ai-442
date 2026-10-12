@@ -10,7 +10,7 @@
 ## Before production — mandatory live evidence
 1. **Production authentication:** Validate full login/register, log out, expiration, throttling/brute-force protections, password-reset and recovery, secure token handling and supported web session design. Private Codespaces browser registration/login and HttpOnly cookie sessions have been exercised; production hosting, recovery and rate-limiting are not verified.
 2. **Privacy and ownership:** Use two real test accounts in an isolated environment. Test account-switching and every Profile, Wardrobe, Discover, chat, photo, saved-look, price/feedback, and Try-On path. Verify bearer token never appears in logs and no customer identifier leaks via files, caches, CDN URLs, or legacy routes. Verify account deletion and retention/export policies.
-3. **Photo deletion:** Verify the *live* provider's DELETE semantics and 404 read-back for the exact object key using an authorized dedicated test object. Confirm physical object and backup/CDN retention behavior, failure recovery and cascading references. Emergent deletion is unsupported; use a separately verified private S3 provider.
+3. **Photo deletion:** Verify the *live* provider's DELETE semantics and 404 read-back for the exact object key using an authorized dedicated test object. Confirm physical object and backup/CDN retention behavior, failure recovery and cascading references. Emergent deletion is unsupported. New uploads are configured for verified private Supabase Storage in development; keep the storage-retention gate.
 4. **Mobile and web:** Test real iOS/Android builds, expiring sessions, interrupted network calls, image uploads and AI flows, user A vs B isolation, secure local persistence, deep links and navigation, crop/loading/error states.
 5. **Deployment:** Review HTTPS, CORS and CSRF, server-side secrets, env configuration, logging/sensitive-data minimization, MongoDB unique indexes, backup/restore, vulnerability scan and an explicit go/no-go signoff.
 6. **Editorial assets:** Confirm image source availability, copyright licence and any necessary model/commercial clearances.
@@ -19,7 +19,7 @@
 - Web account cookie sessions work in the private Codespaces preview. Production public deployment remains closed; the legacy shared-data API remains protected.
 - Private price alerts and caller-supplied recommendation preview are disabled on the client rather than risk legacy shared state.
 - Legacy endpoints must remain blocked from all untrusted traffic until replaced or retired.
-- Live object-store deletion is not yet verified and cannot be claimed complete based solely on mocked tests.
+- Live Supabase API deletion and 404 read-back, two-account isolation, and manual UI deletion have passed in private Codespaces development. Provider backup/replica retention, real device and public deployment checks remain unverified.
 
 ## Codespaces development start (private only)
 Run `bash scripts/dev-up.sh` from the repository root. The script starts **only the
@@ -117,3 +117,14 @@ test phones; use a separately secured staging backend.
 - Editorial photo licenses and any necessary releases
 
 Do not claim production launch readiness until those checks have evidence.
+
+## Verified Supabase private-development rollout — 12 October 2026
+- Dedicated `lumiere-private-test` bucket was verified private. Real synthetic upload, authenticated read, delete and read-back absence passed.
+- Two-account synthetic live FastAPI integration against real Supabase Storage passed owner-only view/delete, logout/revocation and cross-user isolation on an isolated MongoDB.
+- Intended `lumiere-private-photos` customer bucket was confirmed private using the admin bucket endpoint.
+- User reported existing saved colour analysis/photo still displayed after switch, new photo saved to the customer bucket, new colour analysis displayed, and deletion via You removed the object from the bucket.
+- Local image read/delete is retained with `LUMIERE_LOCAL_IMAGE_STORAGE=1`; this is *not* a media migration or backup guarantee.
+- Public release remains BLOCKED. Provider backup/replica retention response, production SMTP email delivery, distributed throttling, signed real iOS and Android tests, deployment-security review and production data lifecycle policies remain outstanding.
+
+## Read-only go/no-go preflight
+`PYTHONPATH=backend python backend/scripts/release_preflight.py` gives a non-secret configuration checklist and returns nonzero on blocked items. Environment flags are operator attestations **not technical proof**; attach vendor documentation and actual signed test records before a release decision. Never set these flags merely to make the checker green.
