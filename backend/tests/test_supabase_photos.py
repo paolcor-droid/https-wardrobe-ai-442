@@ -56,3 +56,17 @@ def test_requires_https_and_secret(monkeypatch):
     monkeypatch.delenv("LUMIERE_SUPABASE_SERVICE_ROLE_KEY")
     with pytest.raises(RuntimeError):
         supabase_photos.settings()
+
+
+def test_private_bucket_guard_fails_closed(monkeypatch):
+    class Probe:
+        def __init__(self, public): self.public = public
+        def get(self, url, headers, timeout):
+            assert url.endswith("/storage/v1/bucket/lumiere-private-photos")
+            class Result:
+                status_code = 200
+                def json(inner): return {"public": self.public}
+            return Result()
+    assert supabase_photos.verify_private_bucket(http=Probe(False))
+    with pytest.raises(RuntimeError, match="must be private"):
+        supabase_photos.verify_private_bucket(http=Probe(True))
