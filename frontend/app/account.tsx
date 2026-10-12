@@ -9,7 +9,7 @@ import { Platform } from "react-native";
 
 // Account UI is staged separately from the legacy shared-profile flow.
 // Do not reuse the session for legacy routes until all of them enforce ownership.
-const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
+
 const TOKEN_KEY = "lumiere_customer_session";
 
 export default function AccountScreen() {
@@ -32,7 +32,7 @@ export default function AccountScreen() {
     setBusy(true);
     setMessage("");
     try {
-      const res = await fetch(`${BASE}/api/account/${mode}`, {
+      const res = await fetch(`${backendBaseUrl()}/api/account/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(Platform.OS === "web" && mode === "login" ? { "X-Lumiere-Web-Login": "1" } : {}) },
         body: JSON.stringify({ email, password }),
@@ -65,7 +65,7 @@ export default function AccountScreen() {
       const resetToken = typeof params.reset_token === "string" ? params.reset_token : "";
       const path = resetToken ? "/recovery/confirm" : "/recovery/request";
       const payload = resetToken ? { token: resetToken, password } : { email };
-      const res = await fetch(`${BASE}/api/account${path}`, {
+      const res = await fetch(`${backendBaseUrl()}/api/account${path}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -87,7 +87,7 @@ export default function AccountScreen() {
     try {
       const saved = Platform.OS === "web" ? null : (token || await SecureStore.getItemAsync(TOKEN_KEY));
       if (saved || Platform.OS === "web") {
-        const res = await fetch(`${BASE}/api/account/logout`, {
+        const res = await fetch(`${backendBaseUrl()}/api/account/logout`, {
           method: "POST", headers: Platform.OS === "web" ? webCsrfHeaders() : { Authorization: `Bearer ${saved}` },
         });
         if (!res.ok) throw new Error("Unable to revoke the session. Try again.");
