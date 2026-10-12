@@ -1,4 +1,4 @@
-from services.security_gate import allow_legacy_dev_request
+from services.security_gate import allow_legacy_dev_request, allow_account_preview_request
 
 
 def test_local_legacy_development_only():
@@ -11,3 +11,11 @@ def test_local_legacy_development_only():
 def test_production_blocks_everyone_even_loopback():
     assert not allow_legacy_dev_request("127.0.0.1", True)
     assert not allow_legacy_dev_request("::1", True)
+
+
+def test_account_preview_is_scoped_and_production_closed():
+    assert allow_account_preview_request("/api/account/register", False)
+    assert allow_account_preview_request("/api/account/me", False)
+    assert not allow_account_preview_request("/api/profile", False)
+    assert not allow_account_preview_request("/api/accounting", False)
+    assert not allow_account_preview_request("/api/account/register", True)
