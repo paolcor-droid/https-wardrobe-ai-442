@@ -1,9 +1,10 @@
+import { backendBaseUrl } from "./backend-origin";
 import { accountRequest, accountAccessToken, webCsrfHeaders } from "./account-api";
 import { Platform } from "react-native";
 
 // On web, same-origin /api calls are forwarded by Metro to local FastAPI.
 // Native apps still require an explicit reachable backend URL.
-const BASE = Platform.OS === "web" ? "" : (process.env.EXPO_PUBLIC_BACKEND_URL ?? "");
+const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
 
 export type Conversation = {
   id: string;
