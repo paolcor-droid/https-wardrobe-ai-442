@@ -1,3 +1,4 @@
+import { backendBaseUrl } from "@/src/backend-origin";
 import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
@@ -8,7 +9,7 @@ import { Platform } from "react-native";
 
 // Account UI is staged separately from the legacy shared-profile flow.
 // Do not reuse the session for legacy routes until all of them enforce ownership.
-const BASE = Platform.OS === "web" ? "" : (process.env.EXPO_PUBLIC_BACKEND_URL ?? "");
+const BASE = Platform.OS === "web" ? "" : backendBaseUrl();
 const TOKEN_KEY = "lumiere_customer_session";
 
 export default function AccountScreen() {
