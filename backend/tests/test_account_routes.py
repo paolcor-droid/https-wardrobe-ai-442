@@ -50,6 +50,14 @@ class Collection:
             return Result()
         return Result(0)
 
+    async def update_many(self, query, update):
+        matched = 0
+        for doc in self.docs:
+            if all(self._match(doc.get(k), v) for k, v in query.items()):
+                doc.update(update["$set"])
+                matched += 1
+        return Result(matched)
+
     async def delete_one(self, query):
         self.docs = [doc for doc in self.docs if not all(self._match(doc.get(k), v) for k, v in query.items())]
         return Result()
@@ -63,6 +71,7 @@ class Database:
     def __init__(self):
         self.customer_accounts = Collection()
         self.customer_sessions = Collection()
+        self.customer_recovery = Collection()
         self.customer_profiles = Collection()
         self.customer_wardrobe = Collection()
         self.customer_photos = Collection()
@@ -548,3 +557,43 @@ def test_browser_cookie_login_csrf_photo_and_logout():
     }).status_code == 403
     assert client.post("/api/account/logout", headers=headers).status_code == 200
     assert client.get("/api/account/me").status_code == 401
+
+
+def test_login_rate_limit_after_repeated_failures():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/example.png", lambda path: (b"data", "image/png"),
+    ))
+    client = TestClient(app)
+    creds = {"email": "throttle@example.test", "password": "safe password 12345"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    for _ in range(5):
+        assert client.post("/api/account/login", json={**creds, "password": "incorrect password"}).status_code == 401
+    assert client.post("/api/account/login", json=creds).status_code == 429
+
+
+def test_recovery_token_single_use_and_revokes_active_sessions(monkeypatch):
+    from services import account_routes
+    mailed = []
+    monkeypatch.setattr(account_routes, "recovery_configured", lambda: True)
+    monkeypatch.setattr(account_routes, "send_recovery_email", lambda email, token: mailed.append((email, token)))
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/example.png", lambda path: (b"data", "image/png"),
+    ))
+    client = TestClient(app)
+    creds = {"email": "recover@example.test", "password": "old password safe 12345"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    session = client.post("/api/account/login", json=creds).json()["access_token"]
+    assert client.post("/api/account/recovery/request", json={"email": creds["email"]}).status_code == 200
+    assert len(mailed) == 1 and mailed[0][0] == creds["email"]
+    reset = {"token": mailed[0][1], "password": "new password safe 12345"}
+    assert client.post("/api/account/recovery/confirm", json=reset).status_code == 200
+    assert client.post("/api/account/recovery/confirm", json=reset).status_code == 400
+    assert client.get("/api/account/me", headers={"Authorization": "Bearer " + session}).status_code == 401
+    assert client.post("/api/account/login", json=creds).status_code == 401
+    assert client.post("/api/account/login", json={**creds, "password": reset["password"]}).status_code == 200
