@@ -441,8 +441,14 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             category = ("configuration" if isinstance(exc, RuntimeError) and
                         str(exc) == "Image generation provider not configured" else
                         "provider_or_processing")
-            logger.error("Private Try-On failed: category=%s exception_type=%s",
-                         category, type(exc).__name__)
+            # Numeric status only; never serialize provider error bodies, URLs or headers.
+            status = getattr(exc, "status_code", None)
+            if not isinstance(status, int):
+                response = getattr(exc, "response", None)
+                status = getattr(response, "status_code", None)
+            safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
+            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s",
+                         category, type(exc).__name__, safe_status)
             raise HTTPException(502, "Private Try-On failed") from exc
         photo_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
