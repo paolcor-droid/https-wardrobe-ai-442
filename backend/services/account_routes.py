@@ -511,7 +511,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             clean = await run_in_threadpool(sanitize_image, data, ext)
             path = await run_in_threadpool(save_image, clean, ext, verified_mime)
         except Exception as exc:
-            raise HTTPException(502, "Catalogue garment preparation failed") from exc
+            # Supplier URLs are from a historical trial snapshot and may expire.
+            # Log only exception class and numeric HTTP code; no URLs, content or keys.
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+            if not isinstance(status, int):
+                status = getattr(exc, "status_code", None)
+            safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
+            logger.error("Catalogue garment preparation failed: exception_type=%s upstream_http_status=%s",
+                         type(exc).__name__, safe_status)
+            raise HTTPException(502, "Supplier garment image unavailable. Try another garment or upload your own garment photograph.") from exc
         photo_id = str(uuid.uuid4())
         await db.customer_photos.insert_one({
             "id": photo_id, "user_id": user_id, "path": path,
