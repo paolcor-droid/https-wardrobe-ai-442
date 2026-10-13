@@ -19,6 +19,7 @@ export default function DiscoverScreen() {
   const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
   const [preparingTryOn, setPreparingTryOn] = useState<string | null>(null);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
+  const [tryOnErrorProduct, setTryOnErrorProduct] = useState<string | null>(null);
   const [outfitItems, setOutfitItems] = useState<ProductRecommendation[]>([]);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const {
@@ -65,6 +66,7 @@ export default function DiscoverScreen() {
 
   const openTryOn = async (product: ProductRecommendation) => {
     if (!product.image_url || preparingTryOn) return;
+    setTryOnErrorProduct(null);
     setPreparingTryOn(product.product_id);
     setTryOnError(null);
     try {
@@ -77,6 +79,7 @@ export default function DiscoverScreen() {
         },
       });
     } catch (error) {
+      setTryOnErrorProduct(product.product_id);
       setTryOnError(error instanceof Error ? error.message : "Could not prepare this garment for try-on.");
     } finally {
       setPreparingTryOn(null);
@@ -85,6 +88,7 @@ export default function DiscoverScreen() {
 
   const openOutfitTryOn = async () => {
     if (outfitItems.length !== 2 || preparingTryOn) return;
+    setTryOnErrorProduct(null);
     setPreparingTryOn("outfit");
     setTryOnError(null);
     try {
@@ -141,6 +145,7 @@ export default function DiscoverScreen() {
             <Text style={styles.tryOnText}>{preparingTryOn === product.product_id ? "Preparing…" : "Try this on"}</Text>
           </Pressable>
         ) : null}
+        {tryOnErrorProduct === product.product_id && tryOnError ? <Text testID={`tryon-error-${product.product_id}`} style={styles.error}>{tryOnError}</Text> : null}
         {product.image_url ? (
           <Pressable testID={`outfit-select-${product.product_id}`} style={styles.outfitSelect} onPress={() => toggleOutfitItem(product)}>
             <Feather name={outfitItems.some((item) => item.product_id === product.product_id) ? "check-square" : "square"} size={17} />
@@ -208,7 +213,7 @@ export default function DiscoverScreen() {
             <Pressable onPress={() => setOutfitItems([])}><Text style={styles.outfitSelectText}>Clear selection</Text></Pressable>
           </View>
         ) : null}
-        {tryOnError ? <Text style={styles.error}>{tryOnError}</Text> : null}
+        {tryOnError && !tryOnErrorProduct ? <Text testID="tryon-outfit-error" style={styles.error}>{tryOnError}</Text> : null}
         {feedbackError ? <Text style={styles.error}>{feedbackError}</Text> : null}
         {!catalogueLoading && !catalogueError ? (
           <View style={styles.productGrid}>
