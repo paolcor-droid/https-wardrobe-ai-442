@@ -37,7 +37,15 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
   const response = await fetch(`${backendBaseUrl()}/api/account${path}`, {
     ...init, credentials: "same-origin", headers: { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : webCsrfHeaders()) },
   });
-  if (!response.ok) throw new Error(response.status === 401 ? "Session expired. Sign in again." : `Account request failed (${response.status})`);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Session expired. Sign in again.");
+    // Only this exact, fixed endpoint may expose its server's actionable detail.
+    // Other API failures retain generic messages to avoid showing provider data.
+    if (response.status === 502 && /^\\/catalogue\\/products\\/[^/]+\\/prepare-tryon$/.test(path)) {
+      throw new Error("Supplier garment image unavailable. Try another garment or upload your own garment photograph.");
+    }
+    throw new Error(`Account request failed (${response.status})`);
+  }
   return response.json() as Promise<T>;
 }
 
