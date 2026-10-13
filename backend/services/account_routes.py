@@ -6,6 +6,9 @@ import uuid
 import os
 import secrets
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
@@ -433,6 +436,13 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
             path = await run_in_threadpool(save_image, clean, ext, verified_mime)
         except Exception as exc:
+            # Never log exception messages, tracebacks, input bytes or provider responses:
+            # those may contain credentials or customer photograph data.
+            category = ("configuration" if isinstance(exc, RuntimeError) and
+                        str(exc) == "Image generation provider not configured" else
+                        "provider_or_processing")
+            logger.error("Private Try-On failed: category=%s exception_type=%s",
+                         category, type(exc).__name__)
             raise HTTPException(502, "Private Try-On failed") from exc
         photo_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
