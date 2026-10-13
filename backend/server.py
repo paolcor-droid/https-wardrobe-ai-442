@@ -73,7 +73,8 @@ CHAT_MODELS: Dict[str, Dict[str, str]] = {
 }
 DEFAULT_CHAT_PROVIDER = "openai"
 CHAT_MODEL = (CHAT_MODELS["openai"]["provider"], CHAT_MODELS["openai"]["model"])
-IMAGE_MODEL = ("gemini", "gemini-3.1-flash-image-preview")
+# Google retired the image-preview ID in June 2026; use the stable GA model.
+IMAGE_MODEL = ("gemini", "gemini-3.1-flash-image")
 
 
 def resolve_provider_id(provider: Optional[str]) -> str:
