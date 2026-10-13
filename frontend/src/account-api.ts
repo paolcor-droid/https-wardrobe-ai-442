@@ -41,7 +41,7 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
     if (response.status === 401) throw new Error("Session expired. Sign in again.");
     // Only this exact, fixed endpoint may expose its server's actionable detail.
     // Other API failures retain generic messages to avoid showing provider data.
-    if (response.status === 502 && /^\\/catalogue\\/products\\/[^/]+\\/prepare-tryon$/.test(path)) {
+    if (response.status === 502 && path.startsWith("/catalogue/products/") && path.endsWith("/prepare-tryon")) {
       throw new Error("Supplier garment image unavailable. Try another garment or upload your own garment photograph.");
     }
     throw new Error(`Account request failed (${response.status})`);
