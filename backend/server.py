@@ -1309,9 +1309,10 @@ async def prepare_trusted_garment_for_customer(product_id):
     """Only known catalogue IDs can resolve to a supplier image URL."""
     if not isinstance(product_id, str) or len(product_id) > 200:
         raise ValueError("Invalid catalogue ID")
+    products, _ = load_customer_catalogue()
     raw = next(
-        (product for product in MATTERHORN_TRIAL_SNAPSHOT
-         if product.get("external_id") == product_id), None,
+        (product for product in products
+         if str(product.get("external_id", "")) == product_id), None,
     )
     if not raw or not raw.get("image_url"):
         raise ValueError("Unknown catalogue garment")
@@ -1420,21 +1421,24 @@ async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_by
     return base64.b64decode(images[0]["data"]), mime
 
 
-async def recommend_catalogue_for_customer(user_id):
-    """Rank only against this account's profile and explicit product feedback."""
-    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+def load_customer_catalogue():
+    """Resolve the same catalogue for Discover and private Try-On."""
     catalogue_path = ROOT_DIR / ".lumiere-private-catalogue" / "matterhorn_products.json"
-    raw_products = MATTERHORN_TRIAL_SNAPSHOT
-    source = "matterhorn_xml_trial_snapshot"
     if catalogue_path.is_file():
         try:
             with catalogue_path.open("r", encoding="utf-8") as handle:
                 imported = json.load(handle)
             if isinstance(imported, list):
-                raw_products = imported
-                source = "matterhorn_imported_xml_snapshot"
+                return imported, "matterhorn_imported_xml_snapshot"
         except (OSError, ValueError) as exc:
-            logger.warning("Private catalogue could not be read: %s", exc)
+            logger.warning("Private catalogue could not be read: %s", type(exc).__name__)
+    return MATTERHORN_TRIAL_SNAPSHOT, "matterhorn_xml_trial_snapshot"
+
+
+async def recommend_catalogue_for_customer(user_id):
+    """Rank only against this account's profile and explicit product feedback."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    raw_products, source = load_customer_catalogue()
     normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
     ranked = rank_verified_products(normalized, profile, limit=60)
     recommendations = customer_recommendations(ranked)
