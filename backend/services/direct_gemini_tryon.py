@@ -69,7 +69,23 @@ def generate_direct_gemini(person, garment, second, instruction, *, api_key, mod
                     return raw, inline.get("mimeType") or inline.get("mime_type") or "image/png"
     except (KeyError, TypeError, ValueError) as exc:
         raise GeminiTryOnError("invalid_output") from exc
-    raise GeminiTryOnError("no_image")
+    # Do not log or return generated text, safety explanations, or customer data.
+    # Google's response can be HTTP 200 yet contain no image (e.g. safety filtering).
+    feedback = payload.get("promptFeedback") or {}
+    block_reason = feedback.get("blockReason")
+    if block_reason:
+        raise GeminiTryOnError("prompt_blocked")
+    candidates = payload.get("candidates") or []
+    allowed_finish = {"SAFETY", "IMAGE_SAFETY", "PROHIBITED_CONTENT", "SPII", "RECITATION", "MAX_TOKENS"}
+    reasons = {
+        candidate.get("finishReason")
+        for candidate in candidates if isinstance(candidate, dict)
+    }
+    if reasons & allowed_finish:
+        raise GeminiTryOnError("generation_filtered" if "MAX_TOKENS" not in reasons else "output_limit")
+    if candidates:
+        raise GeminiTryOnError("text_only")
+    raise GeminiTryOnError("empty_response")
 
 
 def _verify_large_image(data):
