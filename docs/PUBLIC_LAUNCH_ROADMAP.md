@@ -60,3 +60,20 @@ References within repository: `docs/PRE_LAUNCH_SECURITY_GATE.md`, `docs/SUPABASE
 - Private `GET /api/account/account/export` now offers a bounded JSON **metadata** export. It excludes raw photographs, password hashes, session records and storage paths. This is not yet a complete GDPR-style portable data export with photo binaries.
 - Account deletion preview and password-confirmed deletion remain **disabled for real deletion by default** (`LUMIERE_ENABLE_ACCOUNT_DELETION` unset). Never enable on existing customer accounts before external storage retention, interrupted-deletion recovery, audit and data-backup obligations are reviewed.
 - Added in-memory disposable account tests for cross-account export isolation and deletion disabled-by-default. Production hosting, full reset-mail E2E, backup retention and independent security review remain blocked.
+
+
+## 15 October 2026 targeted security review: findings (NOT independent audit)
+- **Critical release blocker**: Codespaces is not always-on hosting. No production cutover.
+- **High**: Account deletion currently deletes individual photo objects before database cleanup. A provider failure part-way through leaves a recoverable but partially missing photo set. Do not enable the deletion feature until there is a resumable deletion ledger, a reversible plan, idempotent provider operations and fully tested backup/retention semantics.
+- **High**: Exported ZIP photographs constitute sensitive personal data even though the route is authenticated, no-store, owner-scoped and size-bounded. Verify browser download history, CSRF/session expiry, cache-control, no CDN caching and support for large exports in staging. ZIP export is a separate route from JSON metadata export.
+- **High**: Recovery email delivery and reset+session-revocation have not been verified together on a production-like email provider. Unit test success is not evidence of actual inbox delivery.
+- **Medium**: Pose model is optional and not installed in the normal runtime. Its landmark test uses synthetic fake model output, not an empirical test for human pose detection; false-negative and false-positive rates remain unmeasured.
+- **High**: Independent external penetration/security assessment and privacy/legal review have **not** been commissioned or performed. An assistant-authored code review is not independent evidence.
+
+### Live verification protocol (requires user-controlled credentials and disposable accounts)
+1. On a separate staging backend, install optional `backend/requirements-pose.txt` after checking Python/runtime support, run `PYTHONPATH=backend pytest -q backend/tests/test_tryon_preflight.py`, then use a consented synthetic/stock photograph to check the actual `pose_detection` field. Never upload real customer photos to external test services.
+2. In the isolated disposable environment, create two synthetic accounts and verify export ZIP contains only the owner's synthetic photos. Run export over HTTPS and check session/logout failure paths.
+3. For password recovery, use an authorized disposable inbox with configured sender. Request reset; actually receive email, consume the link, verify old sessions fail, verify the link cannot be replayed, and verify other reset links for the account are revoked. Never post reset tokens to chat or logs.
+4. Use a dedicated **disposable private storage bucket** and separate test database only. Test account-delete success, provider failure at first/middle/last photo, retry and restored state. Do not enable `LUMIERE_ENABLE_ACCOUNT_DELETION` on a backend holding real customer accounts.
+5. Commission an independent penetration/security assessment and a qualified privacy/data-processing legal review before any public release.
+
