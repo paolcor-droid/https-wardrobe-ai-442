@@ -72,3 +72,25 @@ def test_success_response_without_image_has_safe_reason(payload, expected):
         )
     assert error.value.category == expected
     assert "explanation" not in str(error.value)
+
+
+@pytest.mark.parametrize("status,category", [(429, "temporarily_unavailable"), (503, "temporarily_unavailable"), (403, "provider_access"), (500, "upstream")])
+def test_gemini_provider_status_is_safely_classified(status, category):
+    with pytest.raises(GeminiTryOnError) as error:
+        generate_direct_gemini(image_bytes(), image_bytes(), None, "test", api_key="fake",
+                               post=lambda *a, **kw: Response(status, {"private": "do not log"}))
+    assert error.value.category == category
+    assert error.value.status_code == status
+    assert "private" not in str(error.value)
+
+
+def test_timeout_does_not_retry_personal_images():
+    import requests
+    calls = []
+    def timeout(*args, **kwargs):
+        calls.append(1)
+        raise requests.Timeout("provider timed out")
+    with pytest.raises(GeminiTryOnError) as error:
+        generate_direct_gemini(image_bytes(), image_bytes(), None, "test", api_key="fake", post=timeout)
+    assert error.value.category == "timeout"
+    assert len(calls) == 1
