@@ -1,3 +1,2 @@
-# Optional local body-landmark inference for photo preflight.
-# Not required for the app to work; absence is reported as unavailable.
-mediapipe==0.10.21
+# Local body-pose screening via MediaPipe Tasks (compatible Codespaces wheel).
+mediapipe==0.10.30
