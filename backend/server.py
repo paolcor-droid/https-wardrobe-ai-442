@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from services.palette_engine import build_palette, suggested_season
 from services.photo_privacy import sanitize_photo
+from services.direct_gemini_tryon import generate_direct_gemini, GeminiTryOnError
 from services.remote_photo_deletion import delete_and_verify_remote
 from services import s3_photos, supabase_photos
 from services.security_gate import allow_legacy_dev_request, allow_account_preview_request
@@ -63,6 +64,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_SKIN_MODEL = os.environ.get("OPENAI_SKIN_MODEL", "gpt-4.1-mini")
 
@@ -1389,7 +1391,7 @@ async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
 
 async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_bytes, garment_prompt):
     """Use owned images only; do not write generation output into legacy try-on DB."""
-    if not EMERGENT_LLM_KEY:
+    if not GEMINI_API_KEY and not EMERGENT_LLM_KEY:
         raise RuntimeError("Image generation provider not configured")
     files = [ImageContent(image_base64=base64.b64encode(person_bytes).decode("ascii"))]
     if garment_bytes is not None:
@@ -1408,6 +1410,14 @@ async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_by
         "person's face, skin, body, proportions, pose and background. "
         "Preserve garment texture and colours. Change only the clothing."
     )
+    # Prefer direct Gemini when configured; never silently retry personal images
+    # through another provider (which could double-charge or re-send content).
+    if GEMINI_API_KEY:
+        return await run_in_threadpool(
+            generate_direct_gemini, person_bytes, garment_bytes,
+            second_garment_bytes, instruction, api_key=GEMINI_API_KEY,
+            model=os.environ.get("LUMIERE_GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image"),
+        )
     client = LlmChat(
         api_key=EMERGENT_LLM_KEY, session_id=f"account-tryon-{uuid.uuid4()}",
         system_message="You are a careful fashion image editor.",
