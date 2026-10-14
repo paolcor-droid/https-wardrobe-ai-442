@@ -44,6 +44,12 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
     if (response.status === 502 && path.startsWith("/catalogue/products/") && path.endsWith("/prepare-tryon")) {
       throw new Error("Supplier garment image unavailable. Try another garment or upload your own garment photograph.");
     }
+    if (path === "/tryons" && response.status === 422) {
+      throw new Error("This photo or garment combination could not be processed. Try a clearer, fully clothed photograph or a different garment.");
+    }
+    if (path === "/tryons" && response.status === 502) {
+      throw new Error("The image provider could not create your preview right now. No result was saved. Please try a different photo or garment later.");
+    }
     throw new Error(`Account request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
