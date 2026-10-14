@@ -1,0 +1,3 @@
+# Optional local body-landmark inference for photo preflight.
+# Not required for the app to work; absence is reported as unavailable.
+mediapipe==0.10.21
