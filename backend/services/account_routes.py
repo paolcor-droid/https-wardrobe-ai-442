@@ -47,6 +47,11 @@ class RecoveryConfirm(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
+class DeleteAccountConfirmation(BaseModel):
+    password: str
+    confirmation: str
+
+
 class Credentials(BaseModel):
     email: str
     password: str = Field(min_length=12, max_length=1024)
@@ -259,6 +264,57 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         user = await db.customer_accounts.find_one({"id": user_id})
         return {"id": user_id, "email": user["email"]}
 
+
+    @router.post("/account/deletion-preview")
+    async def account_deletion_preview(user_id: str = Depends(current_user)):
+        """Report scope without exposing actual private data or deleting anything."""
+        collections = {
+            "photographs": db.customer_photos,
+            "tryons": db.customer_tryons,
+            "conversations": db.customer_conversations,
+            "messages": db.customer_messages,
+            "saved_looks": db.customer_saved,
+            "wardrobe_items": db.customer_wardrobe,
+        }
+        counts = {label: await collection.count_documents({"user_id": user_id}) for label, collection in collections.items()}
+        return {
+            "counts": counts,
+            "confirmation_required": "DELETE MY LUMIERE ACCOUNT",
+            "notice": "Deletion is permanent in the active database. Storage provider backup retention may apply.",
+            "deletion_enabled": os.environ.get("LUMIERE_ENABLE_ACCOUNT_DELETION") == "1",
+        }
+
+    @router.post("/account/delete")
+    async def delete_customer_account(payload: DeleteAccountConfirmation, response: Response, user_id: str = Depends(current_user)):
+        # Disabled until storage provider deletion/backup-retention procedures are approved.
+        if os.environ.get("LUMIERE_ENABLE_ACCOUNT_DELETION") != "1":
+            raise HTTPException(503, "Account deletion is not yet enabled")
+        if payload.confirmation != "DELETE MY LUMIERE ACCOUNT":
+            raise HTTPException(422, "Type the exact account deletion confirmation")
+        user = await db.customer_accounts.find_one({"id": user_id})
+        if not user or not await run_in_threadpool(verify_password, payload.password, user["password_hash"]):
+            raise HTTPException(403, "Password confirmation failed")
+        if delete_image is None:
+            raise HTTPException(503, "Verified storage deletion unavailable")
+        photos = await db.customer_photos.find({"user_id": user_id}, {"_id": 0, "path": 1}).to_list(10000)
+        if len(photos) >= 10000:
+            raise HTTPException(503, "Account too large for safe automated deletion")
+        # Verify external storage deletions before removing any account metadata.
+        try:
+            for photo in photos:
+                await run_in_threadpool(delete_image, photo["path"])
+        except Exception as exc:
+            raise HTTPException(503, "Photo deletion could not be verified; account retained") from exc
+        for collection in (
+            db.customer_photos, db.customer_tryons, db.customer_profiles,
+            db.customer_wardrobe, db.customer_conversations, db.customer_messages,
+            db.customer_saved, db.customer_feedback, db.customer_sessions,
+            db.customer_recovery, db.customer_rate_limits,
+        ):
+            await collection.delete_many({"user_id": user_id})
+        await db.customer_accounts.delete_one({"id": user_id})
+        clear_browser_session(response)
+        return {"success": True, "notice": "Active account records deleted; provider backups may retain data according to policy."}
 
     @router.post("/conversations", status_code=201)
     async def create_conversation(user_id: str = Depends(current_user)):
