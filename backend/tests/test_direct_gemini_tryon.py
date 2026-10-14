@@ -33,7 +33,8 @@ def test_direct_gemini_receives_two_images_and_returns_image():
     assert output == source and mime == "image/png"
     assert captured["url"].endswith("/gemini-3.1-flash-image:generateContent")
     assert len(captured["json"]["contents"][0]["parts"]) == 3
-    assert captured["json"]["generationConfig"]["responseModalities"] == ["TEXT", "IMAGE"]
+    assert captured["json"]["generationConfig"]["responseModalities"] == ["IMAGE"]
+    assert "/v1/models/" in captured["url"]
 
 
 def test_provider_error_never_contains_response_body_or_key():
