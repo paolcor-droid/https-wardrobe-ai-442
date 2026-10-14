@@ -1464,8 +1464,16 @@ async def recommend_catalogue_for_customer(user_id):
     recommendations = [
         entry for entry in recommendations if feedback.get(entry.get("product_id")) != "disliked"
     ]
-    weights = {"purchased": 3, "saved": 2, "liked": 1}
-    recommendations.sort(key=lambda entry: -weights.get(feedback.get(entry.get("product_id")), 0))
+    # Feedback refines scores without overriding colour, department or budget
+    # eligibility. Stable ordering also avoids a saved item permanently
+    # outranking a much stronger personal style match.
+    weights = {"purchased": 12.0, "saved": 8.0, "liked": 4.0}
+    recommendations.sort(
+        key=lambda entry: -(
+            float(entry.get("recommendation_score") or 0)
+            + weights.get(feedback.get(entry.get("product_id")), 0)
+        )
+    )
     return {"recommendations": recommendations, "count": len(recommendations),
             "live_inventory_enabled": False, "source": source,
             "notice": "Trial catalogue snapshot; price and stock are not live."}
