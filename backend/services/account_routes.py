@@ -265,6 +265,39 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return {"id": user_id, "email": user["email"]}
 
 
+    @router.get("/account/export")
+    async def export_customer_data(user_id: str = Depends(current_user)):
+        """Owner-only JSON export; excludes passwords, tokens, raw images and storage keys."""
+        sections = {
+            "profile": db.customer_profiles,
+            "wardrobe": db.customer_wardrobe,
+            "conversations": db.customer_conversations,
+            "messages": db.customer_messages,
+            "saved": db.customer_saved,
+            "feedback": db.customer_feedback,
+            "tryons": db.customer_tryons,
+            "photos": db.customer_photos,
+        }
+        result = {}
+        for name, collection in sections.items():
+            # Bound collection size; no arbitrary full-database dumps.
+            docs = await collection.find({"user_id": user_id}, {"_id": 0}).to_list(2001)
+            if len(docs) > 2000:
+                raise HTTPException(413, "Account export too large; contact support")
+            cleaned = []
+            for doc in docs:
+                cleaned.append({
+                    key: value for key, value in doc.items()
+                    if key not in {"path", "storage_key", "password_hash", "token", "digest", "access_token"}
+                })
+            result[name] = cleaned
+        return Response(
+            content=json.dumps({"format": "lumiere-account-export-v1", "data": result},
+                               default=str),
+            media_type="application/json",
+            headers={"Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="lumiere-account-export.json"'},
+        )
+
     @router.post("/account/deletion-preview")
     async def account_deletion_preview(user_id: str = Depends(current_user)):
         """Report scope without exposing actual private data or deleting anything."""
