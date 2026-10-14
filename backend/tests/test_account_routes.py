@@ -737,3 +737,39 @@ def test_deletion_failure_preserves_disposable_account(monkeypatch):
     assert failed.status_code == 503
     assert client.get("/api/account/me", headers=headers).status_code == 200
     assert len(db.customer_photos.docs) == 1
+
+
+def test_photo_zip_export_never_leaks_other_customer_photos():
+    import io
+    import uuid
+    import zipfile
+    db = Database()
+    app = FastAPI()
+    photo_a = str(uuid.uuid4())
+    photo_b = str(uuid.uuid4())
+    def owned_read(path):
+        return (b"image bytes A" if path == "local/a.png" else b"image bytes B", "image/png")
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/image.png", owned_read, lambda path: None,
+    ))
+    client = TestClient(app)
+    tokens = []
+    for email in ("export-a@example.com", "export-b@example.com"):
+        assert client.post("/api/account/register", json={"email": email, "password": "long secure password"}).status_code == 201
+        tokens.append(client.post("/api/account/login", json={"email": email, "password": "long secure password"}).json()["access_token"])
+    h_a = {"Authorization": "Bearer " + tokens[0]}
+    h_b = {"Authorization": "Bearer " + tokens[1]}
+    id_a = client.get("/api/account/me", headers=h_a).json()["id"]
+    id_b = client.get("/api/account/me", headers=h_b).json()["id"]
+    db.customer_photos.docs.extend([
+        {"id": photo_a, "user_id": id_a, "path": "local/a.png"},
+        {"id": photo_b, "user_id": id_b, "path": "local/b.png"},
+    ])
+    assert client.get("/api/account/account/export/photos").status_code == 401
+    response = client.get("/api/account/account/export/photos", headers=h_a)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store, private"
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zipped:
+        assert zipped.namelist() == [f"photos/{photo_a}.png"]
+        assert zipped.read(zipped.namelist()[0]) == b"image bytes A"
