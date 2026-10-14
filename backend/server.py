@@ -1390,28 +1390,25 @@ async def analyze_customer_skin_photo(image_bytes, mime_type, provider):
 
 
 async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_bytes, garment_prompt):
-    """Use owned images only; do not write generation output into legacy try-on DB."""
+    """Generate private Try-On with direct Gemini first, never shared legacy state."""
     if not GEMINI_API_KEY and not EMERGENT_LLM_KEY:
         raise RuntimeError("Image generation provider not configured")
-    files = [ImageContent(image_base64=base64.b64encode(person_bytes).decode("ascii"))]
-    if garment_bytes is not None:
-        files.append(ImageContent(image_base64=base64.b64encode(garment_bytes).decode("ascii")))
+    if second_garment_bytes is not None and garment_bytes is None:
+        raise ValueError("Second garment requires first garment")
+    if second_garment_bytes is not None:
+        outfit = "both garments from the second and third input images, layered naturally"
+    elif garment_bytes is not None:
         outfit = "the exact garment from the second input image"
     else:
         outfit = garment_prompt
-    if second_garment_bytes is not None:
-        if garment_bytes is None:
-            raise ValueError("Second garment requires first garment")
-        files.append(ImageContent(image_base64=base64.b64encode(second_garment_bytes).decode("ascii")))
-        outfit = "both garments from the second and third input images, layered naturally"
     instruction = (
         "Create one photorealistic virtual try-on using the supplied first image "
         "of the person and dress them in " + outfit + ". Preserve the actual "
         "person's face, skin, body, proportions, pose and background. "
         "Preserve garment texture and colours. Change only the clothing."
     )
-    # Prefer direct Gemini when configured; never silently retry personal images
-    # through another provider (which could double-charge or re-send content).
+    # IMPORTANT: Never instantiate Emergent ImageContent or LlmChat before selecting
+    # direct Gemini. Those wrappers can fail even when the direct API is configured.
     if GEMINI_API_KEY:
         logger.info("Private Try-On generator selected: direct_gemini")
         return await run_in_threadpool(
@@ -1420,6 +1417,11 @@ async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_by
             model=os.environ.get("LUMIERE_GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image"),
         )
     logger.info("Private Try-On generator selected: emergent")
+    files = [ImageContent(image_base64=base64.b64encode(person_bytes).decode("ascii"))]
+    if garment_bytes is not None:
+        files.append(ImageContent(image_base64=base64.b64encode(garment_bytes).decode("ascii")))
+    if second_garment_bytes is not None:
+        files.append(ImageContent(image_base64=base64.b64encode(second_garment_bytes).decode("ascii")))
     client = LlmChat(
         api_key=EMERGENT_LLM_KEY, session_id=f"account-tryon-{uuid.uuid4()}",
         system_message="You are a careful fashion image editor.",
