@@ -19,7 +19,7 @@ import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
 import { usesNativeTabs } from "@/src/navigation";
-import { uploadImage, createTryOn, listTryOns, deleteTryOn, fileUrl, type TryOn } from "@/src/api";
+import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, fileUrl, type TryOn } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
 import type { PickResult } from "@/src/utils/media";
@@ -46,6 +46,9 @@ export default function TryOnScreen() {
   const [target, setTarget] = useState<"person" | "garment" | "secondGarment" | null>(null);
   const [uploadingTarget, setUploadingTarget] = useState<"person" | "garment" | "secondGarment" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<TryOn | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
@@ -96,6 +99,8 @@ export default function TryOnScreen() {
     if (which === "person") setPersonPath(null);
     else if (which === "secondGarment") setSecondGarmentPath(null);
     else setGarmentPath(null);
+    setWarning(null);
+    setConfirmed(false);
     setUploadingTarget(which);
     setError(null);
     try {
@@ -114,19 +119,38 @@ export default function TryOnScreen() {
   };
 
   const canGenerate =
-    !!personPath && (!!garmentPath || garmentPrompt.trim().length > 0) && !uploadingTarget && !gen.isPending;
+    !!personPath && (!!garmentPath || garmentPrompt.trim().length > 0) && !uploadingTarget && !gen.isPending && !checking;
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!canGenerate) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);
     setResult(null);
-    gen.mutate({
+    const request = {
       person_image_path: personPath!,
       garment_image_path: garmentPath,
       second_garment_image_path: garmentPath ? secondGarmentPath : null,
       garment_prompt: garmentPrompt.trim() || null,
-    });
+    };
+    if (!confirmed) {
+      setChecking(true);
+      try {
+        const quality = await checkTryOnPhoto(request);
+        if (quality.warnings.length) {
+          setWarning(quality.warnings.join(" ") + " Check the photo guidance below before continuing.");
+          setConfirmed(true);
+          return; // No paid Gemini call until customer confirms.
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Photo pre-check unavailable. Please try again.");
+        return; // Fail closed: no paid request without a successful check.
+      } finally {
+        setChecking(false);
+      }
+    }
+    setWarning(null);
+    setConfirmed(false);
+    gen.mutate(request);
   };
 
   const Slot = ({
@@ -176,6 +200,12 @@ export default function TryOnScreen() {
         showsVerticalScrollIndicator={false}
         bottomOffset={20}
       >
+        <View style={styles.guidanceWrap} testID="tryon-photo-guidance">
+          <Text style={styles.secondTitle}>Choose a photo that works well</Text>
+          <Text style={styles.secondHint}>For tops, include your upper body. For trousers, skirts and dresses, use a full-body standing photograph.</Text>
+          <Text style={styles.secondHint}>Use good lighting, a simple background and ordinary fully covering clothing. Keep arms, legs and the garment unobstructed.</Text>
+          <Text style={styles.secondHint}>A free check looks for low resolution, poor lighting and unusual framing. It cannot assess pose or guarantee Gemini will generate an image.</Text>
+        </View>
         <View style={styles.slotRow}>
           <Slot which="person" preview={personPreview} label="Your photo" icon="user" />
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
@@ -202,24 +232,27 @@ export default function TryOnScreen() {
           placeholder="e.g. a beige oversized trench coat"
           placeholderTextColor={colors.muted}
           value={garmentPrompt}
-          onChangeText={setGarmentPrompt}
+          onChangeText={(value) => { setGarmentPrompt(value); setConfirmed(false); setWarning(null); }}
         />
 
+        {warning && (
+          <Text style={styles.preflightWarning} testID="tryon-preflight-warning">{warning}</Text>
+        )}
         <Pressable
           testID="generate-tryon-button"
           style={[styles.genBtn, !canGenerate && styles.genBtnDisabled]}
           onPress={handleGenerate}
           disabled={!canGenerate}
         >
-          {gen.isPending ? (
+          {gen.isPending || checking ? (
             <>
               <ActivityIndicator color={colors.onBrandPrimary} size="small" />
-              <Text style={styles.genBtnText}>Rendering your look…</Text>
+              <Text style={styles.genBtnText}>{checking ? "Checking photo…" : "Rendering your look…"}</Text>
             </>
           ) : (
             <>
               <Feather name="zap" size={18} color={colors.onBrandPrimary} />
-              <Text style={styles.genBtnText}>Try it on</Text>
+              <Text style={styles.genBtnText}>{confirmed ? "Continue with this photo" : "Check photo & try on"}</Text>
             </>
           )}
         </Pressable>
@@ -309,6 +342,8 @@ const useStyles = makeStyles((c) => ({
   slotLabel: { fontFamily: fonts.text, fontSize: 13, color: c.muted },
   catalogueItem: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: "center", marginTop: 12 },
   secondRow: { marginTop: 18, gap: 10 },
+  guidanceWrap: { gap: 8, marginBottom: 18, padding: 14, borderWidth: 1, borderColor: c.border, borderRadius: 4 },
+  preflightWarning: { fontFamily: fonts.text, fontSize: 13, color: c.onSurface, marginTop: 16, lineHeight: 20 },
   secondTitle: { fontFamily: fonts.text, fontSize: 15, color: c.onSurface },
   secondControls: { flexDirection: "row", alignItems: "center", gap: 16 },
   secondSlot: { width: 140, height: 125, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceTertiary, alignItems: "center", justifyContent: "center", overflow: "hidden" },
