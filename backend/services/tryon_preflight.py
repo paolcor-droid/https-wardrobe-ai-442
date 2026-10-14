@@ -14,6 +14,8 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
             width, height = image.size
             preview = image.copy()
             preview.thumbnail((160, 160))
+            pose_image = image.copy()
+            pose_image.thumbnail((640, 640))
             gray = preview.convert("L")
             luminance = ImageStat.Stat(gray).mean[0]
             contrast = ImageStat.Stat(gray).stddev[0]
@@ -37,7 +39,7 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
     name = garment_prompt.lower()
     if any(word in name for word in ("trouser", "jean", "pants", "skirt", "dress")):
         warnings.append("For trousers, skirts or dresses, use a standing photo showing your legs.")
-    pose = detect_pose(preview)
+    pose = detect_pose(pose_image)
     warnings.extend(pose["warnings"])
     return {
         "pose_detection": pose["status"],
