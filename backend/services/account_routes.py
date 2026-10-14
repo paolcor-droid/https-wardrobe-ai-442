@@ -239,6 +239,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             {"user_id": record["user_id"], "revoked_at": None},
             {"$set": {"revoked_at": datetime.now(timezone.utc)}},
         )
+        await db.customer_recovery.update_many(
+            {"user_id": record["user_id"], "used_at": None},
+            {"$set": {"used_at": datetime.now(timezone.utc)}},
+        )
         return {"success": True}
 
     @router.post("/logout")
