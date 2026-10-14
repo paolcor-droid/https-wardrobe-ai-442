@@ -8,6 +8,7 @@ import {
   TextInput,
   Platform,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -51,6 +52,7 @@ export default function TryOnScreen() {
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<TryOn | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [viewedTryOn, setViewedTryOn] = useState<TryOn | null>(null);
 
   useEffect(() => {
     if (params.garmentPath) {
@@ -75,7 +77,7 @@ export default function TryOnScreen() {
 
   const del = useMutation({
     mutationFn: deleteTryOn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tryons"] }),
+    onSuccess: () => { setViewedTryOn(null); queryClient.invalidateQueries({ queryKey: ["tryons"] }); },
     onError: (e: Error) => setError(e.message || "Verified image deletion failed. Try again."),
   });
 
@@ -284,7 +286,9 @@ export default function TryOnScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
               {gallery!.map((t) => (
                 <View key={t.id} style={styles.galleryItem} testID={`tryon-history-${t.id}`}>
-                  <AccountPhoto path={t.result_path} style={styles.galleryImg} contentFit="cover" />
+                  <Pressable testID={`tryon-open-${t.id}`} accessibilityRole="button" accessibilityLabel="Open past try-on" style={styles.galleryImg} onPress={() => setViewedTryOn(t)}>
+                    <AccountPhoto path={t.result_path} style={styles.galleryImg} contentFit="cover" />
+                  </Pressable>
                   <Pressable
                     testID={`tryon-delete-${t.id}`}
                     style={styles.galleryDelete}
@@ -300,6 +304,20 @@ export default function TryOnScreen() {
         )}
       </KeyboardAwareScrollView>
 
+      <Modal visible={viewedTryOn !== null} transparent animationType="fade" onRequestClose={() => setViewedTryOn(null)}>
+        <View style={styles.viewerBackdrop}>
+          <View style={styles.viewerHeader}>
+            <Text style={styles.viewerHeading}>Past Try-On</Text>
+            <Pressable testID="tryon-viewer-close" accessibilityRole="button" accessibilityLabel="Close image" onPress={() => setViewedTryOn(null)} style={styles.viewerClose}>
+              <Feather name="x" size={25} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          {viewedTryOn && (
+            <AccountPhoto path={viewedTryOn.result_path} style={styles.viewerImage} contentFit="contain" />
+          )}
+          <Text style={styles.viewerCaption}>AI-generated preview · Clothing and fit may differ in reality.</Text>
+        </View>
+      </Modal>
       <PhotoSourceSheet
         visible={target !== null}
         onClose={() => setTarget(null)}
@@ -409,6 +427,12 @@ const useStyles = makeStyles((c) => ({
   galleryRow: { gap: 12, paddingRight: 8 },
   galleryItem: { width: 110, height: 140 },
   galleryImg: { width: 110, height: 140, borderRadius: 4, backgroundColor: c.surfaceTertiary },
+  viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", paddingTop: 56, paddingBottom: 35, paddingHorizontal: 16 },
+  viewerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  viewerHeading: { fontFamily: fonts.display, color: "#FFFFFF", fontSize: 20 },
+  viewerClose: { padding: 9 },
+  viewerImage: { flex: 1, width: "100%" },
+  viewerCaption: { fontFamily: fonts.text, color: "#FFFFFF", opacity: 0.8, textAlign: "center", marginTop: 16 },
   galleryDelete: {
     position: "absolute",
     top: 6,
