@@ -1,6 +1,6 @@
 """Deterministic image-quality screening. Never sends customer images to an AI provider."""
 import io
-from PIL import Image, ImageStat, UnidentifiedImageError
+from PIL import Image, ImageStat, ImageFilter, UnidentifiedImageError
 
 
 def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
@@ -14,7 +14,11 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
             width, height = image.size
             preview = image.copy()
             preview.thumbnail((160, 160))
-            luminance = ImageStat.Stat(preview.convert("L")).mean[0]
+            gray = preview.convert("L")
+            luminance = ImageStat.Stat(gray).mean[0]
+            contrast = ImageStat.Stat(gray).stddev[0]
+            edges = gray.filter(ImageFilter.FIND_EDGES)
+            edge_strength = ImageStat.Stat(edges).stddev[0]
     except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
         raise ValueError("Invalid image") from exc
     warnings = []
@@ -24,6 +28,10 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
         warnings.append("Your photograph looks dark; try brighter, even lighting.")
     if luminance > 235:
         warnings.append("Your photograph looks overexposed; avoid strong glare.")
+    if contrast < 9:
+        warnings.append("Your photo has very little contrast; a clearer background and even lighting may help.")
+    if edge_strength < 8:
+        warnings.append("Your photo may lack visible detail; check that the person is in focus.")
     if width > height * 1.5:
         warnings.append("Your photo is very wide; a portrait photo showing your outfit may work better.")
     name = garment_prompt.lower()
@@ -33,6 +41,6 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
         "ready": True,
         "warnings": warnings,
         "guidance": "For tops, show your upper body; for trousers or dresses, show your full body. Use good lighting, a simple background, normal fully covering clothing, and unobstructed arms and legs.",
-        "limitations": "Automatic checks assess image dimensions and brightness only; they cannot verify pose, body visibility, garment fit or Gemini approval.",
+        "limitations": "Automatic checks assess image dimensions, brightness and basic detail only; they cannot verify pose, body visibility, garment fit or Gemini approval.",
         "requires_confirmation": bool(warnings),
     }
