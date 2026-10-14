@@ -711,3 +711,29 @@ def test_account_deletion_disabled_by_default_and_preview_safe(monkeypatch):
     })
     assert attempt.status_code == 503
     assert client.get("/api/account/me", headers=headers).status_code == 200
+
+
+def test_deletion_failure_preserves_disposable_account(monkeypatch):
+    monkeypatch.setenv("LUMIERE_ENABLE_ACCOUNT_DELETION", "1")
+    db = Database()
+    app = FastAPI()
+    def storage_fails(path):
+        raise OSError("storage temporarily unavailable")
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/file.png", lambda path: (b"fake", "image/png"), storage_fails,
+    ))
+    client = TestClient(app)
+    client.post("/api/account/register", json={"email": "disposable@example.com", "password": "long secure password"})
+    token = client.post("/api/account/login", json={"email": "disposable@example.com", "password": "long secure password"}).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    owner_id = client.get("/api/account/me", headers=headers).json()["id"]
+    db.customer_photos.docs.append({"id": "temporary-photo", "user_id": owner_id, "path": "local/disposable.png"})
+    wrong = client.post("/api/account/account/delete", headers=headers,
+                        json={"password": "incorrect password", "confirmation": "DELETE MY LUMIERE ACCOUNT"})
+    assert wrong.status_code == 403
+    failed = client.post("/api/account/account/delete", headers=headers,
+                         json={"password": "long secure password", "confirmation": "DELETE MY LUMIERE ACCOUNT"})
+    assert failed.status_code == 503
+    assert client.get("/api/account/me", headers=headers).status_code == 200
+    assert len(db.customer_photos.docs) == 1
