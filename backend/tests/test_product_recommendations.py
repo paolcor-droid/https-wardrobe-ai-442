@@ -355,3 +355,18 @@ def test_preferred_colour_reason_uses_verified_colour():
         "Olive" in reason and "preferred clothing colours" in reason
         for reason in reasons
     )
+
+
+def test_two_distinct_profiles_get_distinct_verified_outfits():
+    """Synthetic customer profiles must never share an assumed default palette."""
+    navy = _product(external_id="navy-profile", name="Navy Linen Shirt", colour_names=["navy"], palette_tags=[])
+    olive = _product(provider_id="zara", external_id="olive-profile", name="Olive Linen Shirt",
+                     colour_names=["olive"], palette_tags=[])
+    one = _profile(preferred_colours=["navy"], avoided_colours=["olive"])
+    two = _profile(preferred_colours=["olive"], avoided_colours=["navy"])
+    ranked_one = rank_verified_products([navy, olive], one)
+    ranked_two = rank_verified_products([navy, olive], two)
+    assert [p["external_id"] for p in ranked_one] == ["navy-profile"]
+    assert [p["external_id"] for p in ranked_two] == ["olive-profile"]
+    assert ranked_one[0]["recommendation_reasons"]
+    assert ranked_two[0]["recommendation_reasons"]
