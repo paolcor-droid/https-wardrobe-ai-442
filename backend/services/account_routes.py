@@ -298,6 +298,45 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             headers={"Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="lumiere-account-export.json"'},
         )
 
+    @router.get("/account/export/photos")
+    async def export_customer_photos(user_id: str = Depends(current_user)):
+        """Bounded owner-only photo ZIP; never returns a public media URL."""
+        import io
+        import zipfile
+        if read_image is None:
+            raise HTTPException(503, "Private photo export unavailable")
+        photos = await db.customer_photos.find(
+            {"user_id": user_id}, {"_id": 0},
+        ).to_list(101)
+        if len(photos) > 100:
+            raise HTTPException(413, "Photo archive exceeds safe limit; request assisted export")
+        archive = io.BytesIO()
+        total = 0
+        try:
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as target:
+                for photo in photos:
+                    data, mime = await run_in_threadpool(read_image, photo["path"])
+                    if not isinstance(data, bytes) or len(data) > 8 * 1024 * 1024:
+                        raise ValueError("Unexpected photo size")
+                    total += len(data)
+                    if total > 50 * 1024 * 1024:
+                        raise HTTPException(413, "Photo archive exceeds safe limit")
+                    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(mime)
+                    if not ext:
+                        raise ValueError("Unexpected photo format")
+                    # Server-generated UUID only; never include user-controlled filenames.
+                    photo_id = str(uuid.UUID(str(photo["id"])))
+                    target.writestr(f"photos/{photo_id}.{ext}", data)
+        except HTTPException:
+            raise
+        except (OSError, ValueError, KeyError) as exc:
+            raise HTTPException(503, "Private photo export could not be completed") from exc
+        return Response(
+            content=archive.getvalue(), media_type="application/zip",
+            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache",
+                     "Content-Disposition": 'attachment; filename="lumiere-private-photos.zip"'},
+        )
+
     @router.post("/account/deletion-preview")
     async def account_deletion_preview(user_id: str = Depends(current_user)):
         """Report scope without exposing actual private data or deleting anything."""
