@@ -421,19 +421,26 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(422, "A garment photo or description is required")
         if generate_tryon is None:
             raise HTTPException(503, "Private Try-On generation is unavailable")
+        stage = "read_person"
         try:
             person_bytes, _ = await run_in_threadpool(read_image, person["path"])
+            stage = "read_garment"
             garment_bytes = None
             if garment:
                 garment_bytes, _ = await run_in_threadpool(read_image, garment["path"])
+            stage = "read_second_garment"
             second_bytes = None
             if second_garment:
                 second_bytes, _ = await run_in_threadpool(read_image, second_garment["path"])
+            stage = "generate"
             result_bytes, mime = await generate_tryon(
                 person_bytes, garment_bytes, second_bytes, payload.garment_prompt or ""
             )
+            stage = "validate_result"
             ext, verified_mime = validate_image(result_bytes, mime, "generated.png")
+            stage = "sanitize_result"
             clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
+            stage = "save_result"
             path = await run_in_threadpool(save_image, clean, ext, verified_mime)
         except Exception as exc:
             # Never log exception messages, tracebacks, input bytes or provider responses:
@@ -449,8 +456,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
             safe_provider = "direct_gemini" if type(exc).__name__ == "GeminiTryOnError" else "other"
             safe_reason = getattr(exc, "category", "unspecified") if safe_provider == "direct_gemini" else "unspecified"
-            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s",
-                         category, type(exc).__name__, safe_status, safe_provider, safe_reason)
+            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s stage=%s",
+                         category, type(exc).__name__, safe_status, safe_provider, safe_reason, stage)
             raise HTTPException(502, "Private Try-On failed") from exc
         photo_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
