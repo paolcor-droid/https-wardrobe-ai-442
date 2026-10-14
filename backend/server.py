@@ -1413,11 +1413,13 @@ async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_by
     # Prefer direct Gemini when configured; never silently retry personal images
     # through another provider (which could double-charge or re-send content).
     if GEMINI_API_KEY:
+        logger.info("Private Try-On generator selected: direct_gemini")
         return await run_in_threadpool(
             generate_direct_gemini, person_bytes, garment_bytes,
             second_garment_bytes, instruction, api_key=GEMINI_API_KEY,
             model=os.environ.get("LUMIERE_GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image"),
         )
+    logger.info("Private Try-On generator selected: emergent")
     client = LlmChat(
         api_key=EMERGENT_LLM_KEY, session_id=f"account-tryon-{uuid.uuid4()}",
         system_message="You are a careful fashion image editor.",
