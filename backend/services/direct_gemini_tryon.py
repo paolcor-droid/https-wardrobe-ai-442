@@ -52,10 +52,17 @@ def generate_direct_gemini(person, garment, second, instruction, *, api_key, mod
                   "generationConfig": {"responseModalities": ["IMAGE"]}},
             timeout=150,
         )
+    except requests.Timeout as exc:
+        raise GeminiTryOnError("timeout") from exc
     except requests.RequestException as exc:
         raise GeminiTryOnError("network") from exc
     if response.status_code != 200:
-        raise GeminiTryOnError("upstream", response.status_code)
+        code = response.status_code
+        if code in (429, 503):
+            raise GeminiTryOnError("temporarily_unavailable", code)
+        if code in (401, 403):
+            raise GeminiTryOnError("provider_access", code)
+        raise GeminiTryOnError("upstream", code)
     try:
         payload = response.json()
         for candidate in payload.get("candidates", []):
