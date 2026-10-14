@@ -100,3 +100,6 @@ productsAUD.xml
 
 # Private Codespaces startup logs and process identifiers
 .lumiere-dev/
+
+# Downloaded optional local pose-estimation model
+backend/.lumiere-models/
