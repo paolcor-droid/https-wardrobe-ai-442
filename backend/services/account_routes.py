@@ -394,6 +394,35 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         )
         return analysis
 
+    @router.post("/tryons/preflight")
+    async def tryon_preflight(payload: PrivateTryOnInput, user_id: str = Depends(current_user)):
+        """Free, private image-quality checks: no external AI call or retained output."""
+        from services.tryon_preflight import assess_photo
+        person = await db.customer_photos.find_one({
+            "id": payload.person_photo_id, "user_id": user_id,
+        })
+        if not person:
+            raise HTTPException(404, "Person photograph not found")
+        if payload.garment_photo_id:
+            garment = await db.customer_photos.find_one({
+                "id": payload.garment_photo_id, "user_id": user_id,
+            })
+            if not garment:
+                raise HTTPException(404, "Garment photograph not found")
+        if payload.second_garment_photo_id:
+            if not payload.garment_photo_id:
+                raise HTTPException(422, "First garment required")
+            second = await db.customer_photos.find_one({
+                "id": payload.second_garment_photo_id, "user_id": user_id,
+            })
+            if not second:
+                raise HTTPException(404, "Second garment photograph not found")
+        try:
+            data, _ = await run_in_threadpool(read_image, person["path"])
+            return await run_in_threadpool(assess_photo, data, payload.garment_prompt or "")
+        except (OSError, ValueError) as exc:
+            raise HTTPException(422, "Please upload a valid customer photograph") from exc
+
     @router.post("/tryons", status_code=201)
     async def owned_tryon(payload: PrivateTryOnInput, user_id: str = Depends(current_user)):
         person = await db.customer_photos.find_one({
