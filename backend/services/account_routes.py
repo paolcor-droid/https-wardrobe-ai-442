@@ -447,8 +447,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 response = getattr(exc, "response", None)
                 status = getattr(response, "status_code", None)
             safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
-            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s",
-                         category, type(exc).__name__, safe_status)
+            safe_provider = "direct_gemini" if type(exc).__name__ == "GeminiTryOnError" else "other"
+            safe_reason = getattr(exc, "category", "unspecified") if safe_provider == "direct_gemini" else "unspecified"
+            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s",
+                         category, type(exc).__name__, safe_status, safe_provider, safe_reason)
             raise HTTPException(502, "Private Try-On failed") from exc
         photo_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
