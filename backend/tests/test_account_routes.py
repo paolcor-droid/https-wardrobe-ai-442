@@ -58,6 +58,13 @@ class Collection:
                 matched += 1
         return Result(matched)
 
+    async def count_documents(self, query):
+        return len([d for d in self.docs if all(self._match(d.get(k), v) for k, v in query.items())])
+
+    async def delete_many(self, query):
+        self.docs = [d for d in self.docs if not all(self._match(d.get(k), v) for k, v in query.items())]
+        return Result()
+
     async def delete_one(self, query):
         self.docs = [doc for doc in self.docs if not all(self._match(doc.get(k), v) for k, v in query.items())]
         return Result()
@@ -80,6 +87,7 @@ class Database:
         self.customer_messages = Collection()
         self.customer_tryons = Collection()
         self.customer_saved = Collection()
+        self.customer_rate_limits = Collection()
 
 
 def test_account_profile_wardrobe_and_photo_access_isolation():
@@ -656,3 +664,50 @@ def test_cross_origin_browser_login_does_not_create_session():
     assert denied.status_code == 403
     assert db.customer_sessions.docs == []
     assert client.post("/api/account/login", json=creds).status_code == 200
+
+
+def test_account_export_is_owner_only_and_redacts_storage_paths():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/file.png", lambda path: (b"fake", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    headers = []
+    for address in ("alpha@example.com", "beta@example.com"):
+        client.post("/api/account/register", json={"email": address, "password": "long secure password"})
+        token = client.post("/api/account/login", json={"email": address, "password": "long secure password"}).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    owner_id = client.get("/api/account/me", headers=headers[0]).json()["id"]
+    db.customer_photos.docs.append({"id": "a", "user_id": owner_id, "path": "local/private.png"})
+    assert client.get("/api/account/account/export").status_code == 401
+    alpha = client.get("/api/account/account/export", headers=headers[0])
+    beta = client.get("/api/account/account/export", headers=headers[1])
+    assert alpha.status_code == 200 and beta.status_code == 200
+    assert alpha.headers["cache-control"] == "no-store"
+    assert "local/private.png" not in alpha.text
+    assert alpha.json()["data"]["photos"][0]["id"] == "a"
+    assert beta.json()["data"]["photos"] == []
+
+
+def test_account_deletion_disabled_by_default_and_preview_safe(monkeypatch):
+    monkeypatch.delenv("LUMIERE_ENABLE_ACCOUNT_DELETION", raising=False)
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/file.png", lambda path: (b"fake", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    client.post("/api/account/register", json={"email": "temporary@example.com", "password": "long secure password"})
+    token = client.post("/api/account/login", json={"email": "temporary@example.com", "password": "long secure password"}).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    preview = client.post("/api/account/account/deletion-preview", headers=headers)
+    assert preview.status_code == 200
+    assert preview.json()["deletion_enabled"] is False
+    attempt = client.post("/api/account/account/delete", headers=headers, json={
+        "password": "long secure password", "confirmation": "DELETE MY LUMIERE ACCOUNT"
+    })
+    assert attempt.status_code == 503
+    assert client.get("/api/account/me", headers=headers).status_code == 200
