@@ -53,6 +53,8 @@ export default function TryOnScreen() {
   const [result, setResult] = useState<TryOn | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [viewedTryOn, setViewedTryOn] = useState<TryOn | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (params.garmentPath) {
@@ -89,6 +91,37 @@ export default function TryOnScreen() {
     },
     onError: (e: Error) => setError(e.message || "Try-on failed. Please try again."),
   });
+
+  const saveViewedTryOn = async () => {
+    if (!viewedTryOn || saving) return;
+    if (Platform.OS !== "web") {
+      setError("Saving private photos is currently supported in the browser. Open LUMIÈRE in Chrome to save.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // The authenticated, same-origin fetch never exposes the private image as a public URL.
+      const response = await fetch(fileUrl(viewedTryOn.result_path), { credentials: "same-origin" });
+      if (!response.ok) throw new Error("Could not retrieve the image. Please sign in again.");
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("The saved file is not an image.");
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = `lumiere-tryon-${viewedTryOn.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } finally {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save this Try-On image.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const onPicked = async (asset: PickResult) => {
     const which = target;
@@ -286,7 +319,7 @@ export default function TryOnScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
               {gallery!.map((t) => (
                 <View key={t.id} style={styles.galleryItem} testID={`tryon-history-${t.id}`}>
-                  <Pressable testID={`tryon-open-${t.id}`} accessibilityRole="button" accessibilityLabel="Open past try-on" style={styles.galleryImg} onPress={() => setViewedTryOn(t)}>
+                  <Pressable testID={`tryon-open-${t.id}`} accessibilityRole="button" accessibilityLabel="Open past try-on" style={styles.galleryImg} onPress={() => { setZoom(1); setViewedTryOn(t); }}>
                     <AccountPhoto path={t.result_path} style={styles.galleryImg} contentFit="cover" />
                   </Pressable>
                   <Pressable
@@ -313,8 +346,22 @@ export default function TryOnScreen() {
             </Pressable>
           </View>
           {viewedTryOn && (
-            <AccountPhoto path={viewedTryOn.result_path} style={styles.viewerImage} contentFit="contain" />
+            <View style={styles.viewerImage}>
+              <AccountPhoto path={viewedTryOn.result_path} style={[styles.viewerImage, { transform: [{ scale: zoom }] }]} contentFit="contain" />
+            </View>
           )}
+          <View style={styles.viewerActions}>
+            <Pressable testID="tryon-zoom-out" accessibilityLabel="Zoom out" style={styles.viewerAction} onPress={() => setZoom(value => Math.max(1, value - 0.5))}>
+              <Text style={styles.viewerActionText}>−</Text>
+            </Pressable>
+            <Text style={styles.viewerZoomText}>{Math.round(zoom * 100)}%</Text>
+            <Pressable testID="tryon-zoom-in" accessibilityLabel="Zoom in" style={styles.viewerAction} onPress={() => setZoom(value => Math.min(4, value + 0.5))}>
+              <Text style={styles.viewerActionText}>+</Text>
+            </Pressable>
+            <Pressable testID="tryon-save-photo" accessibilityLabel="Save image to phone" style={styles.viewerSave} disabled={saving} onPress={saveViewedTryOn}>
+              <Text style={styles.viewerSaveText}>{saving ? "Saving…" : "Save image"}</Text>
+            </Pressable>
+          </View>
           <Text style={styles.viewerCaption}>AI-generated preview · Clothing and fit may differ in reality.</Text>
         </View>
       </Modal>
@@ -432,6 +479,12 @@ const useStyles = makeStyles((c) => ({
   viewerHeading: { fontFamily: fonts.display, color: "#FFFFFF", fontSize: 20 },
   viewerClose: { padding: 9 },
   viewerImage: { flex: 1, width: "100%" },
+  viewerActions: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 12 },
+  viewerAction: { borderWidth: 1, borderColor: "#FFFFFF", minWidth: 45, paddingVertical: 7, alignItems: "center", borderRadius: 4 },
+  viewerActionText: { color: "#FFFFFF", fontSize: 20 },
+  viewerZoomText: { color: "#FFFFFF", fontSize: 13 },
+  viewerSave: { borderWidth: 1, borderColor: "#FFFFFF", paddingHorizontal: 16, paddingVertical: 11, borderRadius: 4 },
+  viewerSaveText: { color: "#FFFFFF", fontSize: 13 },
   viewerCaption: { fontFamily: fonts.text, color: "#FFFFFF", opacity: 0.8, textAlign: "center", marginTop: 16 },
   galleryDelete: {
     position: "absolute",
