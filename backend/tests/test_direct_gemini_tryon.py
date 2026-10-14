@@ -55,3 +55,19 @@ def test_key_required_and_model_allowlisted():
         generate_direct_gemini(image_bytes(), None, None, "test", api_key="")
     with pytest.raises(GeminiTryOnError):
         generate_direct_gemini(image_bytes(), None, None, "test", api_key="test", model="unknown")
+
+
+@pytest.mark.parametrize("payload,expected", [
+    ({"promptFeedback": {"blockReason": "SAFETY"}}, "prompt_blocked"),
+    ({"candidates": [{"finishReason": "IMAGE_SAFETY", "content": {"parts": []}}]}, "generation_filtered"),
+    ({"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "explanation"}]}}]}, "text_only"),
+    ({}, "empty_response"),
+])
+def test_success_response_without_image_has_safe_reason(payload, expected):
+    with pytest.raises(GeminiTryOnError) as error:
+        generate_direct_gemini(
+            image_bytes(), image_bytes(), None, "test", api_key="fake",
+            post=lambda *a, **kw: Response(200, payload),
+        )
+    assert error.value.category == expected
+    assert "explanation" not in str(error.value)
