@@ -37,10 +37,50 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
     name = garment_prompt.lower()
     if any(word in name for word in ("trouser", "jean", "pants", "skirt", "dress")):
         warnings.append("For trousers, skirts or dresses, use a standing photo showing your legs.")
+    pose = detect_pose(preview)
+    warnings.extend(pose["warnings"])
     return {
+        "pose_detection": pose["status"],
         "ready": True,
         "warnings": warnings,
         "guidance": "For tops, show your upper body; for trousers or dresses, show your full body. Use good lighting, a simple background, normal fully covering clothing, and unobstructed arms and legs.",
-        "limitations": "Automatic checks assess image dimensions, brightness and basic detail only; they cannot verify pose, body visibility, garment fit or Gemini approval.",
+        "limitations": "Pose estimation is optional and can miss limbs or people; it cannot determine garment fit or guarantee Gemini approval.",
         "requires_confirmation": bool(warnings),
     }
+
+
+def detect_pose(image):
+    """Real landmark-based pose check when an installed local model is available.
+
+    No network requests, no paid Gemini usage and no saved landmarks. A missing
+    inference engine produces 'unavailable', never a fabricated clearance.
+    """
+    try:
+        import mediapipe as mp
+        import numpy as np
+        pose_module = mp.solutions.pose
+    except (ImportError, AttributeError):
+        return {"status": "unavailable", "warnings": []}
+    try:
+        with pose_module.Pose(static_image_mode=True, model_complexity=0,
+                              min_detection_confidence=0.5) as detector:
+            result = detector.process(np.asarray(image.convert("RGB")))
+        if not result.pose_landmarks:
+            return {"status": "no_person_detected", "warnings": [
+                "A full person could not be detected. Use a clearly visible standing photograph."
+            ]}
+        points = result.pose_landmarks.landmark
+        indices = pose_module.PoseLandmark
+        def visible(name):
+            point = points[getattr(indices, name).value]
+            return point.visibility >= 0.55 and 0.03 <= point.x <= 0.97 and 0.03 <= point.y <= 0.97
+        upper = all(visible(name) for name in ("LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_HIP", "RIGHT_HIP"))
+        lower = all(visible(name) for name in ("LEFT_KNEE", "RIGHT_KNEE", "LEFT_ANKLE", "RIGHT_ANKLE"))
+        warnings = []
+        if not upper:
+            warnings.append("Your shoulders or hips are unclear or cropped; try a front-facing photograph.")
+        if upper and not lower:
+            warnings.append("Your full legs are not visible; full-length garments may not render well.")
+        return {"status": "detected", "warnings": warnings}
+    except (RuntimeError, ValueError, OSError):
+        return {"status": "unavailable", "warnings": []}
