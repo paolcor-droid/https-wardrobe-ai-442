@@ -172,7 +172,7 @@ export default function TryOnScreen() {
     if (!confirmed) {
       setChecking(true);
       try {
-        const quality = await checkTryOnPhoto(request);
+        const quality = await checkTryOnPhoto({ ...request, garment_prompt: request.garment_prompt || params.garmentName || params.secondGarmentName || null });
         if (quality.warnings.length) {
           setWarning(quality.warnings.join(" ") + " Check the photo guidance below before continuing.");
           setConfirmed(true);
