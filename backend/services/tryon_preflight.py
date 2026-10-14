@@ -50,37 +50,56 @@ def assess_photo(data: bytes, garment_prompt: str = "") -> dict:
 
 
 def detect_pose(image):
-    """Real landmark-based pose check when an installed local model is available.
+    """Run local MediaPipe Tasks inference when model asset is available.
 
-    No network requests, no paid Gemini usage and no saved landmarks. A missing
-    inference engine produces 'unavailable', never a fabricated clearance.
+    Returns unavailable rather than claiming successful screening when
+    dependency/model cannot load. No user image leaves the backend.
     """
+    import os
+    from pathlib import Path
+    model_path = Path(os.environ.get(
+        "LUMIERE_POSE_MODEL_PATH",
+        str(Path(__file__).resolve().parents[1] / ".lumiere-models" / "pose_landmarker_lite.task"),
+    ))
+    if not model_path.is_file():
+        return {"status": "unavailable", "warnings": []}
     try:
         import mediapipe as mp
         import numpy as np
-        pose_module = mp.solutions.pose
-    except (ImportError, AttributeError):
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+        options = vision.PoseLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=str(model_path)),
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+            min_pose_detection_confidence=0.5,
+        )
+        frame = mp.Image(image_format=mp.ImageFormat.SRGB,
+                         data=np.asarray(image.convert("RGB")))
+        with vision.PoseLandmarker.create_from_options(options) as detector:
+            result = detector.detect(frame)
+    except (ImportError, AttributeError, RuntimeError, ValueError, OSError):
         return {"status": "unavailable", "warnings": []}
-    try:
-        with pose_module.Pose(static_image_mode=True, model_complexity=0,
-                              min_detection_confidence=0.5) as detector:
-            result = detector.process(np.asarray(image.convert("RGB")))
-        if not result.pose_landmarks:
-            return {"status": "no_person_detected", "warnings": [
-                "A full person could not be detected. Use a clearly visible standing photograph."
-            ]}
-        points = result.pose_landmarks.landmark
-        indices = pose_module.PoseLandmark
-        def visible(name):
-            point = points[getattr(indices, name).value]
-            return point.visibility >= 0.55 and 0.03 <= point.x <= 0.97 and 0.03 <= point.y <= 0.97
-        upper = all(visible(name) for name in ("LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_HIP", "RIGHT_HIP"))
-        lower = all(visible(name) for name in ("LEFT_KNEE", "RIGHT_KNEE", "LEFT_ANKLE", "RIGHT_ANKLE"))
-        warnings = []
-        if not upper:
-            warnings.append("Your shoulders or hips are unclear or cropped; try a front-facing photograph.")
-        if upper and not lower:
-            warnings.append("Your full legs are not visible; full-length garments may not render well.")
-        return {"status": "detected", "warnings": warnings}
-    except (RuntimeError, ValueError, OSError):
-        return {"status": "unavailable", "warnings": []}
+    if not result.pose_landmarks:
+        return {"status": "no_person_detected", "warnings": [
+            "A person could not be detected clearly. Try a well-lit, unobstructed photo."
+        ]}
+    points = result.pose_landmarks[0]
+    # Standard MediaPipe 33-landmark topology, no landmarks are persisted.
+    landmark_indices = {
+        "LEFT_SHOULDER": 11, "RIGHT_SHOULDER": 12,
+        "LEFT_HIP": 23, "RIGHT_HIP": 24,
+        "LEFT_KNEE": 25, "RIGHT_KNEE": 26,
+        "LEFT_ANKLE": 27, "RIGHT_ANKLE": 28,
+    }
+    def visible(name):
+        point = points[landmark_indices[name]]
+        return point.visibility >= 0.55 and 0.02 <= point.x <= 0.98 and 0.02 <= point.y <= 0.98
+    upper = all(visible(name) for name in ("LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_HIP", "RIGHT_HIP"))
+    lower = all(visible(name) for name in ("LEFT_KNEE", "RIGHT_KNEE", "LEFT_ANKLE", "RIGHT_ANKLE"))
+    warnings = []
+    if not upper:
+        warnings.append("Your shoulders or hips are unclear or cropped; try a front-facing photograph.")
+    if upper and not lower:
+        warnings.append("Your full legs are not visible; full-length garments may not render well.")
+    return {"status": "detected", "warnings": warnings}
