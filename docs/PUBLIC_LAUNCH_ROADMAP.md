@@ -54,3 +54,9 @@
 - No public deployment, database deletion or implicit photo migration.
 
 References within repository: `docs/PRE_LAUNCH_SECURITY_GATE.md`, `docs/SUPABASE_PHOTO_STORAGE.md`, `docs/ALWAYS_ON_HOSTING_PLAN.md`.
+
+## 15 October 2026 incremental security and privacy implementation
+- Optional local MediaPipe Pose landmarks were wired into the no-cost photo preflight; `backend/requirements-pose.txt` is not installed by the standard development environment. The endpoint responds `pose_detection: unavailable` if the local model is absent. No photos go to a third-party pose service. Do not claim body pose has been validated on Samsung or in CI without a real landmark model installed and live validation.
+- Private `GET /api/account/account/export` now offers a bounded JSON **metadata** export. It excludes raw photographs, password hashes, session records and storage paths. This is not yet a complete GDPR-style portable data export with photo binaries.
+- Account deletion preview and password-confirmed deletion remain **disabled for real deletion by default** (`LUMIERE_ENABLE_ACCOUNT_DELETION` unset). Never enable on existing customer accounts before external storage retention, interrupted-deletion recovery, audit and data-backup obligations are reviewed.
+- Added in-memory disposable account tests for cross-account export isolation and deletion disabled-by-default. Production hosting, full reset-mail E2E, backup retention and independent security review remain blocked.
