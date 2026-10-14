@@ -48,3 +48,28 @@ def test_flat_photo_warns_about_detail_before_paid_generation():
     result = assess_photo(fixture_photo(720, 960, brightness=100))
     assert result["requires_confirmation"] is True
     assert any("detail" in warning or "contrast" in warning for warning in result["warnings"])
+
+
+def test_pose_landmarks_are_assessed_when_local_model_is_available(monkeypatch):
+    import sys
+    import types
+    from services.tryon_preflight import detect_pose
+    class Point:
+        x = 0.5
+        y = 0.5
+        visibility = 0.99
+    class Detector:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def process(self, image):
+            return types.SimpleNamespace(pose_landmarks=types.SimpleNamespace(landmark=[Point() for _ in range(33)]))
+    names = ("LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_HIP", "RIGHT_HIP",
+             "LEFT_KNEE", "RIGHT_KNEE", "LEFT_ANKLE", "RIGHT_ANKLE")
+    indices = {name: types.SimpleNamespace(value=i) for i, name in enumerate(names)}
+    fake_pose = types.SimpleNamespace(Pose=Detector, PoseLandmark=types.SimpleNamespace(**indices))
+    fake_media = types.SimpleNamespace(solutions=types.SimpleNamespace(pose=fake_pose))
+    monkeypatch.setitem(sys.modules, "mediapipe", fake_media)
+    image = Image.new("RGB", (100, 150))
+    result = detect_pose(image)
+    assert result == {"status": "detected", "warnings": []}
