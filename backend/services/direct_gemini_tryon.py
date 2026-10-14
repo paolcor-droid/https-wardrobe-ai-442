@@ -4,7 +4,7 @@ import io
 from PIL import Image, UnidentifiedImageError
 import requests
 
-URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+URL = "https://generativelanguage.googleapis.com/v1/models/{model}:generateContent"
 ALLOWED_MODELS = {"gemini-3.1-flash-image", "gemini-2.5-flash-image"}
 MAX_INPUT = 8 * 1024 * 1024
 MAX_OUTPUT = 12 * 1024 * 1024
@@ -49,7 +49,7 @@ def generate_direct_gemini(person, garment, second, instruction, *, api_key, mod
             URL.format(model=model),
             headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
             json={"contents": [{"role": "user", "parts": parts}],
-                  "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]}},
+                  "generationConfig": {"responseModalities": ["IMAGE"]}},
             timeout=150,
         )
     except requests.RequestException as exc:
