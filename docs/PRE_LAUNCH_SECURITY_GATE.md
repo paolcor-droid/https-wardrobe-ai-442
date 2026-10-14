@@ -133,3 +133,21 @@ Do not claim production launch readiness until those checks have evidence.
 - User confirmed that Resend testing-sender recovery email arrived at an authorized test inbox. **Full reset-token, prior-session revocation and expiry remain unverified in live SMTP flow.** Mocked backend test verifies single-use token and revocation, and new unit tests verify SMTP STARTTLS, message address and encoded HTTPS link.
 - User confirmed post-login redirect to You and access to Discover, Stylist, Wardrobe and Try-On after the navigation fix. This is a development browser check, not a device signoff.
 - No production secrets, real passwords or private customer photographs were used in the mocked recovery SMTP tests.
+
+## Direct Gemini Try-On (development integration)
+- Server-side `GEMINI_API_KEY` switches private Try-On directly to Google's
+  `gemini-3.1-flash-image` generateContent API, bypassing Emergent. Never use
+  the browser or Expo environment to hold the API key.
+- Add `GEMINI_API_KEY` as a repository-scoped GitHub Codespaces secret (or
+  provision as a backend-only deployment secret). Restart the Codespace and
+  FastAPI to load it. Confirm presence without printing its value:
+  `python -c 'import os; print(bool(os.getenv("GEMINI_API_KEY")))'`.
+- `LUMIERE_GEMINI_IMAGE_MODEL` allows only the supported, allowlisted
+  `gemini-3.1-flash-image` or `gemini-2.5-flash-image` IDs.
+- If no Gemini key is provided, the existing Emergent provider is used.
+  A failed direct request is *not* silently retried through Emergent.
+  Provider body, key and photographs must never be included in logs.
+- This is implemented and unit tested, **not verified with a real Gemini key**.
+  Check billing, provider data processing terms, response validity and
+  account-specific photo retention before production use. Keep public launch
+  blocked until a real end-to-end Try-On succeeds.
