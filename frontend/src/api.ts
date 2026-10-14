@@ -340,6 +340,31 @@ function presentPrivateTryOn(row: PrivateTryOnRecord): TryOn {
   };
 }
 
+export type TryOnPreflight = {
+  ready: boolean;
+  warnings: string[];
+  guidance: string;
+  limitations: string;
+  requires_confirmation: boolean;
+};
+
+export async function checkTryOnPhoto(body: {
+  person_image_path: string;
+  garment_image_path?: string | null;
+  second_garment_image_path?: string | null;
+  garment_prompt?: string | null;
+}): Promise<TryOnPreflight> {
+  return accountRequest<TryOnPreflight>("/tryons/preflight", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      person_photo_id: ownedPhotoId(body.person_image_path),
+      garment_photo_id: body.garment_image_path ? ownedPhotoId(body.garment_image_path) : null,
+      second_garment_photo_id: body.second_garment_image_path ? ownedPhotoId(body.second_garment_image_path) : null,
+      garment_prompt: body.garment_prompt ?? null,
+    }),
+  });
+}
+
 export async function createTryOn(body: {
   person_image_path: string;
   garment_image_path?: string | null;
