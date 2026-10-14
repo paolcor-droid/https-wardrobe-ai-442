@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import {
   View,
@@ -54,6 +54,8 @@ export default function TryOnScreen() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [viewedTryOn, setViewedTryOn] = useState<TryOn | null>(null);
   const [zoom, setZoom] = useState(1);
+  const pinchDistance = useRef<number | null>(null);
+  const pinchStartZoom = useRef(1);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -346,7 +348,28 @@ export default function TryOnScreen() {
             </Pressable>
           </View>
           {viewedTryOn && (
-            <View style={styles.viewerImage}>
+            <View style={styles.viewerImage}
+              onTouchStart={(event) => {
+                const touches = event.nativeEvent.touches;
+                if (touches.length === 2) {
+                  pinchDistance.current = Math.hypot(
+                    touches[0].pageX - touches[1].pageX,
+                    touches[0].pageY - touches[1].pageY,
+                  );
+                  pinchStartZoom.current = zoom;
+                }
+              }}
+              onTouchMove={(event) => {
+                const touches = event.nativeEvent.touches;
+                if (touches.length === 2 && pinchDistance.current && pinchDistance.current > 0) {
+                  const distance = Math.hypot(
+                    touches[0].pageX - touches[1].pageX,
+                    touches[0].pageY - touches[1].pageY,
+                  );
+                  setZoom(Math.max(1, Math.min(4, pinchStartZoom.current * distance / pinchDistance.current)));
+                }
+              }}
+              onTouchEnd={() => { pinchDistance.current = null; }}>
               <AccountPhoto path={viewedTryOn.result_path} style={[styles.viewerImage, { transform: [{ scale: zoom }] }]} contentFit="contain" />
             </View>
           )}
