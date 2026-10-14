@@ -458,6 +458,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             safe_reason = getattr(exc, "category", "unspecified") if safe_provider == "direct_gemini" else "unspecified"
             logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s stage=%s",
                          category, type(exc).__name__, safe_status, safe_provider, safe_reason, stage)
+            if safe_provider == "direct_gemini" and safe_reason in {"generation_filtered", "prompt_blocked"}:
+                raise HTTPException(
+                    422,
+                    "The image provider could not create this outfit preview. "
+                    "Try a different fully clothed photo or garment.",
+                ) from exc
             raise HTTPException(502, "Private Try-On failed") from exc
         photo_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
