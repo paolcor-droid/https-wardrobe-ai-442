@@ -39,6 +39,9 @@ export default function TryOnScreen() {
     garmentColours?: string;
     secondGarmentPath?: string;
     secondGarmentName?: string;
+    secondGarmentProductId?: string;
+    secondGarmentSizes?: string;
+    secondGarmentColours?: string;
   }>();
 
   const [personPath, setPersonPath] = useState<string | null>(null);
@@ -63,6 +66,8 @@ export default function TryOnScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColour, setSelectedColour] = useState("");
+  const [secondSelectedSize, setSecondSelectedSize] = useState("");
+  const [secondSelectedColour, setSecondSelectedColour] = useState("");
   const [bagSaving, setBagSaving] = useState(false);
   const [bagStatus, setBagStatus] = useState("");
   const parseOptions = (encoded?: string) => {
@@ -73,15 +78,23 @@ export default function TryOnScreen() {
   };
   const garmentSizes = parseOptions(params.garmentSizes);
   const garmentColours = parseOptions(params.garmentColours);
-  async function saveTryOnToBag() {
-    if (!params.garmentProductId || !result) return;
-    if (garmentSizes.length && !selectedSize) { setBagStatus("Choose a size above to add this garment."); return; }
-    if (garmentColours.length && !selectedColour) { setBagStatus("Choose a colour above to add this garment."); return; }
+  const secondSizes = parseOptions(params.secondGarmentSizes);
+  const secondColours = parseOptions(params.secondGarmentColours);
+  async function saveTryOnToBag(which: "first" | "second" = "first") {
+    if (!result) return;
+    const productId = which === "first" ? params.garmentProductId : params.secondGarmentProductId;
+    const sizes = which === "first" ? garmentSizes : secondSizes;
+    const colours = which === "first" ? garmentColours : secondColours;
+    const size = which === "first" ? selectedSize : secondSelectedSize;
+    const colour = which === "first" ? selectedColour : secondSelectedColour;
+    if (!productId) return;
+    if (sizes.length && !size) { setBagStatus("Choose a size above to add this garment."); return; }
+    if (colours.length && !colour) { setBagStatus("Choose a colour above to add this garment."); return; }
     setBagSaving(true); setBagStatus("Adding garment to your bag…");
     try {
       await addShoppingBagItem({
-        product_id: params.garmentProductId,
-        size: selectedSize, colour: selectedColour, quantity: 1,
+        product_id: productId,
+        size, colour, quantity: 1,
       });
       await queryClient.invalidateQueries({ queryKey: ["shopping-bag"] });
       setBagStatus("Garment added to your shopping bag. Checkout is not enabled yet.");
@@ -99,6 +112,8 @@ export default function TryOnScreen() {
       setGarmentPrompt("");
       setSelectedSize("");
       setSelectedColour("");
+      setSecondSelectedSize("");
+      setSecondSelectedColour("");
       setBagStatus("");
       setResult(null);
       setError(null);
@@ -367,7 +382,7 @@ export default function TryOnScreen() {
                 )}
                 <Pressable testID="tryon-add-to-bag" accessibilityRole="button"
                   disabled={bagSaving}
-                  style={styles.shareBtn} onPress={saveTryOnToBag}>
+                  style={styles.shareBtn} onPress={() => saveTryOnToBag("first")}>
                   <Feather name="shopping-bag" size={16} color={colors.onSurface} />
                   <Text style={styles.shareBtnText}>{bagSaving ? "Adding…" : "Add garment to bag"}</Text>
                 </Pressable>
@@ -375,7 +390,28 @@ export default function TryOnScreen() {
                 <Pressable onPress={() => router.push("/bag" as any)}>
                   <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>View shopping bag</Text>
                 </Pressable>
-                {secondGarmentPath ? <Text style={{ color: colors.muted }}>Only the first selected garment is available for bag saving here.</Text> : null}
+                {params.secondGarmentProductId ? (
+                  <View style={{ gap: 10, marginTop: 12 }}>
+                    <Text style={{ color: colors.onSurface, fontWeight: "600" }}>Second garment · {params.secondGarmentName}</Text>
+                    {secondSizes.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {secondSizes.map(size => <Pressable key={size} onPress={() => setSecondSelectedSize(size)}
+                        style={{ borderWidth: secondSelectedSize === size ? 2 : 1, borderColor: colors.borderStrong, padding: 10 }}>
+                        <Text style={{ color: colors.onSurface }}>{size}</Text>
+                      </Pressable>)}
+                    </View> : null}
+                    {secondColours.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {secondColours.map(colour => <Pressable key={colour} onPress={() => setSecondSelectedColour(colour)}
+                        style={{ borderWidth: secondSelectedColour === colour ? 2 : 1, borderColor: colors.borderStrong, padding: 10 }}>
+                        <Text style={{ color: colors.onSurface }}>{colour}</Text>
+                      </Pressable>)}
+                    </View> : null}
+                    <Pressable testID="tryon-add-second-to-bag" accessibilityRole="button"
+                      disabled={bagSaving} style={styles.shareBtn} onPress={() => saveTryOnToBag("second")}>
+                      <Feather name="shopping-bag" size={16} color={colors.onSurface}/>
+                      <Text style={styles.shareBtnText}>Add second garment to bag</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             ) : (
               <Text style={{ color: colors.muted, marginTop: 12 }}>To purchase this look, select a catalogue garment from Discover. Uploaded garments are not linked to saleable products.</Text>
