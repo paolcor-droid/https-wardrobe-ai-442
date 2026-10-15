@@ -30,7 +30,7 @@ from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations, customer_product_view
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 from services.supplier_catalogue_store import read_catalogue, catalogue_enabled
-from services.discover_search import paginate, catalogue_view
+from services.discover_search import paginate, catalogue_view, product_key
 
 try:
     from emergentintegrations.llm.chat import (
@@ -1503,7 +1503,7 @@ async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
     ranked = rank_verified_products(normalized, profile, limit=5000)
     feedback_docs = await db.customer_feedback.find({"user_id": user_id}).to_list(500)
     blocked = {str(row.get("product_id")) for row in feedback_docs if row.get("sentiment") == "disliked"}
-    ranked = [item for item in ranked if item.get("external_id") not in blocked]
+    ranked = [item for item in ranked if product_key(item) not in blocked and not (item.get("provider_id") == "matterhorn" and item.get("external_id") in blocked)]
     page_items, total = paginate(ranked, filters, page, per_page)
     return {
         "recommendations": [catalogue_view(item, customer_product_view) for item in page_items],
