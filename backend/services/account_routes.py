@@ -832,7 +832,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             if not product:
                 raise HTTPException(409, "A saved garment is no longer available")
             try:
-                prepared = await prepare_catalogue(user_id, product_id)
+                prepared = await owned_catalogue_garment(product_id, user_id)
             except HTTPException:
                 raise
             except Exception as exc:
