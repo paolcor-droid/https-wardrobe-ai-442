@@ -773,3 +773,43 @@ def test_photo_zip_export_never_leaks_other_customer_photos():
     with zipfile.ZipFile(io.BytesIO(response.content)) as zipped:
         assert zipped.namelist() == [f"photos/{photo_a}.png"]
         assert zipped.read(zipped.namelist()[0]) == b"image bytes A"
+
+
+def test_disposable_account_deletion_removes_only_owned_records(monkeypatch):
+    """In-memory deletion success, including token revocation; never touches real storage."""
+    monkeypatch.setenv("LUMIERE_ENABLE_ACCOUNT_DELETION", "1")
+    db = Database()
+    app = FastAPI()
+    removed_objects = []
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/test.png", lambda path: (b"synthetic", "image/png"),
+        lambda path: removed_objects.append(path),
+    ))
+    client = TestClient(app)
+    sessions = []
+    for email in ("delete-disposable@example.test", "keep-disposable@example.test"):
+        credentials = {"email": email, "password": "test password long enough"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        sessions.append({"Authorization": "Bearer " + token})
+    deleted_id = client.get("/api/account/me", headers=sessions[0]).json()["id"]
+    kept_id = client.get("/api/account/me", headers=sessions[1]).json()["id"]
+    db.customer_photos.docs.extend([
+        {"id": "deleted-photo", "user_id": deleted_id, "path": "local/disposable-only.png"},
+        {"id": "kept-photo", "user_id": kept_id, "path": "local/other-account.png"},
+    ])
+    db.customer_tryons.docs.append({"id": "test-tryon", "user_id": deleted_id})
+    db.customer_profiles.docs.append({"user_id": deleted_id, "preferences": {}})
+    result = client.post("/api/account/account/delete", headers=sessions[0], json={
+        "password": "test password long enough",
+        "confirmation": "DELETE MY LUMIERE ACCOUNT",
+    })
+    assert result.status_code == 200
+    assert removed_objects == ["local/disposable-only.png"]
+    assert client.get("/api/account/me", headers=sessions[0]).status_code == 401
+    assert client.get("/api/account/me", headers=sessions[1]).status_code == 200
+    assert all(doc.get("user_id") != deleted_id for collection in (
+        db.customer_photos, db.customer_tryons, db.customer_profiles, db.customer_sessions,
+    ) for doc in collection.docs)
+    assert any(doc["user_id"] == kept_id for doc in db.customer_photos.docs)
