@@ -821,7 +821,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.customer_bag.insert_one(record)
-        return {k: v for k, v in record.items() if k != "user_id"}
+        # MongoDB adds an ObjectId to the input document in place; never return it.
+        return {k: v for k, v in record.items() if k not in {"user_id", "_id"}}
 
     @router.delete("/bag/{item_id}")
     async def remove_from_bag(item_id: str, user_id: str = Depends(current_user)):
