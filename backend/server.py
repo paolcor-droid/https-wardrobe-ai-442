@@ -1528,28 +1528,45 @@ async def resolve_bag_product_for_customer(user_id, identity):
     return None
 
 
+def _direct_openai_stylist(messages):
+    """Private account chat via direct OpenAI; no Emergent proxy or customer data logging."""
+    if not OPENAI_API_KEY:
+        raise RuntimeError("Stylist OpenAI API key is not configured")
+    model = os.environ.get("LUMIERE_OPENAI_CHAT_MODEL", "gpt-5.6-sol")
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": "Bearer " + OPENAI_API_KEY, "Content-Type": "application/json"},
+            json={"model": model, "messages": messages},
+            timeout=65,
+        )
+        if response.status_code in (401, 403):
+            raise RuntimeError("OpenAI credentials or model permissions are invalid")
+        if response.status_code == 429:
+            raise RuntimeError("OpenAI quota or request limit reached")
+        if response.status_code >= 400:
+            logger.warning("Stylist OpenAI request failed: HTTP %s", response.status_code)
+            raise RuntimeError("OpenAI provider request failed")
+        reply = response.json()["choices"][0]["message"]["content"]
+        if not isinstance(reply, str) or not reply.strip():
+            raise RuntimeError("OpenAI returned an empty stylist response")
+        return reply.strip()
+    except requests.RequestException as exc:
+        logger.warning("Stylist OpenAI connection failed: %s", type(exc).__name__)
+        raise RuntimeError("OpenAI provider connection failed") from exc
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("Unexpected OpenAI stylist response") from exc
+
+
 async def generate_customer_styling_reply(conversation_id, profile, prior, message, provider):
-    """Generate text-only style advice using an authenticated customer's own context."""
-    if not EMERGENT_LLM_KEY:
-        raise RuntimeError("LLM provider not configured")
+    """Generate account-scoped styling via direct OpenAI API, without Emergent credits."""
     prompt = build_system_prompt(profile)
-    context = [{"role": "system", "content": prompt}]
-    for item in prior[-60:]:
-        if item.get("role") in {"user", "assistant"}:
-            context.append({"role": item["role"], "content": item.get("content", "")})
-    client = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id="private-" + conversation_id,
-        system_message=prompt,
-        initial_messages=context,
-    ).with_model(*resolve_chat_model(provider))
-    chunks = []
-    async for event in client.stream_message(UserMessage(text=message, file_contents=[])):
-        if isinstance(event, TextDelta):
-            chunks.append(event.content)
-        elif isinstance(event, StreamDone):
-            break
-    return "".join(chunks).strip()
+    messages = [{"role": "system", "content": prompt}]
+    for item in prior[-40:]:
+        if item.get("role") in ("user", "assistant") and isinstance(item.get("content"), str):
+            messages.append({"role": item["role"], "content": item["content"][:12000]})
+    messages.append({"role": "user", "content": message})
+    return await run_in_threadpool(_direct_openai_stylist, messages)
 
 
 app.include_router(api_router)
