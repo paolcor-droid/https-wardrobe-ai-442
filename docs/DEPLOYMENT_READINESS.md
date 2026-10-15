@@ -10,6 +10,8 @@ bash scripts/start-lumiere-dev.sh
 
 The script starts the EXISTING `lumiere-dev-mongo` container, waits for MongoDB, and starts FastAPI (8000) and Expo Web (8081). It neither creates nor deletes a database and refuses to replace already running API or frontend processes. Check `.lumiere-dev-logs/` for startup errors. Keep this terminal open and use the forwarded **8081** URL. Do not forward port 8000 or 27017 publicly.
 
+Readiness endpoints for a future reverse proxy/load balancer: `GET /health/live` checks the process; `GET /health/ready` also checks MongoDB and returns HTTP 503 when the database is unavailable. Keep these behind appropriate edge controls in staging or production; neither exposes account data. The development launcher now waits for `/health/ready`, not merely an open TCP port. These new changes require running verification tests in Codespaces before use.
+
 **This is not persistent hosting.** GitHub Codespaces can suspend; neither a startup script nor an autostart setting can keep the application online when Codespaces is suspended. The desktop/mobile browser preview depends on Metro and a same-origin proxy, so it is not a production deployment.
 
 ## Before public hosting
