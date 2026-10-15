@@ -95,6 +95,9 @@ export default function TryOnScreen() {
       // Preview the LUMIÈRE-hosted copy via /api/files, never the supplier URL.
       setGarmentPreview(params.garmentPath);
       setGarmentPrompt("");
+      setSelectedSize("");
+      setSelectedColour("");
+      setBagStatus("");
       setResult(null);
       setError(null);
     }
