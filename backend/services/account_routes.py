@@ -784,6 +784,43 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         })
         return {"path": "private:" + photo_id, "name": name}
 
+    @router.post("/outfits", status_code=201)
+    async def save_catalogue_outfit(payload: dict, user_id: str = Depends(current_user)):
+        """Save product identities only; do not expose private Try-On photos or trust prices."""
+        products = payload.get("product_ids")
+        if (not isinstance(products, list) or not 1 <= len(products) <= 2
+                or len(set(str(x) for x in products)) != len(products)
+                or any(not isinstance(p, str) or not 3 <= len(p) <= 150 for p in products)):
+            raise HTTPException(422, "Select one or two different catalogue products")
+        if resolve_bag_product is None:
+            raise HTTPException(503, "Catalogue unavailable")
+        for identity in products:
+            if await resolve_bag_product(user_id, identity) is None:
+                raise HTTPException(404, "One of these garments is no longer available")
+        existing = await db.customer_outfits.find_one({"user_id": user_id, "product_ids": products})
+        if existing:
+            return {k: v for k, v in existing.items() if k not in {"_id", "user_id"}}
+        total = await db.customer_outfits.find({"user_id": user_id}, {"_id": 0}).to_list(51)
+        if len(total) >= 50:
+            raise HTTPException(413, "Saved outfit limit reached")
+        record = {"id": str(uuid.uuid4()), "user_id": user_id, "product_ids": products,
+                  "created_at": datetime.now(timezone.utc).isoformat()}
+        await db.customer_outfits.insert_one(record)
+        return {k: v for k, v in record.items() if k not in {"_id", "user_id"}}
+
+    @router.get("/outfits")
+    async def list_catalogue_outfits(user_id: str = Depends(current_user)):
+        rows = await db.customer_outfits.find({"user_id": user_id}, {"_id": 0}).to_list(50)
+        return [{k: v for k, v in row.items() if k != "user_id"} for row in rows]
+
+    @router.delete("/outfits/{outfit_id}")
+    async def delete_catalogue_outfit(outfit_id: str, user_id: str = Depends(current_user)):
+        existing = await db.customer_outfits.find_one({"id": outfit_id, "user_id": user_id})
+        if existing is None:
+            raise HTTPException(404, "Saved outfit not found")
+        await db.customer_outfits.delete_one({"id": outfit_id, "user_id": user_id})
+        return {"success": True}
+
     @router.get("/bag")
     async def get_bag(user_id: str = Depends(current_user)):
         rows = await db.customer_bag.find({"user_id": user_id}, {"_id": 0}).to_list(101)
