@@ -35,7 +35,7 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
   const token = Platform.OS === "web" ? "" : await accountAccessToken();
   if (!path.startsWith("/") || path.startsWith("//")) throw new Error("Invalid account path");
   const response = await fetch(`${backendBaseUrl()}/api/account${path}`, {
-    ...init, credentials: "same-origin", headers: { ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : webCsrfHeaders()) },
+    ...init, credentials: "same-origin", headers: { ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...(init.headers as Record<string, string> | undefined), ...(token ? { Authorization: `Bearer ${token}` } : webCsrfHeaders()) },
   });
   if (!response.ok) {
     if (response.status === 401) throw new Error("Session expired. Sign in again.");
