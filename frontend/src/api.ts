@@ -454,6 +454,12 @@ export async function searchCatalogue(filters: CatalogueSearchFilters): Promise<
   return accountRequest<CatalogueSearchResponse>(`/catalogue/search?${query.toString()}`);
 }
 
+export async function searchDemoCatalogue(filters: CatalogueSearchFilters): Promise<CatalogueSearchResponse> {
+  const args = Object.entries(filters).filter(([, value]) => value !== "" && value != null);
+  const query = new URLSearchParams(args.map(([key, value]) => [key, String(value)]));
+  return accountRequest<CatalogueSearchResponse>(`/catalogue/demo/search?${query.toString()}`);
+}
+
 export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
   return accountRequest<CatalogueRecommendationsResponse>("/catalogue/recommendations");
 }
