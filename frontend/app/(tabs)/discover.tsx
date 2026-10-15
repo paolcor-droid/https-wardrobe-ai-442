@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
@@ -17,6 +17,7 @@ export default function DiscoverScreen() {
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const [searchText, setSearchText] = useState("");
+  const [demoMode, setDemoMode] = useState(false);
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
     if (!completingOutfit.stylistQuery) return;
@@ -39,8 +40,8 @@ export default function DiscoverScreen() {
     min_price: minPrice ? Number(minPrice) : undefined,
     max_price: maxPrice ? Number(maxPrice) : undefined, page, per_page: 20 };
   const { data: searchResults, isLoading: searching, isError: searchError } = useQuery({
-    queryKey: ["catalogue-search", profile?.updated_at, searchFilters],
-    queryFn: () => searchCatalogue(searchFilters),
+    queryKey: ["catalogue-search", demoMode, profile?.updated_at, searchFilters],
+    queryFn: () => demoMode ? searchDemoCatalogue(searchFilters) : searchCatalogue(searchFilters),
     enabled: Boolean(profile),
   });
   const shownProducts = searchResults?.recommendations ?? [];
@@ -205,14 +206,15 @@ export default function DiscoverScreen() {
     <View key={product.product_id} style={styles.productCard}>
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : null}
       <View style={styles.productBody}>
+        {demoMode ? <Text style={styles.productMeta}>DEMO PRODUCT · SIMULATED · NOT FOR SALE</Text> : null}
         <Text style={styles.productBrand}>{product.brand || "LUMIÈRE EDIT"}</Text>
         <Text style={styles.productName}>{product.name}</Text>
         {product.colour_names.length ? <Text style={styles.productMeta}>Colour · {product.colour_names.join(", ")}</Text> : null}
         {product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
         <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
-        <Text style={styles.productMeta}>Supplier catalogue price · stock not verified live</Text>
-        <Text style={styles.productMeta}>Choose size and colour before saving to bag</Text>
+        <Text style={styles.productMeta}>{demoMode ? "Synthetic test price in EUR · no brand affiliation or live inventory" : "Supplier catalogue price · stock not verified live"}</Text>
+        {!demoMode ? <Text style={styles.productMeta}>Choose size and colour before saving to bag</Text> : null}
         <View style={styles.feedbackRow}>
           {product.sizes.map((size) => (
             <Pressable key={size} onPress={() => setSelectedSizes(v => ({ ...v, [product.product_id]: size }))}
@@ -229,11 +231,11 @@ export default function DiscoverScreen() {
             </Pressable>
           ))}
         </View>
-        <Pressable accessibilityRole="button" testID={`add-to-bag-${product.product_id}`}
+        {!demoMode ? <Pressable accessibilityRole="button" testID={`add-to-bag-${product.product_id}`}
           onPress={() => addToBag(product)} style={styles.tryOnButton}>
           <Feather name="shopping-bag" size={16}/>
           <Text style={styles.tryOnText}>Add to bag</Text>
-        </Pressable>
+        </Pressable> : null}
         {bagMessageProduct === product.product_id && bagMessage ? <Text testID={`bag-message-${product.product_id}`} accessibilityRole="alert" style={styles.productMeta}>{bagMessage}</Text> : null}
         <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
@@ -241,7 +243,7 @@ export default function DiscoverScreen() {
             <Text key={reason} style={styles.reason}>• {reason}</Text>
           ))}
         </View>
-        <View style={styles.feedbackRow}>
+        {!demoMode ? <View style={styles.feedbackRow}>
           {(["liked", "disliked", "saved", "purchased"] as ProductSentiment[]).map((sentiment) => (
             <Pressable key={sentiment} testID={`feedback-${sentiment}-${product.product_id}`}
               onPress={() => recordFeedback(product.product_id, sentiment)}
@@ -250,7 +252,7 @@ export default function DiscoverScreen() {
             </Pressable>
           ))}
         </View>
-        {product.image_url && product.tryon_supported ? (
+        {!demoMode && product.image_url && product.tryon_supported ? (
           <Pressable
             style={styles.tryOnButton}
             onPress={() => openTryOn(product)}
@@ -307,6 +309,18 @@ export default function DiscoverScreen() {
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
+        <Text style={styles.section}>CATALOGUE SOURCE</Text>
+        <View style={styles.feedbackRow}>
+          <Pressable accessibilityRole="button" onPress={() => { setDemoMode(false); setPage(1); }}
+            style={[styles.feedbackButton, !demoMode && styles.feedbackSelected]}>
+            <Text style={styles.feedbackText}>Supplier catalogue</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setDemoMode(true); setPage(1); }}
+            style={[styles.feedbackButton, demoMode && styles.feedbackSelected]}>
+            <Text style={styles.feedbackText}>Demo catalogue · 2,000 products</Text>
+          </Pressable>
+        </View>
+        {demoMode ? <Text style={styles.note}>SIMULATED TEST DATA ONLY. Brands, inventory, prices and reviews are fictional examples; no affiliation, purchasing or Virtual Try-On. Test images are intentionally hidden.</Text> : null}
         <Text style={styles.section}>FIND YOUR STYLE</Text>
         <View style={styles.card}>
           {([
@@ -342,7 +356,7 @@ export default function DiscoverScreen() {
           <Text style={styles.tryOnText}>View shopping bag</Text>
         </Pressable>
         {bagMessage ? <Text style={styles.note}>{bagMessage}</Text> : null}
-        <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text>
+        {!demoMode ? <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text> : null}
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
         {searchError ? <Text style={styles.note}>Catalogue search is unavailable. Retailer discovery remains available below.</Text> : null}
         {!searching && !searchError && shownProducts.length === 0 ? (
