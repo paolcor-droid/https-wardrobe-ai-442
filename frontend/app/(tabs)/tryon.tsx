@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
 import { usesNativeTabs } from "@/src/navigation";
-import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, fileUrl, type TryOn } from "@/src/api";
+import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, addShoppingBagItem, fileUrl, type TryOn } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
 import type { PickResult } from "@/src/utils/media";
@@ -30,9 +30,13 @@ export default function TryOnScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const params = useLocalSearchParams<{
     garmentPath?: string;
     garmentName?: string;
+    garmentProductId?: string;
+    garmentSizes?: string;
+    garmentColours?: string;
     secondGarmentPath?: string;
     secondGarmentName?: string;
   }>();
@@ -57,6 +61,33 @@ export default function TryOnScreen() {
   const pinchDistance = useRef<number | null>(null);
   const pinchStartZoom = useRef(1);
   const [saving, setSaving] = useState(false);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColour, setSelectedColour] = useState("");
+  const [bagSaving, setBagSaving] = useState(false);
+  const [bagStatus, setBagStatus] = useState("");
+  const parseOptions = (encoded?: string) => {
+    try {
+      const parsed: unknown = JSON.parse(encoded || "[]");
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string").slice(0, 40) : [];
+    } catch { return []; }
+  };
+  const garmentSizes = parseOptions(params.garmentSizes);
+  const garmentColours = parseOptions(params.garmentColours);
+  async function saveTryOnToBag() {
+    if (!params.garmentProductId || !result) return;
+    setBagSaving(true); setBagStatus("");
+    try {
+      await addShoppingBagItem({
+        product_id: params.garmentProductId,
+        size: selectedSize, colour: selectedColour, quantity: 1,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["shopping-bag"] });
+      setBagStatus("Garment added to your shopping bag. Checkout is not enabled yet.");
+    } catch (e) {
+      setBagStatus(e instanceof Error ? e.message : "Unable to add this garment.");
+    } finally { setBagSaving(false); }
+  }
+
 
   useEffect(() => {
     if (params.garmentPath) {
@@ -304,6 +335,48 @@ export default function TryOnScreen() {
           <View style={styles.resultWrap} testID="tryon-result">
             <Text style={styles.resultLabel}>AI-generated preview · Fit, drape and colour may differ in reality</Text>
             <AccountPhoto path={result.result_path} style={styles.resultImg} contentFit="cover" />
+            {params.garmentProductId ? (
+              <View style={{ marginTop: 16, gap: 10 }}>
+                <Text style={{ color: colors.onSurface, fontWeight: "600" }}>
+                  Like this look? Save the garment to your bag.
+                </Text>
+                {garmentSizes.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {garmentSizes.map(size => (
+                      <Pressable key={size} onPress={() => setSelectedSize(size)}
+                        style={{ borderWidth: selectedSize === size ? 2 : 1, borderColor: colors.borderStrong, padding: 10 }}>
+                        <Text style={{ color: colors.onSurface }}>{size}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+                {garmentColours.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {garmentColours.map(colour => (
+                      <Pressable key={colour} onPress={() => setSelectedColour(colour)}
+                        style={{ borderWidth: selectedColour === colour ? 2 : 1, borderColor: colors.borderStrong, padding: 10 }}>
+                        <Text style={{ color: colors.onSurface }}>{colour}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+                <Pressable testID="tryon-add-to-bag" accessibilityRole="button"
+                  disabled={bagSaving || (garmentSizes.length > 0 && !selectedSize) ||
+                    (garmentColours.length > 0 && !selectedColour)}
+                  style={styles.shareBtn} onPress={saveTryOnToBag}>
+                  <Feather name="shopping-bag" size={16} color={colors.onSurface} />
+                  <Text style={styles.shareBtnText}>{bagSaving ? "Adding…" : "Add garment to bag"}</Text>
+                </Pressable>
+                {bagStatus ? <Text style={{ color: colors.onSurface }}>{bagStatus}</Text> : null}
+                <Pressable onPress={() => router.push("/bag" as any)}>
+                  <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>View shopping bag</Text>
+                </Pressable>
+                {secondGarmentPath ? <Text style={{ color: colors.muted }}>Only the first selected garment is available for bag saving here.</Text> : null}
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted, marginTop: 12 }}>To purchase this look, select a catalogue garment from Discover. Uploaded garments are not linked to saleable products.</Text>
+            )}
+
             {!result.result_path.startsWith("private:") && <Pressable
               testID="share-result-button"
               style={styles.shareBtn}
