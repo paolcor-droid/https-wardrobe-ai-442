@@ -47,6 +47,11 @@ PROVIDERS = [
         "XML catalogue integration available for development; REST API remains disabled until authorised credentials are configured.",
     ),
     CatalogueProvider(
+        "vaitto", "VAITTO", "wholesale", "https://vaitto.com/",
+        False,
+        "Pre-launch supplier enquiry pending; offline sample import only with authorised supplier data.",
+    ),
+    CatalogueProvider(
         "brandsdistribution", "Brandsdistribution", "wholesale",
         "https://www.brandsdistribution.com/",
         False,
