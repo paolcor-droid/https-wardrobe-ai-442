@@ -251,7 +251,7 @@ export default function DiscoverScreen() {
               <Text style={styles.feedbackText}>{sentiment === "purchased" ? "I bought it" : sentiment === "saved" ? "Save" : sentiment === "liked" ? "Like" : "Not for me"}</Text>
             </Pressable>
           ))}
-        </View>
+        </View> : null}
         {!demoMode && product.image_url && product.tryon_supported ? (
           <Pressable
             style={styles.tryOnButton}
