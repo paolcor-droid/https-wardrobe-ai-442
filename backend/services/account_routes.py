@@ -796,16 +796,19 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(422, "Select one or two different catalogue products")
         if resolve_bag_product is None:
             raise HTTPException(503, "Catalogue unavailable")
+        verified = []
         for identity in products:
-            if await resolve_bag_product(user_id, identity) is None:
+            item = await resolve_bag_product(user_id, identity)
+            if item is None:
                 raise HTTPException(404, "One of these garments is no longer available")
+            verified.append({"product_id": identity, "name": str(item.get("name") or "Garment")[:200]})
         existing = await db.customer_outfits.find_one({"user_id": user_id, "product_ids": products})
         if existing:
             return {k: v for k, v in existing.items() if k not in {"_id", "user_id"}}
         total = await db.customer_outfits.find({"user_id": user_id}, {"_id": 0}).to_list(51)
         if len(total) >= 50:
             raise HTTPException(413, "Saved outfit limit reached")
-        record = {"id": str(uuid.uuid4()), "user_id": user_id, "product_ids": products,
+        record = {"id": str(uuid.uuid4()), "user_id": user_id, "product_ids": products, "garments": verified,
                   "created_at": datetime.now(timezone.utc).isoformat()}
         await db.customer_outfits.insert_one(record)
         return {k: v for k, v in record.items() if k not in {"_id", "user_id"}}
