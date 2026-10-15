@@ -88,6 +88,7 @@ class Database:
         self.customer_tryons = Collection()
         self.customer_saved = Collection()
         self.customer_bag = Collection()
+        self.customer_outfits = Collection()
         self.customer_rate_limits = Collection()
 
 
@@ -970,3 +971,37 @@ def test_private_bag_requires_owner_variant_and_no_checkout():
     assert client.get("/api/account/bag", headers=headers[1]).json()["items"] == []
     assert client.delete("/api/account/bag/" + bag_id, headers=headers[1]).status_code == 404
     assert client.delete("/api/account/bag/" + bag_id, headers=headers[0]).status_code == 200
+
+
+def test_saved_catalogue_outfits_are_private_and_validate_product_ids():
+    db = Database()
+    app = FastAPI()
+    async def resolve(_user_id, identity):
+        return {"name": identity} if identity in {"supplier:item-a", "supplier:item-b"} else None
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/test.png", lambda path: (b"synthetic", "image/png"),
+        resolve_bag_product=resolve,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("outfit-a@example.test", "outfit-b@example.test"):
+        payload = {"email": email, "password": "test-only-password-long"}
+        assert client.post("/api/account/register", json=payload).status_code == 201
+        token = client.post("/api/account/login", json=payload).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    data = {"product_ids": ["supplier:item-a", "supplier:item-b"]}
+    assert client.post("/api/account/outfits", json=data).status_code == 401
+    assert client.post("/api/account/outfits", headers=headers[0],
+                       json={"product_ids": ["supplier:item-a", "supplier:item-a"]}).status_code == 422
+    assert client.post("/api/account/outfits", headers=headers[0],
+                       json={"product_ids": ["supplier:missing"]}).status_code == 404
+    created = client.post("/api/account/outfits", headers=headers[0], json=data)
+    assert created.status_code == 201, created.text
+    assert created.json()["product_ids"] == data["product_ids"]
+    outfit_id = created.json()["id"]
+    assert len(client.get("/api/account/outfits", headers=headers[0]).json()) == 1
+    assert client.get("/api/account/outfits", headers=headers[1]).json() == []
+    assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[1]).status_code == 404
+    assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[0]).status_code == 200
+    assert client.get("/api/account/outfits", headers=headers[0]).json() == []
