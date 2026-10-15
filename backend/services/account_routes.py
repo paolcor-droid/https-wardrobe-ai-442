@@ -282,6 +282,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "messages": db.customer_messages,
             "saved": db.customer_saved,
             "feedback": db.customer_feedback,
+            "bag": db.customer_bag,
             "tryons": db.customer_tryons,
             "photos": db.customer_photos,
         }
@@ -425,6 +426,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "messages": db.customer_messages,
             "saved_looks": db.customer_saved,
             "wardrobe_items": db.customer_wardrobe,
+            "bag_items": db.customer_bag,
         }
         counts = {label: await collection.count_documents({"user_id": user_id}) for label, collection in collections.items()}
         return {
@@ -458,7 +460,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         for collection in (
             db.customer_photos, db.customer_tryons, db.customer_profiles,
             db.customer_wardrobe, db.customer_conversations, db.customer_messages,
-            db.customer_saved, db.customer_feedback, db.customer_sessions,
+            db.customer_saved, db.customer_feedback, db.customer_bag, db.customer_sessions,
             db.customer_recovery, db.customer_rate_limits,
         ):
             await collection.delete_many({"user_id": user_id})
