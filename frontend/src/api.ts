@@ -541,3 +541,21 @@ export async function savePriceTarget(_product_id: string, _target_price_aud: nu
   // Prevent writing customer interests into the old unauthenticated price-watch store.
   throw new Error("Private price alerts are not available yet.");
 }
+
+export type ShoppingBagItem = {
+  id: string; product_id: string; name: string; brand?: string | null;
+  image_url?: string | null; size: string; colour: string; quantity: number;
+  price_snapshot?: number | null; currency?: string | null;
+  price_verified: false; stock_verified: false;
+};
+export async function getShoppingBag(): Promise<{items: ShoppingBagItem[]; checkout_enabled: false; notice: string}> {
+  return accountRequest("/bag");
+}
+export async function addShoppingBagItem(item: {
+  product_id: string; size: string; colour: string; quantity: number;
+}): Promise<ShoppingBagItem> {
+  return accountRequest("/bag", { method: "POST", body: JSON.stringify(item) });
+}
+export async function removeShoppingBagItem(id: string): Promise<void> {
+  await accountRequest(`/bag/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
