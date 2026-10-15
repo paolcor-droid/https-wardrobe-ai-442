@@ -228,6 +228,7 @@ export default function ChatScreen() {
             ) : (
               <>
                 {messages.map((m) => (
+                  <View key={m.id}>
                   <MessageBubble
                     key={m.id}
                     message={m}
@@ -245,6 +246,7 @@ export default function ChatScreen() {
                       <Text style={{ color: colors.onSurface }}>Shop this look in Discover →</Text>
                     </Pressable>
                   ) : null}
+                  </View>
                 ))}
                 {streaming && (
                   <MessageBubble
