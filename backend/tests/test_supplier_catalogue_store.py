@@ -20,7 +20,10 @@ class SupplierCollection:
         assert unique is True
     async def update_one(self, key, update, upsert=False):
         assert upsert
-        self.rows[(key["provider_id"], key["external_id"])] = update["$set"]
+        identity = (key["provider_id"], key["external_id"])
+        existing = self.rows.get(identity, dict(update.get("$setOnInsert", {})))
+        existing.update(update["$set"])
+        self.rows[identity] = existing
     def find(self, query, projection):
         return Cursor([dict(row) for row in self.rows.values()
                        if row.get("active") == query["active"] and
