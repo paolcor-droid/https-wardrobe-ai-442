@@ -299,12 +299,24 @@ export default function TryOnScreen() {
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
         </View>
 
+        {garmentPath && params.garmentProductId && !secondGarmentPath ? (
+          <Pressable testID="tryon-select-second-from-discover" accessibilityRole="button"
+            onPress={() => router.push({ pathname: "/(tabs)/discover", params: {
+              outfitFirstPath: garmentPath,
+              outfitFirstName: params.garmentName || "First garment",
+              outfitFirstId: params.garmentProductId,
+              outfitFirstSizes: params.garmentSizes || "[]",
+              outfitFirstColours: params.garmentColours || "[]",
+            } })} style={styles.shareBtn}>
+            <Text style={styles.shareBtnText}>Choose a second garment from Discover</Text>
+          </Pressable>
+        ) : null}
         {garmentPath && (
           <View style={styles.secondRow}>
             <Text style={styles.secondTitle}>Build an outfit (optional)</Text>
             <View style={styles.secondControls}>
               <Pressable testID="tryon-slot-secondGarment" style={styles.secondSlot} onPress={() => setTarget("secondGarment")}>
-                {secondGarmentPreview ? <AccountPhoto path={secondGarmentPreview} style={styles.slotImg} contentFit="cover" /> : <Text style={styles.slotLabel}>+ Add second garment</Text>}
+                {secondGarmentPreview ? <AccountPhoto path={secondGarmentPreview} style={styles.slotImg} contentFit="cover" /> : <Text style={styles.slotLabel}>+ Upload second garment photo</Text>}
               </Pressable>
               {secondGarmentPath && <Pressable testID="remove-second-garment" onPress={() => { setSecondGarmentPath(null); setSecondGarmentPreview(null); }}><Text style={styles.slotLabel}>Remove</Text></Pressable>}
             </View>
