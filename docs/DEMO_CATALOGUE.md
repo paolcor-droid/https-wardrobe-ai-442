@@ -1,34 +1,32 @@
-# LUMIÈRE Demo Catalogue (private test only)
+# LUMIÈRE English demo catalogue (testing only)
 
-The uploaded `catalogue_real_brands.xml` is a **synthetic development dataset** (2,000 records, 24 brand labels). It is not genuine inventory. Named labels **do not** imply brand association, product availability, authenticity or permission to sell.
+The user's `catalogue_10k_english.xml` contains 10,000 synthetic garment records and 3,000 coordinated test outfits. All inventory, pricing and brand associations are **fictional**; do not activate checkout or use placeholder images for Virtual Try-On.
 
-## One-time Codespaces installation
+## Repository installation
 
-The XML is deliberately NOT checked into GitHub. In the Codespaces VS Code file explorer, upload your `catalogue_real_brands.xml` into `backend/.lumiere-private-catalogue/` and rename it `demo_catalogue.xml`.
+The backend now loads the versioned file from:
 
-Create the destination if necessary:
+`backend/demo-data/demo_catalogue.xml`
 
-```bash
-mkdir -p /workspaces/https-wardrobe-ai-442/backend/.lumiere-private-catalogue
-```
-
-The final absolute path must be:
-`/workspaces/https-wardrobe-ai-442/backend/.lumiere-private-catalogue/demo_catalogue.xml`
-
-**Do not upload the demo XML to the supplier collection or commit it to Git.** Its directory is ignored. Any change to the XML is picked up on the next query (based on file modification timestamp).
-
-Restart the backend after pulling the integration and refresh Expo. Open **Discover → Catalogue Source → Demo catalogue**. Use regular filters and personalised ranking. Switch back to **Supplier catalogue** at any time.
-
-Demo browsing is read-only: placeholder Picsum URLs are intentionally suppressed, and demo entries have no Add to Bag, purchasing, supplier checkout, customer feedback, or Virtual Try-On actions. Saved real outfits remain unaffected. Existing recommendation budget fields are applied numerically to EUR demo test values; no currency conversion is implied.
-
-## Validation
-
-From repository root:
+For a one-time upload in GitHub Codespaces, put the downloaded English XML into that directory (rename it to `demo_catalogue.xml`). Then run:
 
 ```bash
+cd /workspaces/https-wardrobe-ai-442
+git pull --ff-only origin lumiere-recommendations-v2
+mkdir -p backend/demo-data
+# Place the downloaded XML at backend/demo-data/demo_catalogue.xml
+git add backend/demo-data/demo_catalogue.xml
+git commit -m "data(demo): add 10k English synthetic garment catalogue"
+git push origin lumiere-recommendations-v2
 bash scripts/verify-lumiere.sh
 ```
 
-The adapter reads the local XML safely, excludes inactive and out-of-stock variants, retains gender and category, and reports synthetic product price. This source is separated from real supplier discovery and cannot resolve through the account-owned shopping bag.
+The XML is about 38 MB and is below GitHub's 100 MB single-file limit; large XMLs do increase repository size. **The XML has not yet been committed by the assistant**. GitHub's connected text-file editing interface does not accept the local uploaded 38 MB artifact.
 
-The file currently contains 2,000 records, some inactive; the actual visible count also depends on stock, profile filters and budget. Currency amounts and fabric labels are artificial test data. A later performance pass should index or cache ranked products for a larger 10k+ sample, rather than recomputing full candidate ranking for every request.
+After restarting the backend and refreshing Expo, select **Discover → Catalogue Source → Demo catalogue**. The source is isolated from genuine suppliers, hides placeholder photos, and disables bag, feedback and Try-On actions.
+
+If the bundled `backend/demo-data/demo_catalogue.xml` is missing, the old ignored `backend/.lumiere-private-catalogue/demo_catalogue.xml` remains a fallback for existing development setups. Changing XML files does not affect customer data.
+
+The loader accepts the nested `<products><product>...` schema, reads nested composition parts, and omits inactive or fully out-of-stock products. The 3,000 `<outfits>` records are preserved in the XML but are **not yet connected** to outfit recommendations.
+
+Ranking large catalogues can be slower than the 2,000-record trial; test responsiveness and performance before using a larger feed.
