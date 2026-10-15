@@ -845,7 +845,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "country": country, "item_count": len(items),
             "checkout_enabled": False,
             "payment_enabled": False, "orders_enabled": False,
-            "shopify_test_mode": os.environ.get("LUMIERE_SHOPIFY_TEST_MODE", "0") == "1",
+            "shopify_test_mode": __import__("services.shopify_test_adapter", fromlist=["shopify_test_readiness"]).shopify_test_readiness()["configured"],
             "shipping_quote_available": False,
             "tax_quote_available": False,
             "currency_codes": currencies,
