@@ -82,6 +82,40 @@ export default function AccountScreen() {
     }
   }
 
+  async function exportAccount() {
+    setBusy(true);
+    setMessage("");
+    try {
+      if (Platform.OS !== "web") {
+        setMessage("Complete export is currently available in the web app.");
+        return;
+      }
+      const response = await fetch(`${backendBaseUrl()}/api/account/account/export/complete`, {
+        headers: webCsrfHeaders(),
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || "Could not export account");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "lumiere-complete-export.zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setMessage("Your private account export has been prepared.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to export account.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logout() {
     setBusy(true);
     try {
@@ -122,6 +156,11 @@ export default function AccountScreen() {
             style={{ borderWidth: 1, borderColor: "#777", padding: 16, borderRadius: 8 }}>
             <Text>Go to Discover</Text>
           </Pressable>
+          {Platform.OS === "web" && <Pressable disabled={busy} onPress={exportAccount}
+            accessibilityRole="button" testID="account-complete-export"
+            style={{ borderWidth: 1, borderColor: "#777", padding: 16, borderRadius: 8 }}>
+            <Text>{busy ? "Preparing export…" : "Export my data and photos (ZIP)"}</Text>
+          </Pressable>}
           <Pressable disabled={busy} onPress={logout}
             accessibilityRole="button"
             style={{ backgroundColor: "#242424", padding: 16, borderRadius: 8 }}>
