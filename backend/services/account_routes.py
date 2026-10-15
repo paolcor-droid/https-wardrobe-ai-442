@@ -64,7 +64,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -963,6 +963,28 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         if min_price is not None and max_price is not None and min_price > max_price:
             raise HTTPException(422, "Invalid price range")
         return await search_catalogue(user_id, {
+            "q": q, "brand": brand, "category": category, "colour": colour,
+            "size": size, "min_price": min_price, "max_price": max_price,
+        }, page, per_page)
+
+    @router.get("/catalogue/demo/search")
+    async def search_demo_only(
+        q: str = Query(default="", max_length=120),
+        brand: str = Query(default="", max_length=80),
+        category: str = Query(default="", max_length=80),
+        colour: str = Query(default="", max_length=80),
+        size: str = Query(default="", max_length=30),
+        min_price: float | None = Query(default=None, ge=0),
+        max_price: float | None = Query(default=None, ge=0),
+        page: int = Query(default=1, ge=1, le=500),
+        per_page: int = Query(default=20, ge=1, le=60),
+        user_id: str = Depends(current_user),
+    ):
+        if search_demo_catalogue is None:
+            raise HTTPException(503, "Demo catalogue unavailable")
+        if min_price is not None and max_price is not None and min_price > max_price:
+            raise HTTPException(422, "Invalid price range")
+        return await search_demo_catalogue(user_id, {
             "q": q, "brand": brand, "category": category, "colour": colour,
             "size": size, "min_price": min_price, "max_price": max_price,
         }, page, per_page)
