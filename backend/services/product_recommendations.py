@@ -77,6 +77,7 @@ def rank_verified_products(
     products: Iterable[dict],
     profile: dict,
     limit: int = 20,
+    diversify: bool = True,
 ) -> list[dict]:
     """Rank verified catalogue records against the active LUMIÈRE profile.
 
@@ -207,7 +208,7 @@ def rank_verified_products(
         })
 
     ranked.sort(key=lambda item: item["recommendation_score"], reverse=True)
-    return _diversify_brands(ranked, max(0, limit))
+    return _diversify_brands(ranked, max(0, limit)) if diversify else ranked[:max(0, limit)]
 
 
 def customer_product_view(product: dict) -> dict:
