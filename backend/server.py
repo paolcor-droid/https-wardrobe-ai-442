@@ -1528,17 +1528,27 @@ async def resolve_bag_product_for_customer(user_id, identity):
     return None
 
 
-async def resolve_tryon_identity_for_customer(user_id, identity):
-    """Server-side translation of stable storefront IDs into supported supplier IDs."""
-    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+async def resolve_saved_outfit_garment(user_id, identity):
+    """Resolve a previously saved product against current source records, not changing rankings.
+
+    A garment falling out of today's recommendations is not the same as a garment
+    disappearing from the catalogue. Never accept caller-supplied supplier URLs.
+    """
     raw, _ = load_customer_catalogue()
-    candidates = [normalize_product("matterhorn", row) for row in raw]
-    # Apply the same strict colour / department rules as Discover, never trust browser IDs.
-    eligible = rank_verified_products(candidates, profile, limit=5000)
-    for item in eligible:
-        if product_key(item) == identity and item.get("provider_id") == "matterhorn":
-            return str(item["external_id"])
+    for row in raw:
+        product = normalize_product("matterhorn", row)
+        if product_key(product) == identity:
+            if not product.get("image_url"):
+                return None
+            return {"source_id": str(product["external_id"]),
+                    "product": customer_product_view(product)}
     return None
+
+
+async def resolve_tryon_identity_for_customer(user_id, identity):
+    """Legacy callback retained for source-backed Try-On identity translation."""
+    resolved = await resolve_saved_outfit_garment(user_id, identity)
+    return resolved["source_id"] if resolved else None
 
 
 def _direct_openai_stylist(messages):
@@ -1583,7 +1593,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, search_catalogue=search_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
