@@ -143,6 +143,22 @@ export default function TryOnScreen() {
   }, [params.secondGarmentPath]);
 
 
+  function replaceOutfitGarment(which: "first" | "second") {
+    const keepSecond = which === "first";
+    const remainingPath = keepSecond ? secondGarmentPath : garmentPath;
+    const remainingId = keepSecond ? params.secondGarmentProductId : params.garmentProductId;
+    if (!remainingPath || !remainingId) return;
+    // Discover's verified two-garment selection keeps the remaining piece.
+    // When replacing first, its former second item is promoted to the primary slot.
+    router.push({ pathname: "/(tabs)/discover", params: {
+      outfitFirstPath: remainingPath,
+      outfitFirstName: (keepSecond ? params.secondGarmentName : params.garmentName) || "",
+      outfitFirstId: remainingId,
+      outfitFirstSizes: (keepSecond ? params.secondGarmentSizes : params.garmentSizes) || "[]",
+      outfitFirstColours: (keepSecond ? params.secondGarmentColours : params.garmentColours) || "[]",
+    } });
+  }
+
   function removeFirstGarment() {
     if (secondGarmentPath) {
       // Promote the remaining item to the primary Try-On slot.
@@ -348,6 +364,18 @@ export default function TryOnScreen() {
           <Pressable testID="remove-first-garment" accessibilityRole="button" onPress={removeFirstGarment}>
             <Text style={styles.secondHint}>Remove first garment{secondGarmentPath ? " (keep second garment)" : ""}</Text>
           </Pressable>
+        ) : null}
+
+        {garmentPath && secondGarmentPath && params.garmentProductId && params.secondGarmentProductId ? (
+          <View style={{ gap: 8, marginVertical: 12 }}>
+            <Text style={styles.secondHint}>Change one garment without losing the other</Text>
+            <Pressable testID="replace-first-garment" accessibilityRole="button" onPress={() => replaceOutfitGarment("first")}>
+              <Text style={styles.secondHint}>Replace first garment in Discover</Text>
+            </Pressable>
+            <Pressable testID="replace-second-garment" accessibilityRole="button" onPress={() => replaceOutfitGarment("second")}>
+              <Text style={styles.secondHint}>Replace second garment in Discover</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {garmentPath && params.garmentProductId && !secondGarmentPath ? (
