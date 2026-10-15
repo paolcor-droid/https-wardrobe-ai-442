@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
@@ -32,6 +32,10 @@ export default function DiscoverScreen() {
     enabled: Boolean(profile),
   });
   const shownProducts = searchResults?.recommendations ?? [];
+  const [bagMessage, setBagMessage] = useState("");
+  const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
+  const [selectedColours, setSelectedColours] = useState<Record<string, string>>({});
+  const { data: bag } = useQuery({ queryKey: ["shopping-bag"], queryFn: getShoppingBag });
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const { width: screenWidth } = useWindowDimensions();
   const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
@@ -128,6 +132,21 @@ export default function DiscoverScreen() {
       : current.length < 2 ? [...current, product] : current);
   };
 
+  const addToBag = async (product: ProductRecommendation) => {
+    try {
+      await addShoppingBagItem({
+        product_id: product.product_id,
+        size: selectedSizes[product.product_id] || "",
+        colour: selectedColours[product.product_id] || "",
+        quantity: 1,
+      });
+      setBagMessage("Added to your bag. Checkout is not enabled yet.");
+      await queryClient.invalidateQueries({ queryKey: ["shopping-bag"] });
+    } catch (error) {
+      setBagMessage(error instanceof Error ? error.message : "Could not add item.");
+    }
+  };
+
   const renderProduct = (product: ProductRecommendation) => (
     <View key={product.product_id} style={styles.productCard}>
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : null}
@@ -139,6 +158,30 @@ export default function DiscoverScreen() {
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
         <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
         <Text style={styles.productMeta}>Supplier catalogue price · stock not verified live</Text>
+        <Text style={styles.productMeta}>Choose size and colour before saving to bag</Text>
+        <View style={styles.feedbackRow}>
+          {product.sizes.map((size) => (
+            <Pressable key={size} onPress={() => setSelectedSizes(v => ({ ...v, [product.product_id]: size }))}
+              style={[styles.feedbackButton, selectedSizes[product.product_id] === size && styles.feedbackSelected]}>
+              <Text style={styles.feedbackText}>{size}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.feedbackRow}>
+          {product.colour_names.map((colour) => (
+            <Pressable key={colour} onPress={() => setSelectedColours(v => ({ ...v, [product.product_id]: colour }))}
+              style={[styles.feedbackButton, selectedColours[product.product_id] === colour && styles.feedbackSelected]}>
+              <Text style={styles.feedbackText}>{colour}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable accessibilityRole="button" testID={`add-to-bag-${product.product_id}`}
+          disabled={Boolean(product.sizes.length && !selectedSizes[product.product_id]) ||
+                    Boolean(product.colour_names.length && !selectedColours[product.product_id])}
+          onPress={() => addToBag(product)} style={styles.tryOnButton}>
+          <Feather name="shopping-bag" size={16}/>
+          <Text style={styles.tryOnText}>Add to bag</Text>
+        </Pressable>
         <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
           {product.recommendation_reasons.map((reason) => (
@@ -230,6 +273,8 @@ export default function DiscoverScreen() {
           </Pressable>
         </View>
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
+        <Text style={styles.note}>Shopping bag: {bag?.items.length ?? 0} items saved · Checkout is not yet enabled</Text>
+        {bagMessage ? <Text style={styles.note}>{bagMessage}</Text> : null}
         <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text>
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
         {searchError ? <Text style={styles.note}>Catalogue search is unavailable. Retailer discovery remains available below.</Text> : null}
