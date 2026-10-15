@@ -274,6 +274,10 @@ export default function DiscoverScreen() {
         </View>
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
         <Text style={styles.note}>Shopping bag: {bag?.items.length ?? 0} items saved · Checkout is not yet enabled</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/bag" as any)} style={styles.tryOnButton}>
+          <Feather name="shopping-bag" size={16} />
+          <Text style={styles.tryOnText}>View shopping bag</Text>
+        </Pressable>
         {bagMessage ? <Text style={styles.note}>{bagMessage}</Text> : null}
         <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text>
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
