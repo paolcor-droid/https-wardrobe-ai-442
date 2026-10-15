@@ -29,3 +29,7 @@ Readiness endpoints for a future reverse proxy/load balancer: `GET /health/live`
 ## Repeatable predeployment checks
 
 Run `bash scripts/verify-lumiere.sh` from the repository root. This performs backend syntax checks, the existing targeted Python regression suites, frontend TypeScript validation, and a check for accidentally tracked development secrets. It is read-only and neither starts services nor accesses customer accounts. It is a development verification gate, **not** a production security audit or a deployment. CI and real staging browser tests are still needed before launch.
+
+## Staging environment preflight
+
+Run `python scripts/check-staging-config.py` **only after supplying a staging environment**. It checks for an external MongoDB URL (and TLS when using `mongodb://`), explicit HTTPS CORS origins, disabled local photo storage, selected durable photo backend, database name and presence of a server-side OpenAI key. It prints no secrets, makes no network calls and does not deploy anything. Passing this preflight does **not** prove a bucket is private, authenticate a real account, verify a live database or validate payments. The GitHub Actions workflow runs with read-only repository permissions and bounded job runtimes.
