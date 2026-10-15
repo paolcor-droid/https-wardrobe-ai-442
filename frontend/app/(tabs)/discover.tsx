@@ -34,6 +34,7 @@ export default function DiscoverScreen() {
   });
   const shownProducts = searchResults?.recommendations ?? [];
   const [bagMessage, setBagMessage] = useState("");
+  const [bagMessageProduct, setBagMessageProduct] = useState("");
   const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
   const [selectedColours, setSelectedColours] = useState<Record<string, string>>({});
   const { data: bag } = useQuery({ queryKey: ["shopping-bag"], queryFn: getShoppingBag });
@@ -136,6 +137,7 @@ export default function DiscoverScreen() {
   };
 
   const addToBag = async (product: ProductRecommendation) => {
+    setBagMessageProduct(product.product_id);
     if (product.sizes.length && !selectedSizes[product.product_id]) { setBagMessage("Select a size for " + product.name + " before adding to bag."); return; }
     if (product.colour_names.length && !selectedColours[product.product_id]) { setBagMessage("Select a colour for " + product.name + " before adding to bag."); return; }
     setBagMessage("Adding " + product.name + " to your bag…");
@@ -186,6 +188,7 @@ export default function DiscoverScreen() {
           <Feather name="shopping-bag" size={16}/>
           <Text style={styles.tryOnText}>Add to bag</Text>
         </Pressable>
+        {bagMessageProduct === product.product_id && bagMessage ? <Text testID={`bag-message-${product.product_id}`} accessibilityRole="alert" style={styles.productMeta}>{bagMessage}</Text> : null}
         <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
           {product.recommendation_reasons.map((reason) => (
