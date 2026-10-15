@@ -32,6 +32,26 @@ def shopify_test_readiness() -> dict:
     }
 
 
+def country_checkout_readiness(country: str) -> dict:
+    """Non-operational launch checklist for approved test-store markets."""
+    if country not in {"AU", "MD"}:
+        raise ValueError("Unsupported delivery country")
+    return {
+        "country": country,
+        "delivery_market": "Australia" if country == "AU" else "Moldova",
+        "required_checks": [
+            "Authorised Shopify development-store ownership and credentials",
+            "Supplier SKU to Shopify variant mapping verified for each bag line",
+            "Live supplier stock and final retail price confirmation",
+            f"Verified shipping zones, rates, duties and tax rules for {country}",
+            "Test payments, refunds, returns and order webhook signature verification",
+        ],
+        "checkout_enabled": False,
+        "payment_enabled": False,
+        "orders_enabled": False,
+    }
+
+
 def create_checkout(*args, **kwargs):
     raise RuntimeError(
         "Shopify cart and checkout are deliberately disabled until a verified "
