@@ -831,6 +831,35 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         await db.customer_bag.delete_one({"id": item_id, "user_id": user_id})
         return {"success": True}
 
+    @router.get("/checkout/readiness")
+    async def checkout_readiness(
+        country: str = Query(default="AU", pattern="^(AU|MD)$"),
+        user_id: str = Depends(current_user),
+    ):
+        """Preview readiness only: never creates orders, payment intents or checkout URLs."""
+        items = await db.customer_bag.find({"user_id": user_id}, {"_id": 0}).to_list(101)
+        if len(items) > 100:
+            raise HTTPException(413, "Bag exceeds maximum size")
+        currencies = sorted({str(x.get("currency")) for x in items if x.get("currency")})
+        return {
+            "country": country, "item_count": len(items),
+            "checkout_enabled": False,
+            "payment_enabled": False, "orders_enabled": False,
+            "shopify_test_mode": os.environ.get("LUMIERE_SHOPIFY_TEST_MODE", "0") == "1",
+            "shipping_quote_available": False,
+            "tax_quote_available": False,
+            "currency_codes": currencies,
+            "price_verified": False,
+            "stock_verified": False,
+            "requirements": [
+                "Merchant registration and verified payment account",
+                "Authorised supplier inventory and exact product variants",
+                "Confirmed shipping service and delivery quote for the selected country",
+                "Tax, duties, returns and final checkout total",
+            ],
+            "message": "Checkout preparation only. Payment and orders are disabled.",
+        }
+
     @router.get("/catalogue/search")
     async def search_owned_catalogue(
         q: str = Query(default="", max_length=120),
