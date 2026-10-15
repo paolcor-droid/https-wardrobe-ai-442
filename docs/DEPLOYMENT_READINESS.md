@@ -25,3 +25,7 @@ Readiness endpoints for a future reverse proxy/load balancer: `GET /health/live`
 7. **Deployment gate**: `cd frontend && npx tsc --noEmit`; `cd backend && python -m pytest -q tests/test_account_routes.py tests/test_discover_search.py tests/test_supplier_catalogue_store.py tests/test_shopify_test_adapter.py`; then conduct browser/mobile smoke tests with disposable accounts and verify photo deletion.
 
 **No production hosting provider, domain, database or storage account has been selected or provisioned by this change.** Do not claim LUMIÈRE remains available after Codespaces suspension until a persistent deployment has actually been configured and smoke-tested.
+
+## Repeatable predeployment checks
+
+Run `bash scripts/verify-lumiere.sh` from the repository root. This performs backend syntax checks, the existing targeted Python regression suites, frontend TypeScript validation, and a check for accidentally tracked development secrets. It is read-only and neither starts services nor accesses customer accounts. It is a development verification gate, **not** a production security audit or a deployment. CI and real staging browser tests are still needed before launch.
