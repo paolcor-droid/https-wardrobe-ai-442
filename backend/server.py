@@ -31,6 +31,7 @@ from services.product_recommendations import rank_verified_products, customer_re
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 from services.supplier_catalogue_store import read_catalogue, catalogue_enabled
 from services.discover_search import paginate, catalogue_view, product_key
+from services.demo_catalogue import demo_products
 
 try:
     from emergentintegrations.llm.chat import (
@@ -1520,6 +1521,30 @@ async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
     }
 
 
+async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=20):
+    """Demo-only search, never merged into genuine supplier data or Try-On."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    source = demo_products()
+    # Existing ranking includes account colours, climate, style, budget and department.
+    ranked = rank_verified_products(source, profile, limit=len(source))
+    items, total = paginate(ranked, filters, page, per_page)
+    visible = [catalogue_view(item, customer_product_view) for item in items]
+    for item in visible:
+        item["tryon_supported"] = False
+        item["tryon_product_id"] = None
+        item["price_status"] = "synthetic_demo"
+        item["stock_status"] = "synthetic_demo"
+        item["image_url"] = None
+        item["demo_only"] = True
+    return {
+        "recommendations": visible, "count": len(visible), "total": total,
+        "page": page, "per_page": per_page, "has_more": page * per_page < total,
+        "source": "lumiere_demo_xml", "live_inventory_enabled": False,
+        "notice": "SIMULATED TEST PRODUCTS. Not affiliated with the displayed brands. No purchase or Try-On.",
+        "demo_enabled": bool(source),
+    }
+
+
 async def resolve_bag_product_for_customer(user_id, identity):
     """Resolve a server-owned catalogue item; never trust browser prices."""
     profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
@@ -1599,7 +1624,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, search_demo_catalogue=search_demo_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
