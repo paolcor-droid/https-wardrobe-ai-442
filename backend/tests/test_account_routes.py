@@ -1002,6 +1002,8 @@ def test_saved_catalogue_outfits_are_private_and_validate_product_ids():
     outfit_id = created.json()["id"]
     assert len(client.get("/api/account/outfits", headers=headers[0]).json()) == 1
     assert client.get("/api/account/outfits", headers=headers[1]).json() == []
+    # An outfit prepared by another account must remain completely inaccessible.
+    assert client.post("/api/account/outfits/" + outfit_id + "/prepare", headers=headers[1]).status_code == 404
     assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[1]).status_code == 404
     assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[0]).status_code == 200
     assert client.get("/api/account/outfits", headers=headers[0]).json() == []
