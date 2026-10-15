@@ -332,7 +332,6 @@ export default function TryOnScreen() {
             <Text style={styles.secondHint}>Remove first garment{secondGarmentPath ? " (keep second garment)" : ""}</Text>
           </Pressable>
         ) : null}
-        </View>
 
         {garmentPath && params.garmentProductId && !secondGarmentPath ? (
           <Pressable testID="tryon-select-second-from-discover" accessibilityRole="button"
