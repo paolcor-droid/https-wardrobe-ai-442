@@ -71,7 +71,7 @@ export default function DiscoverScreen() {
     try {
       await saveProductFeedback(id, sentiment);
       setFeedbackError(null);
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["product-feedback"] }), queryClient.invalidateQueries({ queryKey: ["catalogue-recommendations"] })]);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["product-feedback"] }), queryClient.invalidateQueries({ queryKey: ["catalogue-recommendations"] }), queryClient.invalidateQueries({ queryKey: ["catalogue-search"] })]);
     } catch (e) { setFeedbackError(e instanceof Error ? e.message : "Could not save feedback"); }
   };
 
