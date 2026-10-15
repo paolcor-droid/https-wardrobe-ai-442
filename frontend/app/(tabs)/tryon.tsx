@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
 import { usesNativeTabs } from "@/src/navigation";
-import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, addShoppingBagItem, fileUrl, type TryOn } from "@/src/api";
+import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, addShoppingBagItem, saveCatalogueOutfit, fileUrl, type TryOn } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
 import type { PickResult } from "@/src/utils/media";
@@ -70,6 +70,8 @@ export default function TryOnScreen() {
   const [secondSelectedColour, setSecondSelectedColour] = useState("");
   const [bagSaving, setBagSaving] = useState(false);
   const [bagStatus, setBagStatus] = useState("");
+  const [outfitSaveBusy, setOutfitSaveBusy] = useState(false);
+  const [outfitSaveMessage, setOutfitSaveMessage] = useState("");
   const parseOptions = (encoded?: string) => {
     try {
       const parsed: unknown = JSON.parse(encoded || "[]");
@@ -80,6 +82,21 @@ export default function TryOnScreen() {
   const garmentColours = parseOptions(params.garmentColours);
   const secondSizes = parseOptions(params.secondGarmentSizes);
   const secondColours = parseOptions(params.secondGarmentColours);
+  async function saveCurrentOutfit() {
+    const ids = [params.garmentProductId, secondGarmentPath ? params.secondGarmentProductId : null]
+      .filter((x): x is string => Boolean(x));
+    if (!result || !ids.length) return;
+    setOutfitSaveBusy(true);
+    setOutfitSaveMessage("");
+    try {
+      await saveCatalogueOutfit(ids);
+      setOutfitSaveMessage("Outfit saved to your private collection.");
+      await queryClient.invalidateQueries({ queryKey: ["saved-catalogue-outfits"] });
+    } catch (e) {
+      setOutfitSaveMessage(e instanceof Error ? e.message : "Unable to save outfit.");
+    } finally { setOutfitSaveBusy(false); }
+  }
+
   async function saveTryOnToBag(which: "first" | "second" = "first") {
     if (!result) return;
     const productId = which === "first" ? params.garmentProductId : params.secondGarmentProductId;
@@ -401,6 +418,13 @@ export default function TryOnScreen() {
           <View style={styles.resultWrap} testID="tryon-result">
             <Text style={styles.resultLabel}>AI-generated preview · Fit, drape and colour may differ in reality</Text>
             <AccountPhoto path={result.result_path} style={styles.resultImg} contentFit="cover" />
+            {params.garmentProductId ? (
+              <Pressable testID="tryon-save-outfit" accessibilityRole="button" disabled={outfitSaveBusy}
+                style={[styles.shareBtn, { marginTop: 14 }]} onPress={saveCurrentOutfit}>
+                <Text style={styles.shareBtnText}>{outfitSaveBusy ? "Saving outfit…" : "Save this outfit"}</Text>
+              </Pressable>
+            ) : null}
+            {outfitSaveMessage ? <Text accessibilityRole="alert" style={{ color: colors.onSurface }}>{outfitSaveMessage}</Text> : null}
             {params.garmentProductId ? (
               <View style={{ marginTop: 16, gap: 10 }}>
                 <Text style={{ color: colors.onSurface, fontWeight: "600" }}>
