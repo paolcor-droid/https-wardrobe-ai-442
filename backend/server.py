@@ -1514,6 +1514,20 @@ async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
     }
 
 
+async def resolve_bag_product_for_customer(user_id, identity):
+    """Resolve a server-owned catalogue item; never trust browser prices."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    raw, _ = load_customer_catalogue()
+    candidates = [normalize_product("matterhorn", row) for row in raw]
+    if catalogue_enabled():
+        candidates.extend(await read_catalogue(db, max_items=5000))
+    ranked = rank_verified_products(candidates, profile, limit=5000)
+    for item in ranked:
+        if product_key(item) == identity:
+            return customer_product_view(item)
+    return None
+
+
 async def generate_customer_styling_reply(conversation_id, profile, prior, message, provider):
     """Generate text-only style advice using an authenticated customer's own context."""
     if not EMERGENT_LLM_KEY:
@@ -1539,7 +1553,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, search_catalogue=search_catalogue_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, search_catalogue=search_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
