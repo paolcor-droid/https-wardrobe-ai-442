@@ -1526,7 +1526,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
     source = demo_products()
     # Existing ranking includes account colours, climate, style, budget and department.
-    ranked = rank_verified_products(source, profile, limit=len(source))
+    ranked = rank_verified_products(source, profile, limit=len(source), diversify=False)
     items, total = paginate(ranked, filters, page, per_page)
     visible = [catalogue_view(item, customer_product_view) for item in items]
     for item in visible:
