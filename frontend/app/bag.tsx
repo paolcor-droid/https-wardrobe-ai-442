@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { getShoppingBag, removeShoppingBagItem, updateShoppingBagQuantity, getCheckoutReadiness, listCatalogueOutfits, removeCatalogueOutfit } from "@/src/api";
+import { getShoppingBag, removeShoppingBagItem, updateShoppingBagQuantity, getCheckoutReadiness, listCatalogueOutfits, removeCatalogueOutfit, prepareSavedOutfit } from "@/src/api";
 import { useTheme } from "@/src/theme";
 
 export default function ShoppingBagScreen() {
@@ -12,6 +12,7 @@ export default function ShoppingBagScreen() {
   const [country, setCountry] = useState<"AU" | "MD">("AU");
   const [error, setError] = useState("");
   const [removingOutfit, setRemovingOutfit] = useState<string | null>(null);
+  const [openingOutfit, setOpeningOutfit] = useState<string | null>(null);
   const { data: savedOutfits, isError: outfitsError } = useQuery({ queryKey: ["saved-catalogue-outfits"], queryFn: listCatalogueOutfits });
   const [removing, setRemoving] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -35,6 +36,25 @@ export default function ShoppingBagScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update quantity.");
     } finally { setUpdating(null); }
+  }
+  async function reopenOutfit(id: string) {
+    setOpeningOutfit(id); setError("");
+    try {
+      const data = await prepareSavedOutfit(id);
+      const [first, second] = data.garments;
+      if (!first) throw new Error("This outfit has no available garments.");
+      router.push({ pathname: "/(tabs)/tryon", params: {
+        garmentPath: first.path, garmentName: first.name,
+        garmentProductId: first.product_id, garmentSizes: JSON.stringify(first.sizes),
+        garmentColours: JSON.stringify(first.colour_names),
+        secondGarmentPath: second?.path || "", secondGarmentName: second?.name || "",
+        secondGarmentProductId: second?.product_id || "",
+        secondGarmentSizes: JSON.stringify(second?.sizes || []),
+        secondGarmentColours: JSON.stringify(second?.colour_names || []),
+      } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open saved outfit.");
+    } finally { setOpeningOutfit(null); }
   }
   async function forgetOutfit(id: string) {
     setRemovingOutfit(id); setError("");
@@ -109,6 +129,12 @@ export default function ShoppingBagScreen() {
         {savedOutfits?.map(outfit => (
           <View key={outfit.id} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
             <Text style={{ color: colors.onSurface }}>{outfit.garments?.map(x => x.name).join(" + ") || outfit.product_ids.length + " saved garment(s)"}</Text>
+            <Pressable testID={`saved-outfit-open-${outfit.id}`} disabled={!!openingOutfit}
+              onPress={() => reopenOutfit(outfit.id)}>
+              <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>
+                {openingOutfit === outfit.id ? "Preparing garments…" : "Reopen in Virtual Try-On"}
+              </Text>
+            </Pressable>
             <Pressable onPress={() => router.push("/(tabs)/discover" as any)}>
               <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>Discover alternatives</Text>
             </Pressable>
