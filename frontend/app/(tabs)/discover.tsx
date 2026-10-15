@@ -121,7 +121,16 @@ export default function DiscoverScreen() {
       const [first, second] = await Promise.all(outfitItems.map((item) => prepareCatalogueGarment(item.tryon_product_id || item.product_id)));
       router.push({
         pathname: "/(tabs)/tryon",
-        params: { garmentPath: first.path, garmentName: first.name, secondGarmentPath: second.path, secondGarmentName: second.name },
+        params: {
+          garmentPath: first.path, garmentName: first.name,
+          garmentProductId: outfitItems[0].product_id,
+          garmentSizes: JSON.stringify(outfitItems[0].sizes),
+          garmentColours: JSON.stringify(outfitItems[0].colour_names),
+          secondGarmentPath: second.path, secondGarmentName: second.name,
+          secondGarmentProductId: outfitItems[1].product_id,
+          secondGarmentSizes: JSON.stringify(outfitItems[1].sizes),
+          secondGarmentColours: JSON.stringify(outfitItems[1].colour_names),
+        },
       });
     } catch (error) {
       setTryOnError(error instanceof Error ? error.message : "Could not prepare your outfit for try-on.");
