@@ -427,6 +427,10 @@ export type ProductRecommendation = {
   materials: string[];
   recommendation_score: number;
   recommendation_reasons: string[];
+  tryon_supported?: boolean;
+  tryon_product_id?: string | null;
+  price_status?: string;
+  stock_status?: string;
 };
 
 export type CatalogueRecommendationsResponse = {
@@ -436,6 +440,19 @@ export type CatalogueRecommendationsResponse = {
   source: string;
   notice?: string;
 };
+
+export type CatalogueSearchFilters = {
+  q?: string; brand?: string; category?: string; colour?: string; size?: string;
+  min_price?: number; max_price?: number; page?: number; per_page?: number;
+};
+export type CatalogueSearchResponse = CatalogueRecommendationsResponse & {
+  total: number; page: number; per_page: number; has_more: boolean;
+};
+export async function searchCatalogue(filters: CatalogueSearchFilters): Promise<CatalogueSearchResponse> {
+  const args = Object.entries(filters).filter(([, value]) => value !== "" && value != null);
+  const query = new URLSearchParams(args.map(([key, value]) => [key, String(value)]));
+  return accountRequest<CatalogueSearchResponse>(`/catalogue/search?${query.toString()}`);
+}
 
 export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
   return accountRequest<CatalogueRecommendationsResponse>("/catalogue/recommendations");
