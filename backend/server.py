@@ -1504,6 +1504,12 @@ async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
     feedback_docs = await db.customer_feedback.find({"user_id": user_id}).to_list(500)
     blocked = {str(row.get("product_id")) for row in feedback_docs if row.get("sentiment") == "disliked"}
     ranked = [item for item in ranked if product_key(item) not in blocked and not (item.get("provider_id") == "matterhorn" and item.get("external_id") in blocked)]
+    # Use the same account-specific feedback boosts in search as in the main edit.
+    # These are soft preferences, never overrides of strict eligibility filters.
+    feedback = {str(row.get("product_id")): row.get("sentiment") for row in feedback_docs}
+    boosts = {"purchased": 12.0, "saved": 8.0, "liked": 4.0}
+    ranked.sort(key=lambda item: -(float(item.get("recommendation_score") or 0)
+                                  + boosts.get(feedback.get(product_key(item)), 0.0)))
     page_items, total = paginate(ranked, filters, page, per_page)
     return {
         "recommendations": [catalogue_view(item, customer_product_view) for item in page_items],
