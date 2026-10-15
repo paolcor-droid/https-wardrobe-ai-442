@@ -33,3 +33,7 @@ Run `bash scripts/verify-lumiere.sh` from the repository root. This performs bac
 ## Staging environment preflight
 
 Run `python scripts/check-staging-config.py` **only after supplying a staging environment**. It checks for an external MongoDB URL (and TLS when using `mongodb://`), explicit HTTPS CORS origins, disabled local photo storage, selected durable photo backend, database name and presence of a server-side OpenAI key. It prints no secrets, makes no network calls and does not deploy anything. Passing this preflight does **not** prove a bucket is private, authenticate a real account, verify a live database or validate payments. The GitHub Actions workflow runs with read-only repository permissions and bounded job runtimes.
+
+## Container staging scaffold (not yet online)
+
+See `deploy/staging/README.md` for two Docker images and a Compose manifest serving Expo Web via Caddy and the private FastAPI service. Ports bind **only to 127.0.0.1** until an authenticated TLS access gateway is configured. A root `.dockerignore` excludes local secrets, image storage, customer catalogue snapshots and development logs from build context. The scaffold still needs a managed MongoDB, private object store, build/runtime validation and approval for a chosen host. It must not be described as a persistent deployment yet.
