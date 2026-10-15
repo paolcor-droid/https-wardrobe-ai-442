@@ -317,7 +317,7 @@ export default function DiscoverScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setDemoMode(true); setPage(1); }}
             style={[styles.feedbackButton, demoMode && styles.feedbackSelected]}>
-            <Text style={styles.feedbackText}>Demo catalogue · 2,000 products</Text>
+            <Text style={styles.feedbackText}>Demo catalogue · 10,000 garments</Text>
           </Pressable>
         </View>
         {demoMode ? <Text style={styles.note}>SIMULATED TEST DATA ONLY. Brands, inventory, prices and reviews are fictional examples; no affiliation, purchasing or Virtual Try-On. Test images are intentionally hidden.</Text> : null}
