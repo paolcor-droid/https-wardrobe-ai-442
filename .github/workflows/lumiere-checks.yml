@@ -51,3 +51,22 @@ jobs:
         run: npx expo export --platform android --output-dir /tmp/lumiere-android-export
       - name: Export iOS Metro bundle
         run: npx expo export --platform ios --output-dir /tmp/lumiere-ios-export
+
+  pose-inference:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install compatible MediaPipe Tasks dependencies
+        run: python -m pip install -r requirements-pose.txt Pillow requests
+      - name: Download local pose model
+        run: python scripts/install_pose_model.py
+      - name: Verify real native pose inference with synthetic image
+        run: python scripts/smoke_pose_detection.py
+      - name: Run photo suitability unit tests
+        run: python -m pip install pytest && python -m pytest -q tests/test_tryon_preflight.py
