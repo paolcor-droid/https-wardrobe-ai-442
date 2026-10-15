@@ -75,7 +75,9 @@ export default function TryOnScreen() {
   const garmentColours = parseOptions(params.garmentColours);
   async function saveTryOnToBag() {
     if (!params.garmentProductId || !result) return;
-    setBagSaving(true); setBagStatus("");
+    if (garmentSizes.length && !selectedSize) { setBagStatus("Choose a size above to add this garment."); return; }
+    if (garmentColours.length && !selectedColour) { setBagStatus("Choose a colour above to add this garment."); return; }
+    setBagSaving(true); setBagStatus("Adding garment to your bag…");
     try {
       await addShoppingBagItem({
         product_id: params.garmentProductId,
@@ -364,8 +366,7 @@ export default function TryOnScreen() {
                   </View>
                 )}
                 <Pressable testID="tryon-add-to-bag" accessibilityRole="button"
-                  disabled={bagSaving || (garmentSizes.length > 0 && !selectedSize) ||
-                    (garmentColours.length > 0 && !selectedColour)}
+                  disabled={bagSaving}
                   style={styles.shareBtn} onPress={saveTryOnToBag}>
                   <Feather name="shopping-bag" size={16} color={colors.onSurface} />
                   <Text style={styles.shareBtnText}>{bagSaving ? "Adding…" : "Add garment to bag"}</Text>
