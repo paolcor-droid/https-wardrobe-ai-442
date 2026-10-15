@@ -50,6 +50,17 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
     if (path === "/tryons" && response.status === 502) {
       throw new Error("The image provider could not create your preview right now. No result was saved. Please try a different photo or garment later.");
     }
+    if (response.status === 409 && /^\\/outfits\\/[^/]+\\/prepare$/.test(path)) {
+      const payload = await response.json().catch(() => null);
+      const detail = payload && typeof payload.detail === "string" ? payload.detail : "";
+      const known = [
+        "A saved garment is no longer available",
+        "Saved garment cannot be prepared from the current catalogue",
+      ];
+      throw new Error(known.includes(detail)
+        ? detail + ". Please choose an alternative in Discover."
+        : "This saved outfit cannot currently be reopened. Please choose alternatives in Discover.");
+    }
     throw new Error(`Account request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
