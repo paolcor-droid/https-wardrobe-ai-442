@@ -1,0 +1,69 @@
+"""Isolated, opt-in supplier catalogue store. Never stores customer records."""
+import os
+from datetime import datetime, timezone
+
+from services.catalogue_providers import get_provider
+
+COLLECTION_NAME = "supplier_catalogue_v2"
+MAX_SCAN = 5000
+
+
+def catalogue_enabled() -> bool:
+    return os.environ.get("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", "0") == "1"
+
+
+async def read_catalogue(db, *, max_items=MAX_SCAN):
+    """Read approved, active, normalised supplier records from the isolated collection."""
+    if not catalogue_enabled():
+        return []
+    size = max(1, min(int(max_items), MAX_SCAN))
+    records = await db[COLLECTION_NAME].find(
+        {"active": True, "approved": True}, {"_id": 0}
+    ).limit(size).to_list(length=size)
+    safe = []
+    for row in records:
+        try:
+            provider = get_provider(row["provider_id"])
+            if provider.kind != "wholesale" or not row.get("source_verified"):
+                continue
+            if not row.get("external_id") or not row.get("name"):
+                continue
+            product = {k: v for k, v in row.items() if k not in (
+                "active", "approved", "synced_at", "sync_batch")}
+            # Snapshot does not imply current stock or live supplier API.
+            product["live"] = True  # Existing ranking contract: source-backed product.
+            safe.append(product)
+        except (KeyError, ValueError):
+            continue
+    return safe
+
+
+async def stage_catalogue(db, provider_id: str, products: list[dict], *,
+                          approved: bool = False, activate: bool = False):
+    """Upsert a small trusted batch; activation requires explicit independent approval.
+
+    This does not delete or deactivate historical inventory. No customer tables
+    are modified. Caller must run in a private authorised environment.
+    """
+    if not os.environ.get("LUMIERE_SUPPLIER_IMPORT_ENABLED") == "1":
+        raise RuntimeError("Supplier import disabled")
+    if activate and not approved:
+        raise ValueError("Cannot activate supplier products without approval")
+    provider = get_provider(provider_id)
+    if provider.kind != "wholesale":
+        raise ValueError("Only wholesale providers supported")
+    if len(products) > 5000:
+        raise ValueError("Batch too large")
+    await db[COLLECTION_NAME].create_index(
+        [("provider_id", 1), ("external_id", 1)], unique=True)
+    changed = 0
+    for row in products:
+        if row.get("provider_id") != provider_id or not row.get("source_verified"):
+            raise ValueError("Unverified or mismatched catalogue product")
+        key = {"provider_id": provider_id, "external_id": row["external_id"]}
+        record = {k: v for k, v in row.items() if k != "_id"}
+        record.update({"approved": approved, "active": bool(approved and activate),
+                       "synced_at": datetime.now(timezone.utc)})
+        await db[COLLECTION_NAME].update_one(key, {"$set": record}, upsert=True)
+        changed += 1
+    return changed
