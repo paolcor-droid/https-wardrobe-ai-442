@@ -332,7 +332,6 @@ export default function TryOnScreen() {
             <Text style={styles.secondHint}>Remove first garment{secondGarmentPath ? " (keep second garment)" : ""}</Text>
           </Pressable>
         ) : null}
-        <View style={{ height: 0 }}>
         </View>
 
         {garmentPath && params.garmentProductId && !secondGarmentPath ? (
