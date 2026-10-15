@@ -29,6 +29,7 @@ from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
 from services.product_recommendations import rank_verified_products, customer_recommendations
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
+from services.supplier_catalogue_store import read_catalogue, catalogue_enabled
 
 try:
     from emergentintegrations.llm.chat import (
@@ -1457,6 +1458,13 @@ async def recommend_catalogue_for_customer(user_id):
     profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
     raw_products, source = load_customer_catalogue()
     normalized = [normalize_product("matterhorn", raw) for raw in raw_products]
+    # Opt-in supplier collection is read-only during customer requests.
+    # Imported product data is private and never connected to account records.
+    if catalogue_enabled():
+        supplier = await read_catalogue(db)
+        if supplier:
+            normalized.extend(supplier)
+            source = "private_multi_supplier_snapshot"
     ranked = rank_verified_products(normalized, profile, limit=60)
     recommendations = customer_recommendations(ranked)
     feedback_docs = await db.customer_feedback.find({"user_id": user_id}).to_list(500)
