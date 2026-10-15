@@ -50,7 +50,7 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
     if (path === "/tryons" && response.status === 502) {
       throw new Error("The image provider could not create your preview right now. No result was saved. Please try a different photo or garment later.");
     }
-    if (response.status === 409 && /^\\/outfits\\/[^/]+\\/prepare$/.test(path)) {
+    if (response.status === 409 && path.startsWith("/outfits/") && path.endsWith("/prepare")) {
       const payload = await response.json().catch(() => null);
       const detail = payload && typeof payload.detail === "string" ? payload.detail : "";
       const known = [
