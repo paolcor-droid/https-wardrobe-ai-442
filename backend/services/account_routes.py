@@ -64,7 +64,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -832,7 +832,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             if not product:
                 raise HTTPException(409, "A saved garment is no longer available")
             try:
-                prepared = await owned_catalogue_garment(product_id, user_id)
+                # Storefront product IDs are hashed and must never be passed as
+                # upstream supplier IDs. Resolve against the customer's eligible catalogue.
+                source_id = await resolve_tryon_identity(user_id, product_id) if resolve_tryon_identity else None
+                if not source_id:
+                    raise HTTPException(409, "Saved garment cannot be prepared from the current catalogue")
+                prepared = await owned_catalogue_garment(source_id, user_id)
             except HTTPException:
                 raise
             except Exception as exc:
