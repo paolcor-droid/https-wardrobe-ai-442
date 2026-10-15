@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { getShoppingBag, removeShoppingBagItem, updateShoppingBagQuantity, getCheckoutReadiness } from "@/src/api";
+import { getShoppingBag, removeShoppingBagItem, updateShoppingBagQuantity, getCheckoutReadiness, listCatalogueOutfits, removeCatalogueOutfit } from "@/src/api";
 import { useTheme } from "@/src/theme";
 
 export default function ShoppingBagScreen() {
@@ -11,6 +11,8 @@ export default function ShoppingBagScreen() {
   const queryClient = useQueryClient();
   const [country, setCountry] = useState<"AU" | "MD">("AU");
   const [error, setError] = useState("");
+  const [removingOutfit, setRemovingOutfit] = useState<string | null>(null);
+  const { data: savedOutfits, isError: outfitsError } = useQuery({ queryKey: ["saved-catalogue-outfits"], queryFn: listCatalogueOutfits });
   const [removing, setRemoving] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const { data: bag, isLoading, isError } = useQuery({ queryKey: ["shopping-bag"], queryFn: getShoppingBag });
@@ -33,6 +35,15 @@ export default function ShoppingBagScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update quantity.");
     } finally { setUpdating(null); }
+  }
+  async function forgetOutfit(id: string) {
+    setRemovingOutfit(id); setError("");
+    try {
+      await removeCatalogueOutfit(id);
+      await queryClient.invalidateQueries({ queryKey: ["saved-catalogue-outfits"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not remove outfit.");
+    } finally { setRemovingOutfit(null); }
   }
   async function remove(id: string) {
     setRemoving(id); setError("");
@@ -90,6 +101,23 @@ export default function ShoppingBagScreen() {
       <Pressable onPress={() => router.push("/(tabs)/discover" as any)}>
         <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>Continue discovering clothes</Text>
       </Pressable>
+      <View style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 16, gap: 10 }}>
+        <Text style={{ color: colors.onSurface, fontSize: 20, fontWeight: "600" }}>Saved outfits</Text>
+        <Text style={{ color: colors.muted }}>Private outfit ideas saved from Try-On. Return to Discover to explore or change garments.</Text>
+        {outfitsError ? <Text style={{ color: colors.error }}>Saved outfits could not be loaded.</Text> : null}
+        {savedOutfits?.length === 0 ? <Text style={{ color: colors.muted }}>No saved outfits yet.</Text> : null}
+        {savedOutfits?.map(outfit => (
+          <View key={outfit.id} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
+            <Text style={{ color: colors.onSurface }}>{outfit.garments?.map(x => x.name).join(" + ") || outfit.product_ids.length + " saved garment(s)"}</Text>
+            <Pressable onPress={() => router.push("/(tabs)/discover" as any)}>
+              <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>Discover alternatives</Text>
+            </Pressable>
+            <Pressable disabled={removingOutfit === outfit.id} onPress={() => forgetOutfit(outfit.id)}>
+              <Text style={{ color: colors.muted }}>{removingOutfit === outfit.id ? "Removing…" : "Remove saved outfit"}</Text>
+            </Pressable>
+          </View>
+        ))}
+      </View>
       <View style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 16, gap: 8 }}>
         <Text style={{ color: colors.onSurface, fontSize: 20, fontWeight: "600" }}>Checkout preparation</Text>
         <Text style={{ color: colors.muted }}>Delivery country</Text>
