@@ -263,7 +263,7 @@ export default function DiscoverScreen() {
           </Pressable>
         ) : null}
         {tryOnErrorProduct === product.product_id && tryOnError ? <Text testID={`tryon-error-${product.product_id}`} style={styles.error}>{tryOnError}</Text> : null}
-        {product.image_url && product.tryon_supported ? (
+        {!demoMode && product.image_url && product.tryon_supported ? (
           <Pressable testID={`outfit-select-${product.product_id}`} style={styles.outfitSelect} onPress={() => toggleOutfitItem(product)}>
             <Feather name={outfitItems.some((item) => item.product_id === product.product_id) ? "check-square" : "square"} size={17} />
             <Text style={styles.outfitSelectText}>{outfitItems.some((item) => item.product_id === product.product_id) ? "Selected for outfit" : "Add to outfit"}</Text>
@@ -359,6 +359,7 @@ export default function DiscoverScreen() {
         {!demoMode ? <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text> : null}
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
         {searchError ? <Text style={styles.note}>Catalogue search is unavailable. Retailer discovery remains available below.</Text> : null}
+        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>Demo catalogue is empty or no items match your profile. Check that demo_catalogue.xml is installed in backend/.lumiere-private-catalogue, or clear your filters.</Text> : null}
         {!searching && !searchError && shownProducts.length === 0 ? (
           <View style={styles.info}>
             <Text style={styles.infoTitle}>No suitable products found yet</Text>
