@@ -136,6 +136,9 @@ export default function DiscoverScreen() {
   };
 
   const addToBag = async (product: ProductRecommendation) => {
+    if (product.sizes.length && !selectedSizes[product.product_id]) { setBagMessage("Select a size for " + product.name + " before adding to bag."); return; }
+    if (product.colour_names.length && !selectedColours[product.product_id]) { setBagMessage("Select a colour for " + product.name + " before adding to bag."); return; }
+    setBagMessage("Adding " + product.name + " to your bag…");
     try {
       await addShoppingBagItem({
         product_id: product.product_id,
@@ -179,8 +182,6 @@ export default function DiscoverScreen() {
           ))}
         </View>
         <Pressable accessibilityRole="button" testID={`add-to-bag-${product.product_id}`}
-          disabled={Boolean(product.sizes.length && !selectedSizes[product.product_id]) ||
-                    Boolean(product.colour_names.length && !selectedColours[product.product_id])}
           onPress={() => addToBag(product)} style={styles.tryOnButton}>
           <Feather name="shopping-bag" size={16}/>
           <Text style={styles.tryOnText}>Add to bag</Text>
