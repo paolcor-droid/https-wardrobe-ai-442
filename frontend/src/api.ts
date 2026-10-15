@@ -556,6 +556,11 @@ export async function addShoppingBagItem(item: {
 }): Promise<ShoppingBagItem> {
   return accountRequest("/bag", { method: "POST", body: JSON.stringify(item) });
 }
+export async function updateShoppingBagQuantity(id: string, quantity: number): Promise<ShoppingBagItem> {
+  return accountRequest(`/bag/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify({ quantity }),
+  });
+}
 export async function removeShoppingBagItem(id: string): Promise<void> {
   await accountRequest(`/bag/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
