@@ -1,5 +1,6 @@
 """Synthetic isolated tests for staged supplier catalogues; no real Mongo connection."""
 import pytest
+import asyncio
 from services import supplier_catalogue_store as store
 
 
@@ -44,33 +45,35 @@ def product(provider="vaitto", identifier="sku-1"):
             "source_verified": True, "live": True, "price": 20, "currency": "AUD"}
 
 
-@pytest.mark.asyncio
-async def test_disabled_import_and_disabled_discover(monkeypatch):
-    monkeypatch.delenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", raising=False)
-    monkeypatch.delenv("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", raising=False)
-    db = DB()
-    with pytest.raises(RuntimeError, match="disabled"):
-        await store.stage_catalogue(db, "vaitto", [product()])
-    assert await store.read_catalogue(db) == []
+def test_disabled_import_and_disabled_discover(monkeypatch):
+    async def run():
+        monkeypatch.delenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", raising=False)
+        monkeypatch.delenv("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", raising=False)
+        db = DB()
+        with pytest.raises(RuntimeError, match="disabled"):
+            await store.stage_catalogue(db, "vaitto", [product()])
+        assert await store.read_catalogue(db) == []
+    asyncio.run(run())
 
+def test_staging_cannot_activate_without_approval(monkeypatch):
+    async def run():
+        monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
+        monkeypatch.setenv("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", "1")
+        db = DB()
+        with pytest.raises(ValueError, match="approval"):
+            await store.stage_catalogue(db, "vaitto", [product()], activate=True)
+        assert await store.stage_catalogue(db, "vaitto", [product()]) == 1
+        assert await store.read_catalogue(db) == []
+        await store.stage_catalogue(db, "vaitto", [product()], approved=True, activate=True)
+        result = await store.read_catalogue(db)
+        assert len(result) == 1 and result[0]["external_id"] == "sku-1"
+        assert "synced_at" not in result[0]
+    asyncio.run(run())
 
-@pytest.mark.asyncio
-async def test_staging_cannot_activate_without_approval(monkeypatch):
-    monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
-    monkeypatch.setenv("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", "1")
-    db = DB()
-    with pytest.raises(ValueError, match="approval"):
-        await store.stage_catalogue(db, "vaitto", [product()], activate=True)
-    assert await store.stage_catalogue(db, "vaitto", [product()]) == 1
-    assert await store.read_catalogue(db) == []
-    await store.stage_catalogue(db, "vaitto", [product()], approved=True, activate=True)
-    result = await store.read_catalogue(db)
-    assert len(result) == 1 and result[0]["external_id"] == "sku-1"
-    assert "synced_at" not in result[0]
+def test_provider_mismatch_rejected(monkeypatch):
+    async def run():
+        monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
+        with pytest.raises(ValueError, match="mismatched"):
+            await store.stage_catalogue(DB(), "vaitto", [product(provider="matterhorn")])
+    asyncio.run(run())
 
-
-@pytest.mark.asyncio
-async def test_provider_mismatch_rejected(monkeypatch):
-    monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
-    with pytest.raises(ValueError, match="mismatched"):
-        await store.stage_catalogue(DB(), "vaitto", [product(provider="matterhorn")])
