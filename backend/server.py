@@ -1620,6 +1620,22 @@ app.add_middleware(
 )
 
 
+@app.get("/health/live", include_in_schema=False)
+async def health_live():
+    """Process liveness only; never expose account data or secrets."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+async def health_ready():
+    """Readiness fails closed if the account database is unavailable."""
+    try:
+        await db.command("ping")
+    except Exception:
+        raise HTTPException(status_code=503, detail="Backend dependencies unavailable")
+    return {"status": "ready"}
+
+
 @app.on_event("startup")
 async def startup_storage():
     # Atomic email uniqueness, token lookup, and account-owned collections.
