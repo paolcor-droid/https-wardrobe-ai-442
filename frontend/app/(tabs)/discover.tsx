@@ -14,6 +14,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const [searchText, setSearchText] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -43,7 +44,6 @@ export default function DiscoverScreen() {
   const [tryOnError, setTryOnError] = useState<string | null>(null);
   const [tryOnErrorProduct, setTryOnErrorProduct] = useState<string | null>(null);
   const [outfitItems, setOutfitItems] = useState<ProductRecommendation[]>([]);
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const {
     data: catalogue,
     isLoading: catalogueLoading,
