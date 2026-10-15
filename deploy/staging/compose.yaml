@@ -1,0 +1,34 @@
+# Staging stack deliberately binds ONLY to host loopback.
+# Do not expose port 8085 to the Internet without an authenticated HTTPS edge.
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.api
+    env_file:
+      - .env.staging
+    restart: unless-stopped
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.web
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8085:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /config
+      - /data
+    security_opt:
+      - no-new-privileges:true
