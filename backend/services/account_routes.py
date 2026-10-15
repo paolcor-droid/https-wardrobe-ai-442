@@ -52,12 +52,19 @@ class DeleteAccountConfirmation(BaseModel):
     confirmation: str
 
 
+class BagAdd(BaseModel):
+    product_id: str = Field(min_length=3, max_length=150)
+    size: str = Field(default="", max_length=50)
+    colour: str = Field(default="", max_length=80)
+    quantity: int = Field(default=1, ge=1, le=10)
+
+
 class Credentials(BaseModel):
     email: str
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -774,6 +781,53 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "content_type": verified_mime, "created_at": datetime.now(timezone.utc).isoformat(),
         })
         return {"path": "private:" + photo_id, "name": name}
+
+    @router.get("/bag")
+    async def get_bag(user_id: str = Depends(current_user)):
+        rows = await db.customer_bag.find({"user_id": user_id}, {"_id": 0}).to_list(101)
+        return {"items": [{k: v for k, v in row.items() if k != "user_id"} for row in rows],
+                "checkout_enabled": False,
+                "notice": "Products are saved for later. No payments or orders are available yet."}
+
+    @router.post("/bag", status_code=201)
+    async def add_to_bag(payload: BagAdd, user_id: str = Depends(current_user)):
+        if resolve_bag_product is None:
+            raise HTTPException(503, "Bag unavailable")
+        item = await resolve_bag_product(user_id, payload.product_id)
+        if item is None:
+            raise HTTPException(404, "Product no longer available in the private catalogue")
+        sizes, colours = item.get("sizes") or [], item.get("colour_names") or []
+        if sizes and payload.size not in sizes:
+            raise HTTPException(422, "Choose a listed size")
+        if colours and payload.colour not in colours:
+            raise HTTPException(422, "Choose a listed colour")
+        existing = await db.customer_bag.find_one({
+            "user_id": user_id, "product_id": payload.product_id,
+            "size": payload.size, "colour": payload.colour,
+        })
+        if existing:
+            raise HTTPException(409, "Product already in your bag")
+        rows = await db.customer_bag.find({"user_id": user_id}, {"_id": 0}).to_list(101)
+        if len(rows) >= 100:
+            raise HTTPException(413, "Bag limit reached")
+        record = {
+            "id": str(uuid.uuid4()), "user_id": user_id, "product_id": payload.product_id,
+            "name": item["name"], "brand": item.get("brand"), "image_url": item.get("image_url"),
+            "size": payload.size, "colour": payload.colour, "quantity": payload.quantity,
+            "price_snapshot": item.get("price"), "currency": item.get("currency"),
+            "price_verified": False, "stock_verified": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.customer_bag.insert_one(record)
+        return {k: v for k, v in record.items() if k != "user_id"}
+
+    @router.delete("/bag/{item_id}")
+    async def remove_from_bag(item_id: str, user_id: str = Depends(current_user)):
+        item = await db.customer_bag.find_one({"id": item_id, "user_id": user_id})
+        if not item:
+            raise HTTPException(404, "Bag item not found")
+        await db.customer_bag.delete_one({"id": item_id, "user_id": user_id})
+        return {"success": True}
 
     @router.get("/catalogue/search")
     async def search_owned_catalogue(
