@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; }>();
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const [searchText, setSearchText] = useState("");
@@ -89,6 +90,32 @@ export default function DiscoverScreen() {
 
   const openTryOn = async (product: ProductRecommendation) => {
     if (!product.image_url || preparingTryOn) return;
+    if (completingOutfit.outfitFirstPath && completingOutfit.outfitFirstId) {
+      if (product.product_id === completingOutfit.outfitFirstId) {
+        setTryOnError("Choose a different second garment.");
+        setTryOnErrorProduct(product.product_id);
+        return;
+      }
+      setPreparingTryOn(product.product_id); setTryOnError(null);
+      try {
+        const second = await prepareCatalogueGarment(product.tryon_product_id || product.product_id);
+        router.push({ pathname: "/(tabs)/tryon", params: {
+          garmentPath: completingOutfit.outfitFirstPath,
+          garmentName: completingOutfit.outfitFirstName || "First garment",
+          garmentProductId: completingOutfit.outfitFirstId,
+          garmentSizes: completingOutfit.outfitFirstSizes || "[]",
+          garmentColours: completingOutfit.outfitFirstColours || "[]",
+          secondGarmentPath: second.path, secondGarmentName: second.name,
+          secondGarmentProductId: product.product_id,
+          secondGarmentSizes: JSON.stringify(product.sizes),
+          secondGarmentColours: JSON.stringify(product.colour_names),
+        } });
+      } catch (e) {
+        setTryOnErrorProduct(product.product_id);
+        setTryOnError(e instanceof Error ? e.message : "Could not prepare second garment.");
+      } finally { setPreparingTryOn(null); }
+      return;
+    }
     setTryOnErrorProduct(null);
     setPreparingTryOn(product.product_id);
     setTryOnError(null);
@@ -220,7 +247,7 @@ export default function DiscoverScreen() {
             disabled={preparingTryOn !== null}
           >
             {preparingTryOn === product.product_id ? <ActivityIndicator size="small" /> : <Feather name="zap" size={16} />}
-            <Text style={styles.tryOnText}>{preparingTryOn === product.product_id ? "Preparing…" : "Try this on"}</Text>
+            <Text style={styles.tryOnText}>{preparingTryOn === product.product_id ? "Preparing…" : completingOutfit.outfitFirstId ? "Choose as second garment" : "Try this on (one item)"}</Text>
           </Pressable>
         ) : null}
         {tryOnErrorProduct === product.product_id && tryOnError ? <Text testID={`tryon-error-${product.product_id}`} style={styles.error}>{tryOnError}</Text> : null}
@@ -288,6 +315,7 @@ export default function DiscoverScreen() {
             <Text style={styles.body}>Clear filters</Text>
           </Pressable>
         </View>
+        {completingOutfit.outfitFirstId ? <Text style={styles.note}>Choosing the second garment for {completingOutfit.outfitFirstName || "your outfit"}. Tap “Choose as second garment” on a different item below.</Text> : null}
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
         <Text style={styles.note}>Shopping bag: {bag?.items.length ?? 0} items saved · Checkout is not yet enabled</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push("/bag" as any)} style={styles.tryOnButton}>
