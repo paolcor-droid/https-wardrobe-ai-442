@@ -41,7 +41,7 @@ def _everyday_priority(product: dict) -> float:
 
 def _diversify_brands(ranked: list[dict], limit: int) -> list[dict]:
     """Balance brand and clothing type without fabricating variety."""
-    remaining = ranked[:250]
+    remaining = ranked[:5000]
     selected = []
     brand_counts = {}
     type_counts = {}
