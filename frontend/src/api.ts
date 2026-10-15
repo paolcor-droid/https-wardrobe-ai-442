@@ -542,6 +542,13 @@ export async function savePriceTarget(_product_id: string, _target_price_aud: nu
   throw new Error("Private price alerts are not available yet.");
 }
 
+export type SavedCatalogueOutfit = { id: string; product_ids: string[]; created_at: string };
+export const saveCatalogueOutfit = (product_ids: string[]) =>
+  accountRequest<SavedCatalogueOutfit>("/outfits", { method: "POST", body: JSON.stringify({ product_ids }) });
+export const listCatalogueOutfits = () => accountRequest<SavedCatalogueOutfit[]>("/outfits");
+export const removeCatalogueOutfit = (id: string) =>
+  accountRequest<{ success: boolean }>(`/outfits/${encodeURIComponent(id)}`, { method: "DELETE" });
+
 export type ShoppingBagItem = {
   id: string; product_id: string; name: string; brand?: string | null;
   image_url?: string | null; size: string; colour: string; quantity: number;
