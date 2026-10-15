@@ -235,6 +235,13 @@ export default function ChatScreen() {
                     onSave={m.role === "assistant" ? () => handleSave(m.id) : undefined}
                     onShare={m.role === "assistant" ? () => setShareText(m.content) : undefined}
                   />
+                  {m.role === "assistant" ? (
+                    <Pressable testID={`shop-stylist-look-${m.id}`} accessibilityRole="button"
+                      style={{ alignSelf: "flex-start", paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginBottom: 12 }}
+                      onPress={() => router.push({ pathname: "/(tabs)/discover", params: { stylistQuery: m.content.slice(0, 450) } })}>
+                      <Text style={{ color: colors.onSurface }}>Shop this look in Discover →</Text>
+                    </Pressable>
+                  ) : null}
                 ))}
                 {streaming && (
                   <MessageBubble
