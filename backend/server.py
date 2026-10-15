@@ -27,9 +27,10 @@ from services.security_gate import allow_legacy_dev_request, allow_account_previ
 from services.account_routes import configure_account_router
 from services.wardrobe_planner import plan_outfits, capsule_plan
 from services.catalogue_providers import list_providers, normalize_product
-from services.product_recommendations import rank_verified_products, customer_recommendations
+from services.product_recommendations import rank_verified_products, customer_recommendations, customer_product_view
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 from services.supplier_catalogue_store import read_catalogue, catalogue_enabled
+from services.discover_search import paginate, catalogue_view
 
 try:
     from emergentintegrations.llm.chat import (
@@ -1487,6 +1488,32 @@ async def recommend_catalogue_for_customer(user_id):
             "notice": "Trial catalogue snapshot; price and stock are not live."}
 
 
+async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
+    """Filter source-backed products, rerank with account colour eligibility, paginate."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    raw, source = load_customer_catalogue()
+    normalized = [normalize_product("matterhorn", row) for row in raw]
+    if catalogue_enabled():
+        additional = await read_catalogue(db, max_items=5000)
+        if additional:
+            normalized.extend(additional)
+            source = "private_multi_supplier_snapshot"
+    # The ranker enforces palette/avoided-colour and department eligibility.
+    # Cap candidate scoring for development: large-scale retrieval needs indexed preselection.
+    ranked = rank_verified_products(normalized, profile, limit=5000)
+    feedback_docs = await db.customer_feedback.find({"user_id": user_id}).to_list(500)
+    blocked = {str(row.get("product_id")) for row in feedback_docs if row.get("sentiment") == "disliked"}
+    ranked = [item for item in ranked if item.get("external_id") not in blocked]
+    page_items, total = paginate(ranked, filters, page, per_page)
+    return {
+        "recommendations": [catalogue_view(item, customer_product_view) for item in page_items],
+        "count": len(page_items), "total": total, "page": page,
+        "per_page": per_page, "has_more": page * per_page < total,
+        "source": source, "live_inventory_enabled": False,
+        "notice": "Supplier catalogue snapshots; prices and stock are not live.",
+    }
+
+
 async def generate_customer_styling_reply(conversation_id, profile, prior, message, provider):
     """Generate text-only style advice using an authenticated customer's own context."""
     if not EMERGENT_LLM_KEY:
@@ -1512,7 +1539,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, search_catalogue=search_catalogue_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
