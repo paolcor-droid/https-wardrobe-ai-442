@@ -34,3 +34,25 @@ def test_demo_xml_loader_is_read_only_and_disables_image_and_sales(tmp_path):
 
 def test_missing_demo_xml_keeps_supplier_catalogue_unaffected(tmp_path):
     assert demo_products(tmp_path / "not-here.xml") == []
+
+
+def test_ten_thousand_product_schema_with_nested_product_and_composition_parts(tmp_path):
+    xml = """<catalogue totalProducts="10000" totalOutfits="3000"><products>
+    <product id="1" sku="MFOO-00001" active="true">
+    <name>Sneakers in Tela</name><brand>Example Test</brand>
+    <gender>Uomo</gender><category>Footwear</category>
+    <description lang="it">Demo footwear</description><price currency="EUR">74.90</price>
+    <composition><part name="Tomaia"><material percentage="100">Cotone</material></part>
+    <part name="Suola"><material percentage="100">Gomma</material></part></composition>
+    <variants><colour name="Blu Navy"><sizes>
+    <size label="39" stock="0"/><size label="40" stock="7"/>
+    </sizes></colour></variants></product></products>
+    <outfits><outfit id="OUT-00001"><items><item productId="1"/></items></outfit></outfits>
+    </catalogue>"""
+    path = tmp_path / "tenk.xml"
+    path.write_text(xml, encoding="utf-8")
+    products = demo_products(path)
+    assert len(products) == 1
+    assert products[0]["materials"] == ["Cotone 100%", "Gomma 100%"]
+    assert products[0]["sizes"] == ["40"]
+    assert products[0]["image_url"] is None
