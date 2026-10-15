@@ -62,8 +62,18 @@ async def stage_catalogue(db, provider_id: str, products: list[dict], *,
             raise ValueError("Unverified or mismatched catalogue product")
         key = {"provider_id": provider_id, "external_id": row["external_id"]}
         record = {k: v for k, v in row.items() if k != "_id"}
-        record.update({"approved": approved, "active": bool(approved and activate),
-                       "synced_at": datetime.now(timezone.utc)})
-        await db[COLLECTION_NAME].update_one(key, {"$set": record}, upsert=True)
+        record["synced_at"] = datetime.now(timezone.utc)
+        # An ordinary staged refresh must not silently disable an already approved listing.
+        # Approval state is created on first insertion; activation is a distinct
+        # administrative decision, not implied by fetching or staging a feed.
+        if approved and activate:
+            record.update({"approved": True, "active": True})
+        await db[COLLECTION_NAME].update_one(
+            key,
+            {"$set": record, "$setOnInsert": {
+                "approved": False, "active": False,
+            }},
+            upsert=True,
+        )
         changed += 1
     return changed
