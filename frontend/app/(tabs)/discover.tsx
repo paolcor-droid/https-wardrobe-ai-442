@@ -23,7 +23,7 @@ export default function DiscoverScreen() {
     const advice = completingOutfit.stylistQuery.slice(0, 450);
     setStylistContext(advice);
     // Never send an entire personal conversation as catalogue search terms.
-    const garment = advice.match(/\\b(blazer|trousers|jeans|dress|shirt|skirt|coat|jacket|sweater|cardigan|linen|blouse|shorts|chinos|suit|top|polo)\\b/i);
+    const garment = advice.match(/\b(blazer|trousers|jeans|dress|shirt|skirt|coat|jacket|sweater|cardigan|linen|blouse|shorts|chinos|suit|top|polo)\b/i);
     setSearchText(garment ? garment[0] : "");
     setPage(1);
   }, [completingOutfit.stylistQuery]);
