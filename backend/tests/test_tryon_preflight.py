@@ -5,6 +5,16 @@ from PIL import Image
 from services.tryon_preflight import assess_photo
 
 
+@pytest.fixture(autouse=True)
+def keep_image_quality_tests_independent_of_optional_pose_model(monkeypatch):
+    # The real MediaPipe inference path is tested separately by smoke_pose_detection.py.
+    # Image-quality tests must give the same results with or without a cached model.
+    monkeypatch.setattr(
+        "services.tryon_preflight.detect_pose",
+        lambda image: {"status": "unavailable", "warnings": []},
+    )
+
+
 def fixture_photo(width, height, brightness=128):
     output = io.BytesIO()
     image = Image.new("RGB", (width, height), (brightness,) * 3)
