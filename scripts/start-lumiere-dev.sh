@@ -46,16 +46,20 @@ trap cleanup EXIT INT TERM
   exec python -m uvicorn server:app --host 0.0.0.0 --port 8000
 ) > "$ROOT/.lumiere-dev-logs/backend.log" 2>&1 &
 api_pid=$!
+api_ready=0
 for _ in $(seq 1 30); do
   if ! kill -0 "$api_pid" 2>/dev/null; then
     echo "Backend exited. See .lumiere-dev-logs/backend.log" >&2
     exit 1
   fi
-  if ss -ltn 2>/dev/null | grep -Eq ':8000[[:space:]]'; then break; fi
+  if curl --silent --fail --max-time 2 http://127.0.0.1:8000/health/ready | grep -q '"ready"'; then
+    api_ready=1
+    break
+  fi
   sleep 1
 done
-if ! ss -ltn 2>/dev/null | grep -Eq ':8000[[:space:]]'; then
-  echo "Backend did not start. See .lumiere-dev-logs/backend.log" >&2
+if [ "$api_ready" != 1 ]; then
+  echo "Backend could not reach its database. See .lumiere-dev-logs/backend.log" >&2
   exit 1
 fi
 (
