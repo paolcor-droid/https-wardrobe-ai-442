@@ -813,3 +813,73 @@ def test_disposable_account_deletion_removes_only_owned_records(monkeypatch):
         db.customer_photos, db.customer_tryons, db.customer_profiles, db.customer_sessions,
     ) for doc in collection.docs)
     assert any(doc["user_id"] == kept_id for doc in db.customer_photos.docs)
+
+
+def test_complete_export_includes_only_owner_records_and_photos():
+    import io
+    import json
+    import uuid
+    import zipfile
+
+    db = Database()
+    app = FastAPI()
+    ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+    content = {"test/a": b"synthetic image A", "test/b": b"synthetic image B"}
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "test/a", lambda path: (content[path], "image/png"),
+        lambda path: None,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("bundle-a@example.test", "bundle-b@example.test"):
+        creds = {"email": email, "password": "long test-only password"}
+        assert client.post("/api/account/register", json=creds).status_code == 201
+        token = client.post("/api/account/login", json=creds).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    owners = [client.get("/api/account/me", headers=h).json()["id"] for h in headers]
+    db.customer_photos.docs.extend([
+        {"id": ids[0], "user_id": owners[0], "path": "test/a"},
+        {"id": ids[1], "user_id": owners[1], "path": "test/b"},
+    ])
+    db.customer_profiles.docs.extend([
+        {"user_id": owners[0], "notes": "synthetic owner A"},
+        {"user_id": owners[1], "notes": "synthetic owner B"},
+    ])
+    uri = "/api/account/account/export/complete"
+    assert client.get(uri).status_code == 401
+    result = client.get(uri, headers=headers[0])
+    assert result.status_code == 200
+    assert result.headers["cache-control"] == "private, no-store"
+    with zipfile.ZipFile(io.BytesIO(result.content)) as zipped:
+        assert set(zipped.namelist()) == {"account.json", f"photos/{ids[0]}.png"}
+        assert zipped.read(f"photos/{ids[0]}.png") == content["test/a"]
+        data = json.loads(zipped.read("account.json"))
+        assert data["format"] == "lumiere-account-export-v2"
+        assert data["data"]["profile"][0]["notes"] == "synthetic owner A"
+        assert data["data"]["photos"][0]["id"] == ids[0]
+        assert "test/a" not in zipped.read("account.json").decode()
+        assert owners[1] not in zipped.read("account.json").decode()
+    assert any(photo["user_id"] == owners[1] for photo in db.customer_photos.docs)
+
+
+def test_complete_export_fails_closed_for_missing_photo():
+    import uuid
+    db = Database()
+    app = FastAPI()
+    def missing_photo(path):
+        raise OSError("Synthetic missing image")
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "test/missing", missing_photo, lambda path: None,
+    ))
+    client = TestClient(app)
+    credentials = {"email": "missing@example.test", "password": "long test-only password"}
+    assert client.post("/api/account/register", json=credentials).status_code == 201
+    token = client.post("/api/account/login", json=credentials).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    user_id = client.get("/api/account/me", headers=headers).json()["id"]
+    db.customer_photos.docs.append({
+        "id": str(uuid.uuid4()), "user_id": user_id, "path": "test/missing",
+    })
+    assert client.get("/api/account/account/export/complete", headers=headers).status_code == 503
