@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 
@@ -14,6 +14,24 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [searchText, setSearchText] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [colourFilter, setColourFilter] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [page, setPage] = useState(1);
+  const searchFilters = { q: searchText, brand: brandFilter, category: categoryFilter,
+    colour: colourFilter, size: sizeFilter,
+    min_price: minPrice ? Number(minPrice) : undefined,
+    max_price: maxPrice ? Number(maxPrice) : undefined, page, per_page: 20 };
+  const { data: searchResults, isLoading: searching, isError: searchError } = useQuery({
+    queryKey: ["catalogue-search", profile?.updated_at, searchFilters],
+    queryFn: () => searchCatalogue(searchFilters),
+    enabled: Boolean(profile),
+  });
+  const shownProducts = searchResults?.recommendations ?? [];
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const { width: screenWidth } = useWindowDimensions();
   const gridColumns = screenWidth >= 1150 ? 3 : screenWidth >= 720 ? 2 : 1;
@@ -70,7 +88,7 @@ export default function DiscoverScreen() {
     setPreparingTryOn(product.product_id);
     setTryOnError(null);
     try {
-      const garment = await prepareCatalogueGarment(product.product_id);
+      const garment = await prepareCatalogueGarment(product.tryon_product_id || product.product_id);
       router.push({
         pathname: "/(tabs)/tryon",
         params: {
@@ -92,7 +110,7 @@ export default function DiscoverScreen() {
     setPreparingTryOn("outfit");
     setTryOnError(null);
     try {
-      const [first, second] = await Promise.all(outfitItems.map((item) => prepareCatalogueGarment(item.product_id)));
+      const [first, second] = await Promise.all(outfitItems.map((item) => prepareCatalogueGarment(item.tryon_product_id || item.product_id)));
       router.push({
         pathname: "/(tabs)/tryon",
         params: { garmentPath: first.path, garmentName: first.name, secondGarmentPath: second.path, secondGarmentName: second.name },
@@ -120,6 +138,7 @@ export default function DiscoverScreen() {
         {product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
         <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
+        <Text style={styles.productMeta}>Supplier catalogue price · stock not verified live</Text>
         <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
           {product.recommendation_reasons.map((reason) => (
@@ -135,7 +154,7 @@ export default function DiscoverScreen() {
             </Pressable>
           ))}
         </View>
-        {product.image_url ? (
+        {product.image_url && product.tryon_supported ? (
           <Pressable
             style={styles.tryOnButton}
             onPress={() => openTryOn(product)}
@@ -146,7 +165,7 @@ export default function DiscoverScreen() {
           </Pressable>
         ) : null}
         {tryOnErrorProduct === product.product_id && tryOnError ? <Text testID={`tryon-error-${product.product_id}`} style={styles.error}>{tryOnError}</Text> : null}
-        {product.image_url ? (
+        {product.image_url && product.tryon_supported ? (
           <Pressable testID={`outfit-select-${product.product_id}`} style={styles.outfitSelect} onPress={() => toggleOutfitItem(product)}>
             <Feather name={outfitItems.some((item) => item.product_id === product.product_id) ? "check-square" : "square"} size={17} />
             <Text style={styles.outfitSelectText}>{outfitItems.some((item) => item.product_id === product.product_id) ? "Selected for outfit" : "Add to outfit"}</Text>
@@ -192,11 +211,29 @@ export default function DiscoverScreen() {
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
+        <Text style={styles.section}>FIND YOUR STYLE</Text>
+        <View style={styles.card}>
+          {([
+            ["Search garments", searchText, setSearchText], ["Brand", brandFilter, setBrandFilter],
+            ["Category", categoryFilter, setCategoryFilter], ["Colour", colourFilter, setColourFilter],
+            ["Size", sizeFilter, setSizeFilter], ["Minimum price", minPrice, setMinPrice],
+            ["Maximum price", maxPrice, setMaxPrice],
+          ] as [string, string, (value: string) => void][]).map(([label, value, setter]) => (
+            <TextInput key={label} accessibilityLabel={label} placeholder={label}
+              value={value} onChangeText={(v) => { setter(v); setPage(1); }}
+              keyboardType={label.includes("price") ? "decimal-pad" : "default"}
+              style={styles.filterInput} />
+          ))}
+          <Pressable onPress={() => { setSearchText(""); setBrandFilter(""); setCategoryFilter("");
+            setColourFilter(""); setSizeFilter(""); setMinPrice(""); setMaxPrice(""); setPage(1); }}>
+            <Text style={styles.body}>Clear filters</Text>
+          </Pressable>
+        </View>
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
         <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text>
-        {catalogueLoading ? <ActivityIndicator style={styles.loading} /> : null}
-        {catalogueError ? <Text style={styles.note}>The trial catalogue could not be loaded. Retailer discovery remains available below.</Text> : null}
-        {!catalogueLoading && !catalogueError && catalogue?.recommendations.length === 0 ? (
+        {searching ? <ActivityIndicator style={styles.loading} /> : null}
+        {searchError ? <Text style={styles.note}>Catalogue search is unavailable. Retailer discovery remains available below.</Text> : null}
+        {!searching && !searchError && shownProducts.length === 0 ? (
           <View style={styles.info}>
             <Text style={styles.infoTitle}>No suitable products found yet</Text>
             <Text style={styles.body}>LUMIÈRE couldn't find products in the current trial catalogue that meet your colour profile and shopping preferences. We won't recommend unsuitable colours just to fill your results. You can explore your preferred retailers below.</Text>
@@ -215,9 +252,9 @@ export default function DiscoverScreen() {
         ) : null}
         {tryOnError && !tryOnErrorProduct ? <Text testID="tryon-outfit-error" style={styles.error}>{tryOnError}</Text> : null}
         {feedbackError ? <Text style={styles.error}>{feedbackError}</Text> : null}
-        {!catalogueLoading && !catalogueError ? (
+        {!searching && !searchError ? (
           <View style={styles.productGrid}>
-            {catalogue?.recommendations.map((product) => (
+            {shownProducts.map((product) => (
               <View key={product.product_id} style={{ width: gridColumns === 1 ? "100%" : gridColumns === 2 ? "48%" : "31.5%" }}>
                 {renderProduct(product)}
               </View>
@@ -225,6 +262,17 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
 
+        {searchResults ? (
+          <View style={styles.paginationBar}>
+            <Text style={styles.body}>Page {page} · {searchResults.total} matching items (scanned catalogue)</Text>
+            <Pressable disabled={page <= 1} onPress={() => setPage((p) => Math.max(1, p - 1))}>
+              <Text style={styles.body}>{page > 1 ? "Previous" : ""}</Text>
+            </Pressable>
+            <Pressable disabled={!searchResults.has_more} onPress={() => setPage((p) => p + 1)}>
+              <Text style={styles.body}>{searchResults.has_more ? "Next page →" : ""}</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
         <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not claim live price, stock or availability from these stores.</Text>
         {preferred.map(renderRetailer)}
@@ -243,6 +291,8 @@ const useStyles = makeStyles((c) => ({
   title: { fontFamily: fonts.display, fontSize: 30, fontWeight: "700", color: c.onSurface },
   subtitle: { fontFamily: fonts.text, fontSize: 13, color: c.muted, marginTop: 4 },
   content: { padding: 20, paddingBottom: 60 },
+  filterInput: { borderWidth: 1, borderColor: c.border, color: c.onSurface, padding: 12, marginBottom: 8, borderRadius: 4 },
+  paginationBar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 12 },
   card: { borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, padding: 18, borderRadius: 4 },
   paletteSection: { marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.border },
   paletteHeading: { fontFamily: fonts.text, fontSize: 11, letterSpacing: 1.2, color: c.muted, marginBottom: 6 },
