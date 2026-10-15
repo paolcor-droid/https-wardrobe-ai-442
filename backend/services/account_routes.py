@@ -824,6 +824,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         # MongoDB adds an ObjectId to the input document in place; never return it.
         return {k: v for k, v in record.items() if k not in {"user_id", "_id"}}
 
+    @router.patch("/bag/{item_id}")
+    async def update_bag_quantity(item_id: str, payload: dict, user_id: str = Depends(current_user)):
+        # Only a strictly bounded quantity may be altered by the customer.
+        if (set(payload) != {"quantity"} or type(payload.get("quantity")) is not int
+                or not 1 <= payload["quantity"] <= 10):
+            raise HTTPException(422, "Quantity must be a whole number between 1 and 10")
+        result = await db.customer_bag.update_one(
+            {"id": item_id, "user_id": user_id},
+            {"$set": {"quantity": payload["quantity"]}},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(404, "Bag item not found")
+        item = await db.customer_bag.find_one({"id": item_id, "user_id": user_id}, {"_id": 0, "user_id": 0})
+        return item
+
     @router.delete("/bag/{item_id}")
     async def remove_from_bag(item_id: str, user_id: str = Depends(current_user)):
         item = await db.customer_bag.find_one({"id": item_id, "user_id": user_id})
