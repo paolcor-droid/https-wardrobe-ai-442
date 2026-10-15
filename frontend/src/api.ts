@@ -559,3 +559,14 @@ export async function addShoppingBagItem(item: {
 export async function removeShoppingBagItem(id: string): Promise<void> {
   await accountRequest(`/bag/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+export type CheckoutReadiness = {
+  country: "AU" | "MD"; item_count: number; checkout_enabled: false;
+  payment_enabled: false; orders_enabled: false; shopify_test_mode: boolean;
+  shipping_quote_available: false; tax_quote_available: false;
+  currency_codes: string[]; price_verified: false; stock_verified: false;
+  requirements: string[]; message: string;
+};
+export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<CheckoutReadiness> {
+  return accountRequest<CheckoutReadiness>(`/checkout/readiness?country=${country}`);
+}
