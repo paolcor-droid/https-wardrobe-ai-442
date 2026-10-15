@@ -337,6 +337,77 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                      "Content-Disposition": 'attachment; filename="lumiere-private-photos.zip"'},
         )
 
+    @router.get("/account/export/complete")
+    async def export_complete_account(user_id: str = Depends(current_user)):
+        """Single owner-only ZIP with account JSON and all managed original/generated photos.
+
+        Fail closed if any photo cannot be included. Do not expose provider paths,
+        authentication secrets or another customer's records.
+        """
+        import io
+        import zipfile
+        if read_image is None:
+            raise HTTPException(503, "Private photo export unavailable")
+        sections = {
+            "profile": db.customer_profiles,
+            "wardrobe": db.customer_wardrobe,
+            "conversations": db.customer_conversations,
+            "messages": db.customer_messages,
+            "saved": db.customer_saved,
+            "feedback": db.customer_feedback,
+            "tryons": db.customer_tryons,
+            "photos": db.customer_photos,
+        }
+        exported = {}
+        for name, collection in sections.items():
+            docs = await collection.find({"user_id": user_id}, {"_id": 0}).to_list(2001)
+            if len(docs) > 2000:
+                raise HTTPException(413, "Account export too large; contact support")
+            exported[name] = [
+                {k: v for k, v in doc.items()
+                 if k not in {"path", "storage_key", "password_hash", "token", "digest", "access_token"}}
+                for doc in docs
+            ]
+        photos = await db.customer_photos.find({"user_id": user_id}, {"_id": 0}).to_list(101)
+        if len(photos) > 100:
+            raise HTTPException(413, "Photo archive exceeds safe limit; request assisted export")
+        archive = io.BytesIO()
+        total = 0
+        try:
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as target:
+                manifest = {"format": "lumiere-account-export-v2", "data": exported}
+                metadata = json.dumps(manifest, default=str).encode("utf-8")
+                total += len(metadata)
+                if total > 50 * 1024 * 1024:
+                    raise HTTPException(413, "Account archive exceeds safe limit")
+                target.writestr("account.json", metadata)
+                for photo in photos:
+                    image_bytes, mime = await run_in_threadpool(read_image, photo["path"])
+                    if not isinstance(image_bytes, bytes) or len(image_bytes) > 8 * 1024 * 1024:
+                        raise ValueError("Unexpected photo size")
+                    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(mime)
+                    if not ext:
+                        raise ValueError("Unexpected photo format")
+                    photo_id = str(uuid.UUID(str(photo["id"])))
+                    total += len(image_bytes)
+                    if total > 50 * 1024 * 1024:
+                        raise HTTPException(413, "Account archive exceeds safe limit")
+                    target.writestr(f"photos/{photo_id}.{ext}", image_bytes)
+        except HTTPException:
+            raise
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(503, "Complete account export could not be completed") from exc
+        return Response(
+            content=archive.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Cache-Control": "private, no-store",
+                "Pragma": "no-cache",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Disposition": 'attachment; filename="lumiere-complete-export.zip"',
+            },
+        )
+
     @router.post("/account/deletion-preview")
     async def account_deletion_preview(user_id: str = Depends(current_user)):
         """Report scope without exposing actual private data or deleting anything."""
