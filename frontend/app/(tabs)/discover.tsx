@@ -98,6 +98,9 @@ export default function DiscoverScreen() {
         params: {
           garmentPath: garment.path,
           garmentName: garment.name,
+          garmentProductId: product.product_id,
+          garmentSizes: JSON.stringify(product.sizes),
+          garmentColours: JSON.stringify(product.colour_names),
         },
       });
     } catch (error) {
