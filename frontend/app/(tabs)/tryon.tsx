@@ -320,7 +320,7 @@ export default function TryOnScreen() {
               </Pressable>
               {secondGarmentPath && <Pressable testID="remove-second-garment" onPress={() => { setSecondGarmentPath(null); setSecondGarmentPreview(null); }}><Text style={styles.slotLabel}>Remove</Text></Pressable>}
             </View>
-            <Text style={styles.secondHint}>{params.secondGarmentName && secondGarmentPath ? `Selected from Discover · ${params.secondGarmentName}` : "Add a shirt and trousers, for example, to try both on together."}</Text>
+            <Text style={styles.secondHint}>{params.secondGarmentName && secondGarmentPath ? `Selected from Discover · ${params.secondGarmentName}` : "Use the Discover button above to select a purchasable second garment, or upload your own garment photo here."}</Text>
           </View>
         )}
 
@@ -402,7 +402,7 @@ export default function TryOnScreen() {
                 <Pressable onPress={() => router.push("/bag" as any)}>
                   <Text style={{ color: colors.onSurface, textDecorationLine: "underline" }}>View shopping bag</Text>
                 </Pressable>
-                {params.secondGarmentProductId ? (
+                {params.secondGarmentProductId && secondGarmentPath ? (
                   <View style={{ gap: 10, marginTop: 12 }}>
                     <Text style={{ color: colors.onSurface, fontWeight: "600" }}>Second garment · {params.secondGarmentName}</Text>
                     {secondSizes.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
