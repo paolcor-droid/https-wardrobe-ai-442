@@ -818,6 +818,30 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         rows = await db.customer_outfits.find({"user_id": user_id}, {"_id": 0}).to_list(50)
         return [{k: v for k, v in row.items() if k != "user_id"} for row in rows]
 
+    @router.post("/outfits/{outfit_id}/prepare")
+    async def prepare_saved_outfit(outfit_id: str, user_id: str = Depends(current_user)):
+        """Check ownership and revalidate products before preparing a saved outfit."""
+        outfit = await db.customer_outfits.find_one({"id": outfit_id, "user_id": user_id})
+        if not outfit:
+            raise HTTPException(404, "Saved outfit not found")
+        if prepare_catalogue is None or resolve_bag_product is None:
+            raise HTTPException(503, "Catalogue Try-On is unavailable")
+        garments = []
+        for product_id in outfit.get("product_ids", []):
+            product = await resolve_bag_product(user_id, product_id)
+            if not product:
+                raise HTTPException(409, "A saved garment is no longer available")
+            try:
+                prepared = await prepare_catalogue(user_id, product_id)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(502, "Unable to prepare a saved garment") from exc
+            garments.append({"product_id": product_id, "path": prepared["path"],
+                             "name": prepared["name"], "sizes": product.get("sizes") or [],
+                             "colour_names": product.get("colour_names") or []})
+        return {"garments": garments}
+
     @router.delete("/outfits/{outfit_id}")
     async def delete_catalogue_outfit(outfit_id: str, user_id: str = Depends(current_user)):
         existing = await db.customer_outfits.find_one({"id": outfit_id, "user_id": user_id})
