@@ -545,6 +545,9 @@ export async function savePriceTarget(_product_id: string, _target_price_aud: nu
 export type SavedCatalogueOutfit = { id: string; product_ids: string[]; garments?: { product_id: string; name: string }[]; created_at: string };
 export const saveCatalogueOutfit = (product_ids: string[]) =>
   accountRequest<SavedCatalogueOutfit>("/outfits", { method: "POST", body: JSON.stringify({ product_ids }) });
+export type PreparedOutfitGarment = { product_id: string; path: string; name: string; sizes: string[]; colour_names: string[] };
+export const prepareSavedOutfit = (id: string) =>
+  accountRequest<{ garments: PreparedOutfitGarment[] }>(`/outfits/${encodeURIComponent(id)}/prepare`, { method: "POST" });
 export const listCatalogueOutfits = () => accountRequest<SavedCatalogueOutfit[]>("/outfits");
 export const removeCatalogueOutfit = (id: string) =>
   accountRequest<{ success: boolean }>(`/outfits/${encodeURIComponent(id)}`, { method: "DELETE" });
