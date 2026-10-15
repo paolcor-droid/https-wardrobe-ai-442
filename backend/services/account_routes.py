@@ -64,7 +64,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -828,16 +828,14 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(503, "Catalogue Try-On is unavailable")
         garments = []
         for product_id in outfit.get("product_ids", []):
-            product = await resolve_bag_product(user_id, product_id)
-            if not product:
+            # Saved catalogue choices are not invalidated by subsequent changes
+            # to recommendations, budgets, occasions or colour rankings.
+            resolved = await resolve_saved_outfit(user_id, product_id) if resolve_saved_outfit else None
+            if not resolved:
                 raise HTTPException(409, "A saved garment is no longer available")
+            product = resolved["product"]
             try:
-                # Storefront product IDs are hashed and must never be passed as
-                # upstream supplier IDs. Resolve against the customer's eligible catalogue.
-                source_id = await resolve_tryon_identity(user_id, product_id) if resolve_tryon_identity else None
-                if not source_id:
-                    raise HTTPException(409, "Saved garment cannot be prepared from the current catalogue")
-                prepared = await owned_catalogue_garment(source_id, user_id)
+                prepared = await owned_catalogue_garment(resolved["source_id"], user_id)
             except HTTPException:
                 raise
             except Exception as exc:
