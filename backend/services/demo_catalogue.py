@@ -7,7 +7,8 @@ from functools import lru_cache
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-DEMO_PATH = Path(__file__).resolve().parents[1] / ".lumiere-private-catalogue" / "demo_catalogue.xml"
+DEMO_PATH = Path(__file__).resolve().parents[1] / "demo-data" / "demo_catalogue.xml"
+LEGACY_DEMO_PATH = Path(__file__).resolve().parents[1] / ".lumiere-private-catalogue" / "demo_catalogue.xml"
 MAX_BYTES = 64 * 1024 * 1024
 
 
@@ -57,6 +58,8 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
 
 
 def demo_products(path: Path = DEMO_PATH) -> list[dict]:
+    if path == DEMO_PATH and not path.is_file() and LEGACY_DEMO_PATH.is_file():
+        path = LEGACY_DEMO_PATH
     if not path.is_file():
         return []
     return [dict(p) for p in _load(str(path), path.stat().st_mtime_ns)]
