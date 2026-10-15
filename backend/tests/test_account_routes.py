@@ -959,5 +959,14 @@ def test_private_bag_requires_owner_variant_and_no_checkout():
     assert len(own["items"]) == 1 and other["items"] == []
     assert own["checkout_enabled"] is False
     bag_id = created.json()["id"]
+    # Quantity mutations must respect ownership, range and existing bag selection.
+    assert client.patch("/api/account/bag/" + bag_id, headers=headers[1], json={"quantity": 3}).status_code == 404
+    assert client.patch("/api/account/bag/" + bag_id, headers=headers[0], json={"quantity": 0}).status_code == 422
+    assert client.patch("/api/account/bag/" + bag_id, headers=headers[0], json={"quantity": True}).status_code == 422
+    assert client.patch("/api/account/bag/" + bag_id, headers=headers[0], json={"quantity": 11}).status_code == 422
+    updated = client.patch("/api/account/bag/" + bag_id, headers=headers[0], json={"quantity": 3})
+    assert updated.status_code == 200 and updated.json()["quantity"] == 3
+    assert client.get("/api/account/bag", headers=headers[0]).json()["items"][0]["quantity"] == 3
+    assert client.get("/api/account/bag", headers=headers[1]).json()["items"] == []
     assert client.delete("/api/account/bag/" + bag_id, headers=headers[1]).status_code == 404
     assert client.delete("/api/account/bag/" + bag_id, headers=headers[0]).status_code == 200
