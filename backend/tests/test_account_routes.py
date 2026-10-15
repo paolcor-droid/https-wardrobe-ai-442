@@ -87,6 +87,7 @@ class Database:
         self.customer_messages = Collection()
         self.customer_tryons = Collection()
         self.customer_saved = Collection()
+        self.customer_bag = Collection()
         self.customer_rate_limits = Collection()
 
 
@@ -921,3 +922,42 @@ def test_password_reset_revokes_all_sessions_of_only_target_account(monkeypatch)
     assert client.post("/api/account/login", json={
         **creds_a, "password": "replacement test password",
     }).status_code == 200
+
+
+def test_private_bag_requires_owner_variant_and_no_checkout():
+    db = Database()
+    app = FastAPI()
+    async def resolve(user_id, identity):
+        if identity == "matterhorn:valid":
+            return {"name": "Linen shirt", "brand": "Test",
+                    "sizes": ["M", "L"], "colour_names": ["Navy"],
+                    "price": 49.0, "currency": "AUD"}
+        return None
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/test.png", lambda path: (b"synthetic", "image/png"),
+        resolve_bag_product=resolve,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("bag-a@example.test", "bag-b@example.test"):
+        payload = {"email": email, "password": "test-only-password-long"}
+        assert client.post("/api/account/register", json=payload).status_code == 201
+        token = client.post("/api/account/login", json=payload).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    data = {"product_id": "matterhorn:valid", "size": "M", "colour": "Navy", "quantity": 1}
+    assert client.post("/api/account/bag", json=data).status_code == 401
+    assert client.post("/api/account/bag", headers=headers[0],
+                       json={**data, "size": "XXL"}).status_code == 422
+    created = client.post("/api/account/bag", headers=headers[0], json=data)
+    assert created.status_code == 201
+    assert created.json()["price_snapshot"] == 49.0
+    assert created.json()["stock_verified"] is False
+    assert client.post("/api/account/bag", headers=headers[0], json=data).status_code == 409
+    own = client.get("/api/account/bag", headers=headers[0]).json()
+    other = client.get("/api/account/bag", headers=headers[1]).json()
+    assert len(own["items"]) == 1 and other["items"] == []
+    assert own["checkout_enabled"] is False
+    bag_id = created.json()["id"]
+    assert client.delete("/api/account/bag/" + bag_id, headers=headers[1]).status_code == 404
+    assert client.delete("/api/account/bag/" + bag_id, headers=headers[0]).status_code == 200
