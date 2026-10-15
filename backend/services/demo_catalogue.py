@@ -8,7 +8,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 DEMO_PATH = Path(__file__).resolve().parents[1] / ".lumiere-private-catalogue" / "demo_catalogue.xml"
-MAX_BYTES = 20 * 1024 * 1024
+MAX_BYTES = 64 * 1024 * 1024
 
 
 @lru_cache(maxsize=2)
@@ -20,7 +20,7 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
     if root.tag != "catalogue":
         raise ValueError("Expected a catalogue XML document")
     records = []
-    for element in root.findall("product"):
+    for element in root.findall("products/product") or root.findall("product"):
         if element.get("active") == "false":
             continue
         sku = element.get("sku")
@@ -39,7 +39,7 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
         sizes = list(dict.fromkeys(s.get("label", "") for c in variants
                           for s in c.findall("sizes/size") if int(s.get("stock", "0")) > 0))
         colour_names = list(dict.fromkeys(c.get("name", "") for c in variants))
-        materials = [f"{m.text or ''} {m.get('percentage', '')}%" for m in element.findall("composition/material")]
+        materials = [f"{m.text or ''} {m.get('percentage', '')}%" for m in element.findall("composition/material") + element.findall("composition/part/material")]
         gender = element.findtext("gender", "")
         records.append({
             "provider_id": "lumiere-demo", "external_id": sku,
