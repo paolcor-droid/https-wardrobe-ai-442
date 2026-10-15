@@ -883,3 +883,41 @@ def test_complete_export_fails_closed_for_missing_photo():
         "id": str(uuid.uuid4()), "user_id": user_id, "path": "test/missing",
     })
     assert client.get("/api/account/account/export/complete", headers=headers).status_code == 503
+
+
+def test_password_reset_revokes_all_sessions_of_only_target_account(monkeypatch):
+    from services import account_routes
+    delivered = []
+    monkeypatch.setattr(account_routes, "recovery_configured", lambda: True)
+    monkeypatch.setattr(account_routes, "send_recovery_email", lambda address, token: delivered.append((address, token)))
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "test/photo", lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    creds_a = {"email": "reset-a@example.test", "password": "original test password"}
+    creds_b = {"email": "reset-b@example.test", "password": "other account password"}
+    for creds in (creds_a, creds_b):
+        assert client.post("/api/account/register", json=creds).status_code == 201
+    def login(creds):
+        return {"Authorization": "Bearer " + client.post("/api/account/login", json=creds).json()["access_token"]}
+    a1, a2, b1 = login(creds_a), login(creds_a), login(creds_b)
+    assert client.post("/api/account/recovery/request", json={"email": creds_a["email"]}).status_code == 200
+    assert len(delivered) == 1
+    token = delivered[0][1]
+    reset = client.post("/api/account/recovery/confirm", json={
+        "token": token, "password": "replacement test password",
+    })
+    assert reset.status_code == 200
+    assert client.get("/api/account/me", headers=a1).status_code == 401
+    assert client.get("/api/account/me", headers=a2).status_code == 401
+    assert client.get("/api/account/me", headers=b1).status_code == 200
+    assert client.post("/api/account/recovery/confirm", json={
+        "token": token, "password": "another replacement password",
+    }).status_code == 400
+    assert client.post("/api/account/login", json=creds_a).status_code == 401
+    assert client.post("/api/account/login", json={
+        **creds_a, "password": "replacement test password",
+    }).status_code == 200
