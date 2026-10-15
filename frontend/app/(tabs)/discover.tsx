@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,10 +13,20 @@ export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; }>();
+  const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; stylistQuery?: string; }>();
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const [searchText, setSearchText] = useState("");
+  const [stylistContext, setStylistContext] = useState("");
+  useEffect(() => {
+    if (!completingOutfit.stylistQuery) return;
+    const advice = completingOutfit.stylistQuery.slice(0, 450);
+    setStylistContext(advice);
+    // Never send an entire personal conversation as catalogue search terms.
+    const garment = advice.match(/\\b(blazer|trousers|jeans|dress|shirt|skirt|coat|jacket|sweater|cardigan|linen|blouse|shorts|chinos|suit|top|polo)\\b/i);
+    setSearchText(garment ? garment[0] : "");
+    setPage(1);
+  }, [completingOutfit.stylistQuery]);
   const [brandFilter, setBrandFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [colourFilter, setColourFilter] = useState("");
@@ -316,6 +326,15 @@ export default function DiscoverScreen() {
           </Pressable>
         </View>
         {completingOutfit.outfitFirstId ? <Text style={styles.note}>Choosing the second garment for {completingOutfit.outfitFirstName || "your outfit"}. Tap “Choose as second garment” on a different item below.</Text> : null}
+        {stylistContext ? (
+          <View style={styles.info}>
+            <Text style={styles.infoTitle}>Shopping your Stylist recommendation</Text>
+            <Text style={styles.note}>Starting with the garment type mentioned in your advice. Refine the filters to find suitable products.</Text>
+            <Pressable onPress={() => { setStylistContext(""); setSearchText(""); setPage(1); router.setParams({ stylistQuery: "" }); }}>
+              <Text style={styles.body}>Clear Stylist search</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.section}>YOUR LUMIÈRE EDIT</Text>
         <Text style={styles.note}>Shopping bag: {bag?.items.length ?? 0} items saved · Checkout is not yet enabled</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push("/bag" as any)} style={styles.tryOnButton}>
