@@ -52,6 +52,7 @@ def catalogue_view(product, customer_view):
     record = customer_view(product)
     record["product_id"] = product_key(product)
     record["tryon_supported"] = product.get("provider_id") == "matterhorn"
+    record["tryon_product_id"] = str(product.get("external_id")) if record["tryon_supported"] else None
     record["price_status"] = "supplier_snapshot"
     record["stock_status"] = "unverified_snapshot"
     return record
