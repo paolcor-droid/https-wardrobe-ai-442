@@ -4,6 +4,27 @@ from datetime import datetime, timezone
 
 from services.catalogue_providers import get_provider
 
+def live_supplier_readiness(provider_id: str) -> dict:
+    """A staged XML/CSV snapshot must never be mistaken for live availability."""
+    provider = get_provider(provider_id)
+    if provider.kind != "wholesale":
+        raise ValueError("Live supplier synchronisation is limited to approved wholesale providers")
+    return {
+        "provider_id": provider.id,
+        "approved": False,
+        "live_price_enabled": False,
+        "live_stock_enabled": False,
+        "order_routing_enabled": False,
+        "requirements": [
+            "Signed supplier agreement and permission to access a live catalogue",
+            "Supplier-issued credentials configured in private server secrets",
+            "Verified product, variant, currency, availability and tax mappings",
+            "Supplier-specific rate limits, freshness window and safe retry policy",
+            "Shipping eligibility for Australia and Moldova independently verified",
+        ],
+    }
+
+
 COLLECTION_NAME = "supplier_catalogue_v2"
 MAX_SCAN = 5000
 
