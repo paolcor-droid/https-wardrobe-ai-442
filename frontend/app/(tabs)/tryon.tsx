@@ -126,6 +126,35 @@ export default function TryOnScreen() {
   }, [params.secondGarmentPath]);
 
 
+  function removeFirstGarment() {
+    if (secondGarmentPath) {
+      // Promote the remaining item to the primary Try-On slot.
+      // Keep its original catalogue identity and variants for Add to Bag.
+      router.setParams({
+        garmentPath: secondGarmentPath,
+        garmentName: params.secondGarmentName || "",
+        garmentProductId: params.secondGarmentProductId || "",
+        garmentSizes: params.secondGarmentSizes || "[]",
+        garmentColours: params.secondGarmentColours || "[]",
+        secondGarmentPath: "",
+        secondGarmentName: "",
+        secondGarmentProductId: "",
+        secondGarmentSizes: "[]",
+        secondGarmentColours: "[]",
+      });
+      setSecondGarmentPath(null);
+      setSecondGarmentPreview(null);
+    } else {
+      setGarmentPath(null);
+      setGarmentPreview(null);
+      router.setParams({ garmentPath: "", garmentName: "", garmentProductId: "", garmentSizes: "[]", garmentColours: "[]" });
+    }
+    setResult(null);
+    setConfirmed(false);
+    setWarning(null);
+    setBagStatus("");
+  }
+
   const bottomPad = (usesNativeTabs ? insets.bottom : 0) + 32;
 
   const { data: gallery } = useQuery({ queryKey: ["tryons"], queryFn: listTryOns });
@@ -297,6 +326,13 @@ export default function TryOnScreen() {
         <View style={styles.slotRow}>
           <Slot which="person" preview={personPreview} label="Your photo" icon="user" />
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
+        </View>
+        {garmentPath ? (
+          <Pressable testID="remove-first-garment" accessibilityRole="button" onPress={removeFirstGarment}>
+            <Text style={styles.secondHint}>Remove first garment{secondGarmentPath ? " (keep second garment)" : ""}</Text>
+          </Pressable>
+        ) : null}
+        <View style={{ height: 0 }}>
         </View>
 
         {garmentPath && params.garmentProductId && !secondGarmentPath ? (
