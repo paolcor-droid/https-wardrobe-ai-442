@@ -1007,3 +1007,83 @@ def test_saved_catalogue_outfits_are_private_and_validate_product_ids():
     assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[1]).status_code == 404
     assert client.delete("/api/account/outfits/" + outfit_id, headers=headers[0]).status_code == 200
     assert client.get("/api/account/outfits", headers=headers[0]).json() == []
+
+
+def test_saved_outfit_reopens_with_private_photos_and_keeps_ownership():
+    db = Database()
+    app = FastAPI()
+    async def product(_user, identity):
+        if identity in ("matterhorn:hashed-a", "matterhorn:hashed-b"):
+            return {"name": "Sample garment", "sizes": ["M"], "colour_names": ["navy"]}
+        return None
+    async def saved_source(_user, identity):
+        item = await product(_user, identity)
+        if not item:
+            return None
+        return {"source_id": "source-a" if identity.endswith("-a") else "source-b",
+                "product": item}
+    async def supplier_image(source_id):
+        assert source_id in {"source-a", "source-b"}
+        return b"synthetic-private-garment", "image/png", "Sample garment"
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png", lambda path: (b"private", "image/png"),
+        prepare_catalogue=supplier_image, resolve_bag_product=product,
+        resolve_saved_outfit=saved_source,
+    ))
+    client = TestClient(app)
+    tokens = []
+    for email in ("reopen-a@example.test", "reopen-b@example.test"):
+        credentials = {"email": email, "password": "test-only-password-long"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        response = client.post("/api/account/login", json=credentials)
+        assert response.status_code == 200
+        tokens.append({"Authorization": "Bearer " + response.json()["access_token"]})
+    created = client.post("/api/account/outfits", headers=tokens[0],
+        json={"product_ids": ["matterhorn:hashed-a", "matterhorn:hashed-b"]})
+    assert created.status_code == 201, created.text
+    outfit_id = created.json()["id"]
+    endpoint = f"/api/account/outfits/{outfit_id}/prepare"
+    assert client.post(endpoint, headers=tokens[1]).status_code == 404
+    response = client.post(endpoint, headers=tokens[0])
+    assert response.status_code == 200, response.text
+    garments = response.json()["garments"]
+    assert len(garments) == 2
+    assert [x["product_id"] for x in garments] == ["matterhorn:hashed-a", "matterhorn:hashed-b"]
+    assert all(x["path"].startswith("private:") for x in garments)
+    assert all(x["sizes"] == ["M"] and x["colour_names"] == ["navy"] for x in garments)
+    assert len(db.customer_photos.docs) == 2
+    for photo in db.customer_photos.docs:
+        assert photo["user_id"] == db.customer_accounts.docs[0]["id"]
+    for garment in garments:
+        photo_id = garment["path"].split(":", 1)[1]
+        assert client.get(f"/api/account/photos/{photo_id}", headers=tokens[1]).status_code == 404
+
+
+def test_saved_outfit_reopen_missing_source_returns_conflict_without_creating_photos():
+    db = Database()
+    app = FastAPI()
+    async def product(_user, identity):
+        return {"name": "Old blouse"} if identity == "matterhorn:old" else None
+    async def missing(_user, identity):
+        return None
+    async def supplier_image(source):
+        raise AssertionError("Missing source should never be fetched")
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png", lambda path: (b"private", "image/png"),
+        prepare_catalogue=supplier_image, resolve_bag_product=product,
+        resolve_saved_outfit=missing,
+    ))
+    client = TestClient(app)
+    credentials = {"email": "missing-outfit@example.test", "password": "test-only-password-long"}
+    assert client.post("/api/account/register", json=credentials).status_code == 201
+    login = client.post("/api/account/login", json=credentials)
+    headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+    saved = client.post("/api/account/outfits", headers=headers,
+        json={"product_ids": ["matterhorn:old"]})
+    assert saved.status_code == 201
+    response = client.post(f"/api/account/outfits/{saved.json()['id']}/prepare", headers=headers)
+    assert response.status_code == 409
+    assert db.customer_photos.docs == []
+    assert len(db.customer_outfits.docs) == 1
