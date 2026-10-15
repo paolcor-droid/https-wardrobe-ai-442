@@ -824,8 +824,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         outfit = await db.customer_outfits.find_one({"id": outfit_id, "user_id": user_id})
         if not outfit:
             raise HTTPException(404, "Saved outfit not found")
-        if prepare_catalogue is None or resolve_bag_product is None:
-            raise HTTPException(503, "Catalogue Try-On is unavailable")
+        if prepare_catalogue is None or resolve_saved_outfit is None:
+            raise HTTPException(503, "Saved outfit preparation is unavailable")
         garments = []
         for product_id in outfit.get("product_ids", []):
             # Saved catalogue choices are not invalidated by subsequent changes
