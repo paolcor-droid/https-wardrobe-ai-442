@@ -1,5 +1,5 @@
 """Demonstration XML is never treated as real supplier inventory."""
-from services.demo_catalogue import demo_products
+from services.demo_catalogue import demo_products, demo_outfits
 
 
 XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -56,3 +56,16 @@ def test_ten_thousand_product_schema_with_nested_product_and_composition_parts(t
     assert products[0]["materials"] == ["Cotton 100%", "Rubber 100%"]
     assert products[0]["sizes"] == ["40"]
     assert products[0]["image_url"] is None
+
+
+def test_outfits_keep_actual_xml_references(tmp_path):
+    path = tmp_path / "outfits.xml"
+    path.write_text('''<catalogue><products>
+      <product id="2" sku="M-2" active="true"><name>Shirt</name><gender>Uomo</gender>
+        <price>20</price><variants><colour name="Blu Navy"><sizes><size label="M" stock="1"/></sizes></colour></variants></product>
+      <product id="7" sku="M-7" active="true"><name>Trousers</name><gender>Uomo</gender>
+        <price>40</price><variants><colour name="Nero"><sizes><size label="M" stock="1"/></sizes></colour></variants></product>
+    </products><outfits><outfit id="OUT-1"><items><item productId="2"/><item productId="7"/></items></outfit></outfits></catalogue>''')
+    products = demo_products(path)
+    assert [p["demo_xml_id"] for p in products] == ["2", "7"]
+    assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"]}]
