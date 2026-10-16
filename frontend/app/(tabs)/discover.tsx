@@ -18,6 +18,7 @@ export default function DiscoverScreen() {
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const [searchText, setSearchText] = useState("");
   const [demoMode, setDemoMode] = useState(false);
+  const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
     if (!completingOutfit.stylistQuery) return;
@@ -407,9 +408,13 @@ export default function DiscoverScreen() {
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
             <Text style={styles.note}>Complete outfit combinations from your test XML. Illustrative only; no photographs, purchasing or Try-On.</Text>
-            {searchResults.demo_outfit_diagnostics ? (
-              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} complete recommendations (whole-outfit price shown separately).</Text>
-            ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>}
+            <Text style={styles.note}>{searchResults.demo_outfits?.length || 0} complete personalised outfits · All prices are simulated EUR amounts</Text>
+            <Pressable accessibilityRole="button" onPress={() => setShowOutfitDiagnostics(v => !v)}>
+              <Text style={styles.body}>{showOutfitDiagnostics ? "Hide outfit diagnostics" : "Show outfit diagnostics"}</Text>
+            </Pressable>
+            {showOutfitDiagnostics && (searchResults.demo_outfit_diagnostics ? (
+              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} complete recommendations.</Text>
+            ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>)}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
