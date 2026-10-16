@@ -1627,22 +1627,14 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=16)
     outfit_diagnostics["generated_combinations"] = len(generated_outfits)
     outfit_cards.extend(generated_outfits)
-    outfit_cards.sort(key=lambda row: (-row["score"], row["id"]))
-    # Encourage a varied edit rather than showing multiple nearly identical
-    # combinations, while preserving source-defined outfit membership.
-    diversified = []
-    remaining = outfit_cards
-    used_categories = {}
-    while remaining and len(diversified) < 16:
-        def rank_outfit(outfit):
-            signature = tuple(sorted(p.get("category") or "" for p in outfit["garments"]))
-            return outfit["score"] - 7 * used_categories.get(signature, 0)
-        best = max(remaining, key=rank_outfit)
-        remaining.remove(best)
-        signature = tuple(sorted(p.get("category") or "" for p in best["garments"]))
-        used_categories[signature] = used_categories.get(signature, 0) + 1
-        diversified.append(best)
-    outfit_cards = diversified
+    from services.demo_outfit_presentation import style_copy, diversify_outfits
+    for card in outfit_cards:
+        copy = style_copy(card["garments"],
+                          [g["colour_names"][0] for g in card["garments"]],
+                          card.get("occasion") or "")
+        card["title"] = copy["title"]
+        card["reason"] = copy["explanation"] + " " + card["reason"]
+    outfit_cards = diversify_outfits(outfit_cards, limit=16)
     return {
         "recommendations": visible, "count": len(visible), "total": total,
         "page": page, "per_page": per_page, "has_more": page * per_page < total,
