@@ -1614,7 +1614,21 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                  "price": p.get("price"), "currency": "EUR"} for p, colour in zip(selected, chosen_colours)],
         })
     outfit_cards.sort(key=lambda row: (-row["score"], row["id"]))
-    outfit_cards = outfit_cards[:8]
+    # Encourage a varied edit rather than showing multiple nearly identical
+    # combinations, while preserving source-defined outfit membership.
+    diversified = []
+    remaining = outfit_cards
+    used_categories = {}
+    while remaining and len(diversified) < 8:
+        def rank_outfit(outfit):
+            signature = tuple(sorted(p.get("category") or "" for p in outfit["garments"]))
+            return outfit["score"] - 7 * used_categories.get(signature, 0)
+        best = max(remaining, key=rank_outfit)
+        remaining.remove(best)
+        signature = tuple(sorted(p.get("category") or "" for p in best["garments"]))
+        used_categories[signature] = used_categories.get(signature, 0) + 1
+        diversified.append(best)
+    outfit_cards = diversified
     return {
         "recommendations": visible, "count": len(visible), "total": total,
         "page": page, "per_page": per_page, "has_more": page * per_page < total,
