@@ -38,6 +38,7 @@ def harmony(colours):
 def occasion_for(items, climate):
     words = " ".join((str(p.get("name") or "")+" "+" ".join(p.get("materials") or [])) for p in items).casefold()
     if climate == "hot" and any(x in words for x in HOT): return "Hot-weather casual"
+    if "blazer" in words and any(x in words for x in ("tailored","dress","formal")): return "Formal"
     if any(x in words for x in FORMAL) and "blazer" in words: return "Work"
     if any(x in words for x in EVENING) and any(x in words for x in ("silk","satin","dress")): return "Evening"
     return "Casual"
