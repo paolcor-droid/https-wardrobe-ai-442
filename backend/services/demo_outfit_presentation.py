@@ -35,27 +35,56 @@ def style_copy(garments, colours, occasion):
     return {"title": title, "explanation": explanation}
 
 
-def diversify_outfits(outfits, limit=16):
-    """Select source-backed looks with a cap on repeated title/palette combinations.
+def _look_signature(outfit):
+    """Compare visual silhouettes and dominant colours, not SKU identities."""
+    garments = outfit["garments"]
+    roles = []
+    for g in garments:
+        name = str(g.get("name") or "").casefold()
+        role = garment_role(g)
+        if role == "top":
+            subtype = ("sweatshirt" if any(t in name for t in ("sweatshirt", "hoodie", "sweater")) else
+                       "t-shirt" if "t-shirt" in name or "tee" in name else
+                       "shirt" if "shirt" in name else "top")
+        elif role == "bottom":
+            subtype = "shorts" if "short" in name else "skirt" if "skirt" in name else "trousers"
+        elif role == "shoes":
+            subtype = "loafers" if "loafer" in name else "sneakers" if "sneaker" in name else "boots" if "boot" in name else "shoes"
+        else:
+            subtype = role
+        roles.append(subtype)
+    palette = tuple(sorted(set(c.casefold() for g in garments for c in g.get("colour_names", []))))
+    return tuple(sorted(roles)), palette
 
-    Never create new garments or silently alter personalisation eligibility.
-    When there are fewer diverse looks than requested, return fewer cards.
+
+def diversify_outfits(outfits, limit=16):
+    """Show a selective edit of visually different looks.
+
+    A duplicate silhouette/palette cannot reappear, even if its underlying SKU,
+    brand or price differs. Return fewer than the limit if diversity is low.
     """
     remaining = sorted(outfits, key=lambda o: (-o["score"], o["id"]))
     selected = []
-    title_counts = Counter()
+    seen_signatures = set()
+    seen_titles = set()
     palette_counts = Counter()
     while remaining and len(selected) < limit:
-        def title_key(o):
-            return str(o.get("title") or "").casefold()
-        def palette_key(o):
-            return tuple(sorted(c.casefold() for g in o["garments"] for c in g.get("colour_names", [])))
-        pool = [o for o in remaining if title_counts[title_key(o)] < 1 and palette_counts[palette_key(o)] < 2]
-        if not pool:
+        eligible = []
+        for o in remaining:
+            signature = _look_signature(o)
+            title = str(o.get("title") or "").casefold()
+            if signature in seen_signatures or (title and title in seen_titles):
+                continue
+            if palette_counts[signature[1]] >= 2:
+                continue
+            eligible.append(o)
+        if not eligible:
             break
-        winner = max(pool, key=lambda o: (o["score"], o["id"]))
+        winner = max(eligible, key=lambda o: (o["score"] - 7 * palette_counts[_look_signature(o)[1]], o["id"]))
         remaining.remove(winner)
         selected.append(winner)
-        title_counts[title_key(winner)] += 1
-        palette_counts[palette_key(winner)] += 1
+        sig = _look_signature(winner)
+        seen_signatures.add(sig)
+        seen_titles.add(str(winner.get("title") or "").casefold())
+        palette_counts[sig[1]] += 1
     return selected
