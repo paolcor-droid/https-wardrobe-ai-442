@@ -410,6 +410,7 @@ export default function DiscoverScreen() {
             {searchResults.demo_outfits.map((outfit) => (
               <View key={outfit.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} coordinated pieces</Text>
+                {(outfit.occasion || outfit.style) ? <Text style={styles.note}>{[outfit.occasion, outfit.style].filter(Boolean).join(" · ")}</Text> : null}
                 <Text style={styles.price}>Demo outfit total: EUR {outfit.total_price.toFixed(2)}</Text>
                 <Text style={styles.note}>{outfit.reason}</Text>
                 {outfit.garments.map((garment, index) => (
