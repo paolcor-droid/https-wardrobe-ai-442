@@ -1,5 +1,5 @@
 """Demonstration XML is never treated as real supplier inventory."""
-from services.demo_catalogue import demo_products, demo_outfits
+from services.demo_catalogue import demo_products, demo_outfits, english_name
 
 
 XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -69,3 +69,9 @@ def test_outfits_keep_actual_xml_references(tmp_path):
     products = demo_products(path)
     assert [p["demo_xml_id"] for p in products] == ["2", "7"]
     assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"]}]
+
+
+def test_demo_product_names_translate_without_mutating_identity():
+    assert english_name("T-shirt Girocollo") == "Crew-neck T-shirt"
+    assert english_name("Pantaloni Chino") == "Chino trousers"
+    assert english_name("Giacca Sfoderata") == "Unlined jacket"
