@@ -19,6 +19,7 @@ export default function DiscoverScreen() {
   const [searchText, setSearchText] = useState("");
   const [demoMode, setDemoMode] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
+  const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
     if (!completingOutfit.stylistQuery) return;
@@ -421,8 +422,14 @@ export default function DiscoverScreen() {
                 <Text style={styles.cardTitle}>{outfit.title || outfit.id} · {outfit.garments.length} coordinated pieces</Text>
                 <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{outfit.occasion ? ` · ${outfit.occasion}` : ""}{outfit.style ? ` · ${outfit.style}` : ""}</Text>
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
-                {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
-                {outfit.garments.map((garment, index) => (
+                <Text style={styles.note}>{outfit.garments.map(g => g.name).join(" · ")}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
+                  <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
+                </Pressable>
+                {expandedDemoOutfits.includes(outfit.id) ? (
+                  <View>
+                    {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
+                    {outfit.garments.map((garment, index) => (
                   <View key={index} style={{ marginVertical: 7, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(128,128,128,0.18)" }}>
                     <Text style={styles.body}>{index + 1}. {garment.name} · {garment.category || "Garment"}</Text>
                     <Text style={styles.note}>EUR {typeof garment.price === "number" ? garment.price.toFixed(2) : "—"}</Text>
@@ -432,7 +439,9 @@ export default function DiscoverScreen() {
                       ))}
                     </View>
                   </View>
-                ))}
+                    ))}
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
