@@ -1554,9 +1554,8 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     # Include only pairs whose products survived the same account eligibility rules.
     # Resolve references through stable XML id or SKU, never client-supplied URLs.
     allowed = {str(p["external_id"]): p for p in ranked}
-    id_to_sku = {str(p["external_id"]).split("-")[-1].lstrip("0"): str(p["external_id"]) for p in all_demo}
-    # Product IDs are separate from SKUs in the XML; use their numeric sequence.
-    by_numeric_id = {str(i + 1): str(p["external_id"]) for i, p in enumerate(all_demo)}
+    by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
+                     if p.get("demo_xml_id")}
     outfit_cards = []
     for outfit in demo_outfits():
         ids = [r if r in allowed else by_numeric_id.get(str(r), "") for r in outfit["refs"]]
