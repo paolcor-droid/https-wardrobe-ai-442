@@ -408,7 +408,7 @@ export default function DiscoverScreen() {
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
             <Text style={styles.note}>Complete outfit combinations from your test XML. Illustrative only; no photographs, purchasing or Try-On.</Text>
             {searchResults.demo_outfit_diagnostics ? (
-              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} within outfit budget.</Text>
+              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} complete recommendations (whole-outfit price shown separately).</Text>
             ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).map((outfit) => (
