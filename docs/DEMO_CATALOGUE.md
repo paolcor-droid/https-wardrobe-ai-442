@@ -30,3 +30,7 @@ If the bundled `backend/demo-data/demo_catalogue.xml` is missing, the old ignore
 The loader accepts the nested `<products><product>...` schema, reads nested composition parts, and omits inactive or fully out-of-stock products. The 3,000 `<outfits>` records are preserved in the XML but are **not yet connected** to outfit recommendations.
 
 Ranking large catalogues can be slower than the 2,000-record trial; test responsiveness and performance before using a larger feed.
+
+## Coordinated outfit preview
+
+The demo search endpoint now reads outfit references from the source XML and displays up to eight text-only matching outfit groupings. These groupings are **not** purchasable, saveable, or valid for photographic Try-On. Only individual products passing the customer's strict personalisation and current search appear as outfit pieces, so a grouping may be partial; this is a preview of the XML outfit relationships, not a complete outfit-availability guarantee. Actual live garment photos are required for Try-On. The XML data is left unchanged.
