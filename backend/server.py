@@ -1553,13 +1553,21 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     # Outfit matching uses the actual XML associations, not fabricated pairings.
     # Include only pairs whose products survived the same account eligibility rules.
     # Resolve references through stable XML id or SKU, never client-supplied URLs.
-    allowed = {str(p["external_id"]): p for p in ranked}
+    # Outfits are a separate recommendation rail: searching for one garment
+    # must not require every complementary outfit piece to match that query.
+    outfit_defs = demo_outfits()
+    referenced = {str(ref) for outfit in outfit_defs for ref in outfit["refs"]}
+    outfit_candidates = [p for p in all_demo if p.get("demo_xml_id") in referenced
+                         or p.get("external_id") in referenced]
+    eligible_outfit_items = rank_verified_products(
+        outfit_candidates, profile, limit=len(outfit_candidates), diversify=False)
+    allowed = {str(p["external_id"]): p for p in eligible_outfit_items}
     by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
                      if p.get("demo_xml_id")}
     outfit_cards = []
     prefs = profile.get("preferences") or {}
     climate = prefs.get("climate")
-    for outfit in demo_outfits():
+    for outfit in outfit_defs:
         ids = [r if r in allowed else by_numeric_id.get(str(r), "") for r in outfit["refs"]]
         # Present only COMPLETE eligible combinations; do not call partial outfits coordinated.
         if len(ids) < 2 or any(x not in allowed for x in ids):
