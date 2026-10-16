@@ -358,8 +358,8 @@ export default function DiscoverScreen() {
         {bagMessage ? <Text style={styles.note}>{bagMessage}</Text> : null}
         {!demoMode ? <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text> : null}
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
-        {searchError ? <Text style={styles.note}>Catalogue search is unavailable. Retailer discovery remains available below.</Text> : null}
-        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>Demo catalogue is empty or no items match your profile. Check that demo_catalogue.xml is installed in backend/.lumiere-private-catalogue, or clear your filters.</Text> : null}
+        {searchError ? <Text style={styles.error}>{demoMode ? "Demo catalogue search failed. Please check the backend log (.lumiere-dev-logs/backend.log) and ensure the XML file is installed." : "Supplier catalogue search is unavailable. Retailer discovery remains available below."}</Text> : null}
+        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>Demo catalogue is empty or no items match your profile. Check that backend/demo-data/demo_catalogue.xml is installed, or clear your filters.</Text> : null}
         {!searching && !searchError && shownProducts.length === 0 ? (
           <View style={styles.info}>
             <Text style={styles.infoTitle}>No suitable products found yet</Text>
