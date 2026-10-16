@@ -411,8 +411,8 @@ export default function DiscoverScreen() {
               <View key={outfit.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} coordinated pieces</Text>
                 {(outfit.occasion || outfit.style) ? <Text style={styles.note}>{[outfit.occasion, outfit.style].filter(Boolean).join(" · ")}</Text> : null}
-                <Text style={styles.price}>Demo outfit total: EUR {outfit.total_price.toFixed(2)}</Text>
-                <Text style={styles.note}>{outfit.reason}</Text>
+                <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
+                {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
                 {outfit.garments.map((garment, index) => (
                   <View key={index} style={{ marginVertical: 7, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(128,128,128,0.18)" }}>
                     <Text style={styles.body}>{index + 1}. {garment.name} · {garment.category || "Garment"}</Text>
