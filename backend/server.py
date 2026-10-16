@@ -1557,15 +1557,39 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
                      if p.get("demo_xml_id")}
     outfit_cards = []
+    prefs = profile.get("preferences") or {}
+    climate = prefs.get("climate")
     for outfit in demo_outfits():
         ids = [r if r in allowed else by_numeric_id.get(str(r), "") for r in outfit["refs"]]
-        selected = [allowed[x] for x in ids if x in allowed]
-        if len(selected) >= 2:
-            outfit_cards.append({"id": outfit["id"], "garments": [
-                {"name": p["name"], "category": p.get("category"), "colour_names": p.get("colour_names", []),
-                 "price": p.get("price"), "currency": "EUR"} for p in selected[:4]]})
-        if len(outfit_cards) == 8:
-            break
+        # Present only COMPLETE eligible combinations; do not call partial outfits coordinated.
+        if len(ids) < 2 or any(x not in allowed for x in ids):
+            continue
+        selected = [allowed[x] for x in ids]
+        seasons = {p.get("season") for p in selected if p.get("season") not in
+                   ("", "Tutto l'anno", "All year", None)}
+        if len(seasons) > 1:
+            continue
+        if climate == "hot" and "Autunno/Inverno" in seasons:
+            continue
+        if climate == "cold" and "Primavera/Estate" in seasons:
+            continue
+        total_price = round(sum(float(p.get("price") or 0) for p in selected), 2)
+        budget_max = prefs.get("budget_max")
+        if budget_max is not None and total_price > float(budget_max):
+            continue
+        score = sum(float(p.get("recommendation_score") or 0) for p in selected) / len(selected)
+        outfit_cards.append({
+            "id": outfit["id"], "score": round(score, 1),
+            "total_price": total_price, "currency": "EUR",
+            "reason": "All pieces pass your saved colour and shopping preferences; "
+                      "the outfit has compatible seasonal suitability.",
+            "garments": [
+                {"name": p["name"], "category": p.get("category"),
+                 "colour_names": p.get("colour_names", []),
+                 "price": p.get("price"), "currency": "EUR"} for p in selected],
+        })
+    outfit_cards.sort(key=lambda row: (-row["score"], row["id"]))
+    outfit_cards = outfit_cards[:8]
     return {
         "recommendations": visible, "count": len(visible), "total": total,
         "page": page, "per_page": per_page, "has_more": page * per_page < total,
