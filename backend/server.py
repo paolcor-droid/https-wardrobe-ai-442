@@ -1565,6 +1565,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
                      if p.get("demo_xml_id")}
     outfit_cards = []
+    outfit_diagnostics = {"xml_outfits": len(outfit_defs), "eligible_garments": len(allowed), "complete": 0, "colour_eligible": 0, "season_eligible": 0, "budget_eligible": 0}
     prefs = profile.get("preferences") or {}
     climate = prefs.get("climate")
     for outfit in outfit_defs:
@@ -1573,6 +1574,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         if len(ids) < 2 or any(x not in allowed for x in ids):
             continue
         selected = [allowed[x] for x in ids]
+        outfit_diagnostics["complete"] += 1
         chosen_colours = outfit.get("colours", [])
         if len(chosen_colours) != len(selected):
             continue
@@ -1584,6 +1586,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                                       prefs.get("preferred_colours"), prefs.get("avoided_colours"))
                for p, colour in zip(selected, chosen_colours)):
             continue
+        outfit_diagnostics["colour_eligible"] += 1
         seasons = {p.get("season") for p in selected if p.get("season") not in
                    ("", "Tutto l'anno", "All year", None)}
         if len(seasons) > 1:
@@ -1592,10 +1595,12 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
             continue
         if climate == "cold" and "Primavera/Estate" in seasons:
             continue
+        outfit_diagnostics["season_eligible"] += 1
         total_price = round(sum(float(p.get("price") or 0) for p in selected), 2)
         budget_max = prefs.get("budget_max")
         if budget_max is not None and total_price > float(budget_max):
             continue
+        outfit_diagnostics["budget_eligible"] += 1
         score = sum(float(p.get("recommendation_score") or 0) for p in selected) / len(selected)
         outfit_cards.append({
             "id": outfit["id"], "score": round(score, 1),
@@ -1616,6 +1621,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         "source": "lumiere_demo_xml", "live_inventory_enabled": False,
         "notice": "SIMULATED TEST PRODUCTS. Not affiliated with the displayed brands. No purchase or Try-On.",
         "demo_enabled": bool(all_demo), "demo_outfits": outfit_cards,
+        "demo_outfit_diagnostics": outfit_diagnostics,
         "demo_diagnostics": {"loaded": len(all_demo), "search_matches": len(source),
                              "eligible_after_profile": len(ranked)},
     }
