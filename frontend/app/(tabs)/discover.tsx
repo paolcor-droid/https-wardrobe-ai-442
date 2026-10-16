@@ -407,19 +407,19 @@ export default function DiscoverScreen() {
         {demoMode && !searching && !searchError && searchResults ? (
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
-            <Text style={styles.note}>Complete outfit combinations from your test XML. Illustrative only; no photographs, purchasing or Try-On.</Text>
+            <Text style={styles.note}>Complete looks from the source XML and carefully generated combinations of eligible demo garments. Illustrative only; no photographs, purchasing or Try-On.</Text>
             <Text style={styles.note}>{searchResults.demo_outfits?.length || 0} complete personalised outfits · All prices are simulated EUR amounts</Text>
             <Pressable accessibilityRole="button" onPress={() => setShowOutfitDiagnostics(v => !v)}>
               <Text style={styles.body}>{showOutfitDiagnostics ? "Hide outfit diagnostics" : "Show outfit diagnostics"}</Text>
             </Pressable>
             {showOutfitDiagnostics && (searchResults.demo_outfit_diagnostics ? (
-              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} complete recommendations.</Text>
+              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} eligible XML outfits · {searchResults.demo_outfit_diagnostics.generated_combinations ?? 0} generated combinations.</Text>
             ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>)}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} coordinated pieces</Text>
-                {(outfit.occasion || outfit.style) ? <Text style={styles.note}>{[outfit.occasion, outfit.style].filter(Boolean).join(" · ")}</Text> : null}
+                <Text style={styles.cardTitle}>{outfit.title || outfit.id} · {outfit.garments.length} coordinated pieces</Text>
+                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{outfit.occasion ? ` · ${outfit.occasion}` : ""}{outfit.style ? ` · ${outfit.style}` : ""}</Text>
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
                 {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
                 {outfit.garments.map((garment, index) => (
