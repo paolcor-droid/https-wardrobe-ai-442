@@ -1605,12 +1605,17 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         quality = outfit_quality(outfit, selected, prefs)
         score = (sum(float(p.get("recommendation_score") or 0) for p in selected)
                  / len(selected) + quality["bonus"])
+        from services.demo_outfit_combinations import harmony
+        harmony_bonus, harmony_reason = harmony(chosen_colours)
+        score += harmony_bonus
         outfit_cards.append({
-            "id": outfit["id"], "score": round(score, 1),
+            "id": outfit["id"], "origin": "xml",
+            "title": f"{(outfit.get('occasion') or 'Coordinated').title()} · {chosen_colours[0]} and {chosen_colours[1]}",
+            "score": round(score, 1),
             "alternative_colours": colour_selection["substituted"],
             "style": outfit.get("style", ""), "occasion": outfit.get("occasion", ""),
             "total_price": total_price, "currency": "EUR",
-            "reason": quality["reason"] +
+            "reason": harmony_reason + " " + quality["reason"] +
                       (f" {colour_selection['substituted']} source colour(s) were replaced by eligible, in-stock variants." if colour_selection["substituted"] else " Original source colours retained.") +
                       " The total price is illustrative; no whole-outfit budget was specified.",
             "garments": [
@@ -1618,13 +1623,17 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                  "colour_names": [colour],
                  "price": p.get("price"), "currency": "EUR"} for p, colour in zip(selected, chosen_colours)],
         })
+    from services.demo_outfit_combinations import make_generated_outfits
+    generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=16)
+    outfit_diagnostics["generated_combinations"] = len(generated_outfits)
+    outfit_cards.extend(generated_outfits)
     outfit_cards.sort(key=lambda row: (-row["score"], row["id"]))
     # Encourage a varied edit rather than showing multiple nearly identical
     # combinations, while preserving source-defined outfit membership.
     diversified = []
     remaining = outfit_cards
     used_categories = {}
-    while remaining and len(diversified) < 8:
+    while remaining and len(diversified) < 16:
         def rank_outfit(outfit):
             signature = tuple(sorted(p.get("category") or "" for p in outfit["garments"]))
             return outfit["score"] - 7 * used_categories.get(signature, 0)
