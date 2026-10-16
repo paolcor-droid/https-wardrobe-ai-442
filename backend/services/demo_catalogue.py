@@ -69,7 +69,7 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
         materials = [f"{MATERIAL_EN.get(m.text or '', m.text or '')} {m.get('percentage', '')}%" for m in element.findall("composition/material") + element.findall("composition/part/material")]
         gender = element.findtext("gender", "")
         records.append({
-            "provider_id": "lumiere-demo", "external_id": sku,
+            "provider_id": "lumiere-demo", "external_id": sku, "demo_xml_id": element.get("id", ""),
             "provider_kind": "demo", "source_verified": True, "live": True,
             "name": element.findtext("name", "") or "",
             "brand": element.findtext("brand", "") or "",
