@@ -28,7 +28,7 @@ def test_demo_xml_loader_is_read_only_and_disables_image_and_sales(tmp_path):
     assert item["currency"] == "EUR"
     assert item["image_url"] is None
     assert item["sizes"] == ["M"]
-    assert item["colour_names"] == ["Blu Navy"]
+    assert item["colour_names"] == ["Navy"]
     assert demo_products(path) == products
 
 
@@ -53,6 +53,6 @@ def test_ten_thousand_product_schema_with_nested_product_and_composition_parts(t
     path.write_text(xml, encoding="utf-8")
     products = demo_products(path)
     assert len(products) == 1
-    assert products[0]["materials"] == ["Cotone 100%", "Gomma 100%"]
+    assert products[0]["materials"] == ["Cotton 100%", "Rubber 100%"]
     assert products[0]["sizes"] == ["40"]
     assert products[0]["image_url"] is None
