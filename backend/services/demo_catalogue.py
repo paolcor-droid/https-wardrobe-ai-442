@@ -128,13 +128,17 @@ def _outfits(path: str, modified_ns: int) -> tuple[dict, ...]:
         if not oid:
             continue
         refs = []
+        colour_selections = []
         for item in el.iter("item"):
             for key in ("productId", "product_id", "sku", "ref"):
                 if item.get(key):
                     refs.append(item.get(key))
+                    colour_selections.append(COLOUR_EN.get(item.get("colour", ""), item.get("colour", "")))
                     break
         if len(refs) >= 2:
-            outfits.append({"id": oid, "refs": refs})
+            outfits.append({"id": oid, "refs": refs, "colours": colour_selections,
+                            "season": el.get("season", ""), "occasion": el.get("occasion", ""),
+                            "style": el.get("style", "")})
     return tuple(outfits)
 
 
