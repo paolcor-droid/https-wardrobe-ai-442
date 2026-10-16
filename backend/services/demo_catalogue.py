@@ -38,6 +38,32 @@ MATERIAL_EN = {
 
 
 
+# Translate presentation names only; keep XML and garment identity untouched.
+NAME_TERMS = {
+    "Blazer Monopetto": "Single-breasted blazer", "Blazer Doppiopetto": "Double-breasted blazer",
+    "Giacca Sfoderata": "Unlined jacket", "Giacca Destrutturata": "Unstructured jacket",
+    "Giacca in Pelle": "Leather jacket", "Giacca": "Jacket",
+    "Pantaloni Chino": "Chino trousers", "Pantalone Chino": "Chino trousers",
+    "Pantalone Sartoriale": "Tailored trousers", "Pantaloni": "Trousers",
+    "Bermuda Chino": "Chino shorts", "Bermuda": "Shorts",
+    "T-shirt Girocollo": "Crew-neck T-shirt", "T-shirt Scollo a V": "V-neck T-shirt",
+    "Camicia in Lino": "Linen shirt", "Camicia": "Shirt",
+    "Maglione": "Sweater", "Felpa": "Sweatshirt", "Cappotto": "Coat",
+    "Gonna": "Skirt", "Abito": "Dress", "Blusa": "Blouse",
+    "Scarpe": "Shoes", "Sneakers in Tela": "Canvas sneakers",
+    "Mocassini": "Loafers", "Stivaletti": "Ankle boots",
+    "Cotone": "Cotton", "Lino": "Linen", "Lana": "Wool",
+    "Scollo a V": "V-neck", "Girocollo": "Crew-neck",
+    "Monopetto": "Single-breasted", "Doppiopetto": "Double-breasted",
+}
+def english_name(value: str) -> str:
+    result = value
+    import re
+    for italian, english in sorted(NAME_TERMS.items(), key=lambda x: -len(x[0])):
+        result = re.sub(r"(?<!\\w)" + re.escape(italian) + r"(?!\\w)", english, result, flags=re.IGNORECASE)
+    return result
+
+
 @lru_cache(maxsize=2)
 def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
     source = Path(path)
@@ -71,7 +97,7 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
         records.append({
             "provider_id": "lumiere-demo", "external_id": sku, "demo_xml_id": element.get("id", ""),
             "provider_kind": "demo", "source_verified": True, "live": True,
-            "name": element.findtext("name", "") or "",
+            "name": english_name(element.findtext("name", "") or ""),
             "brand": element.findtext("brand", "") or "",
             "category": element.findtext("category", "") or "",
             "description": element.findtext("description", "") or "",
