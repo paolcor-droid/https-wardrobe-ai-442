@@ -448,8 +448,8 @@ export type CatalogueSearchFilters = {
 export type CatalogueSearchResponse = CatalogueRecommendationsResponse & {
   total: number; page: number; per_page: number; has_more: boolean;
   demo_diagnostics?: { loaded: number; search_matches: number; eligible_after_profile: number };
-  demo_outfit_diagnostics?: { xml_outfits: number; eligible_garments: number; complete: number; colour_eligible: number; season_eligible: number; budget_eligible: number };
-  demo_outfits?: { id: string; score: number; total_price: number; currency: string; reason: string; style?: string; occasion?: string; garments: { name: string; category?: string; colour_names: string[]; price?: number; currency: string }[] }[];
+  demo_outfit_diagnostics?: { xml_outfits: number; eligible_garments: number; complete: number; colour_eligible: number; season_eligible: number; budget_eligible: number; generated_combinations?: number };
+  demo_outfits?: { id: string; origin?: "xml" | "generated"; title?: string; score: number; total_price: number; currency: string; reason: string; style?: string; occasion?: string; garments: { name: string; category?: string; colour_names: string[]; price?: number; currency: string }[] }[];
 };
 export async function searchCatalogue(filters: CatalogueSearchFilters): Promise<CatalogueSearchResponse> {
   const args = Object.entries(filters).filter(([, value]) => value !== "" && value != null);
