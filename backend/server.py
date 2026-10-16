@@ -1601,13 +1601,15 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         # rank_verified_products. No outfit-wide budget was specified.
         # Show the total as information instead of treating it as another cap.
         outfit_diagnostics["budget_eligible"] += 1
-        score = sum(float(p.get("recommendation_score") or 0) for p in selected) / len(selected)
+        from services.demo_outfit_quality import outfit_quality
+        quality = outfit_quality(outfit, selected, prefs)
+        score = (sum(float(p.get("recommendation_score") or 0) for p in selected)
+                 / len(selected) + quality["bonus"])
         outfit_cards.append({
             "id": outfit["id"], "score": round(score, 1),
             "style": outfit.get("style", ""), "occasion": outfit.get("occasion", ""),
             "total_price": total_price, "currency": "EUR",
-            "reason": "Each garment passes your saved shopping preferences and the exact selected colours; "
-                      "the combined price is illustrative, not an outfit budget limit.",
+            "reason": quality["reason"] + " The total price is illustrative; no whole-outfit budget was specified.",
             "garments": [
                 {"name": p["name"], "category": p.get("category"),
                  "colour_names": [colour],
