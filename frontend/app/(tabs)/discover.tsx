@@ -359,7 +359,10 @@ export default function DiscoverScreen() {
         {!demoMode ? <Text style={styles.note}>For this integration trial, these are genuine catalogue records from the supplied XML snapshot. LUMIÈRE trial prices use a 25% markup on the supplier price; current stock is not claimed live.</Text> : null}
         {searching ? <ActivityIndicator style={styles.loading} /> : null}
         {searchError ? <Text style={styles.error}>{demoMode ? "Demo catalogue search failed. Please check the backend log (.lumiere-dev-logs/backend.log) and ensure the XML file is installed." : "Supplier catalogue search is unavailable. Retailer discovery remains available below."}</Text> : null}
-        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>Demo catalogue is empty or no items match your profile. Check that backend/demo-data/demo_catalogue.xml is installed, or clear your filters.</Text> : null}
+        {demoMode && !searching && !searchError && searchResults?.demo_diagnostics ? (
+          <Text style={styles.note}>Demo search: {searchResults.demo_diagnostics.loaded} garments loaded · {searchResults.demo_diagnostics.search_matches} text/filter matches · {searchResults.demo_diagnostics.eligible_after_profile} match your personalisation.</Text>
+        ) : null}
+        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>No demo results: {searchResults.demo_diagnostics?.loaded === 0 ? "the XML is not loaded by the backend" : searchResults.demo_diagnostics?.search_matches === 0 ? "no garments match this search; try Sneakers, Navy or Cotton" : "your saved colour, department, category or budget preferences exclude these results."}</Text> : null}
         {!searching && !searchError && shownProducts.length === 0 ? (
           <View style={styles.info}>
             <Text style={styles.infoTitle}>No suitable products found yet</Text>
