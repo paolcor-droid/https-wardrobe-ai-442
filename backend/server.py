@@ -1527,7 +1527,19 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     # Pre-filter 10k records before the expensive colour/recommendation scorer.
     # Only source-owned product metadata participates; eligibility is still enforced.
     from services.discover_search import matches
-    source = [item for item in demo_products() if matches(item, filters)]
+    all_demo = demo_products()
+    # Free-text demo search includes translated material labels, unlike supplier search.
+    query = (filters.get("q") or "").strip().casefold()
+    if query:
+        scoped_filters = dict(filters)
+        scoped_filters["q"] = ""
+        source = [item for item in all_demo
+                  if matches(item, scoped_filters) and all(
+                      term in " ".join(str(item.get(k) or "") for k in
+                          ("name", "brand", "category", "description", "materials")).casefold()
+                      for term in query.split())]
+    else:
+        source = [item for item in all_demo if matches(item, filters)]
     ranked = rank_verified_products(source, profile, limit=len(source), diversify=False)
     items, total = paginate(ranked, {}, page, per_page)
     visible = [catalogue_view(item, customer_product_view) for item in items]
@@ -1543,7 +1555,9 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         "page": page, "per_page": per_page, "has_more": page * per_page < total,
         "source": "lumiere_demo_xml", "live_inventory_enabled": False,
         "notice": "SIMULATED TEST PRODUCTS. Not affiliated with the displayed brands. No purchase or Try-On.",
-        "demo_enabled": bool(source),
+        "demo_enabled": bool(all_demo),
+        "demo_diagnostics": {"loaded": len(all_demo), "search_matches": len(source),
+                             "eligible_after_profile": len(ranked)},
     }
 
 
