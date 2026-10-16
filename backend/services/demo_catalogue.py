@@ -105,6 +105,7 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
             "price": price, "customer_price": price, "currency": "EUR",
             "colour_names": colour_names, "sizes": sizes, "materials": materials,
             "availability": 1, "image_url": None,
+            "season": element.findtext("season", ""), "style": element.findtext("style", ""),
         })
     return tuple(records)
 
