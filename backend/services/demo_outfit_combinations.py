@@ -36,12 +36,8 @@ def harmony(colours):
     return -8, "The colours provide a stronger contrast."
 
 def occasion_for(items, climate):
-    words = " ".join((str(p.get("name") or "")+" "+" ".join(p.get("materials") or [])) for p in items).casefold()
-    if climate == "hot" and any(x in words for x in HOT): return "Hot-weather casual"
-    if "blazer" in words and any(x in words for x in ("tailored","dress","formal")): return "Formal"
-    if any(x in words for x in FORMAL) and "blazer" in words: return "Work"
-    if any(x in words for x in EVENING) and any(x in words for x in ("silk","satin","dress")): return "Evening"
-    return "Casual"
+    from services.demo_outfit_occasion import infer_occasion
+    return infer_occasion(items, climate)
 
 def make_generated_outfits(eligible_products, profile, max_results=16):
     """Build complete three-piece looks from actual eligible in-stock garments.
