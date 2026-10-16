@@ -409,11 +409,19 @@ export default function DiscoverScreen() {
             <Text style={styles.note}>Coordinated combinations from your test XML, filtered by your profile. Illustrative only: no actual garments or photos, purchase, or Try-On.</Text>
             {searchResults.demo_outfits.map((outfit) => (
               <View key={outfit.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} pieces</Text>
+                <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} coordinated pieces</Text>
+                <Text style={styles.price}>Demo outfit total: EUR {outfit.total_price.toFixed(2)}</Text>
+                <Text style={styles.note}>{outfit.reason}</Text>
                 {outfit.garments.map((garment, index) => (
-                  <Text key={index} style={styles.body}>
-                    {index + 1}. {garment.name} · {garment.category || "Garment"} · {garment.colour_names.slice(0, 2).join(", ")}
-                  </Text>
+                  <View key={index} style={{ marginVertical: 7, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(128,128,128,0.18)" }}>
+                    <Text style={styles.body}>{index + 1}. {garment.name} · {garment.category || "Garment"}</Text>
+                    <Text style={styles.note}>EUR {typeof garment.price === "number" ? garment.price.toFixed(2) : "—"}</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                      {garment.colour_names.slice(0, 3).map((colour) => (
+                        <Text key={colour} style={[styles.productMeta, { borderWidth: 1, borderColor: "rgba(128,128,128,0.3)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }]}>{colour}</Text>
+                      ))}
+                    </View>
+                  </View>
                 ))}
               </View>
             ))}
