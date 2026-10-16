@@ -34,3 +34,7 @@ Ranking large catalogues can be slower than the 2,000-record trial; test respons
 ## Coordinated outfit preview
 
 The demo search endpoint now reads outfit references from the source XML and displays up to eight text-only matching outfit groupings. These groupings are **not** purchasable, saveable, or valid for photographic Try-On. Only individual products passing the customer's strict personalisation and current search appear as outfit pieces, so a grouping may be partial; this is a preview of the XML outfit relationships, not a complete outfit-availability guarantee. Actual live garment photos are required for Try-On. The XML data is left unchanged.
+
+## Outfit preview v2
+
+The Discover demo cards now use English product-name presentation where supported, source-defined outfit colours, per-garment simulated EUR prices and whole-outfit totals. Outfit previews require **every source outfit item** to survive account eligibility and the active search; season conflicts, hot/cold incompatibility and full-outfit totals above the profile budget are filtered. Results are ordered by the average score of the eligible members. This intentionally may yield fewer or no outfit previews when narrow searches or strict preferences are active. Italian names not yet in the translation map may remain untranslated. No images, checkout or Try-On are enabled.
