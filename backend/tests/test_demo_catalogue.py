@@ -68,7 +68,7 @@ def test_outfits_keep_actual_xml_references(tmp_path):
     </products><outfits><outfit id="OUT-1"><items><item productId="2"/><item productId="7"/></items></outfit></outfits></catalogue>''')
     products = demo_products(path)
     assert [p["demo_xml_id"] for p in products] == ["2", "7"]
-    assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"]}]
+    assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"], "colours": ["", ""], "season": "", "occasion": "", "style": ""}]
 
 
 def test_demo_product_names_translate_without_mutating_identity():
