@@ -1578,14 +1578,14 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         chosen_colours = outfit.get("colours", [])
         if len(chosen_colours) != len(selected):
             continue
-        # Each XML outfit specifies an exact variant. Never replace a forbidden
-        # chosen colour with some other available product colour.
-        from services.recommendation_engine import is_colour_eligible
-        if any(not colour or colour not in p.get("colour_names", []) or
-               not is_colour_eligible({**p, "colour_names": [colour]}, profile.get("skin"),
-                                      prefs.get("preferred_colours"), prefs.get("avoided_colours"))
-               for p, colour in zip(selected, chosen_colours)):
+        # Source-defined garments remain fixed. When an exact XML colour fails,
+        # select another stocked variant of the SAME garment that passes the
+        # saved palette and avoided-colour rules.
+        from services.demo_outfit_variants import select_outfit_colours
+        colour_selection = select_outfit_colours(selected, chosen_colours, profile)
+        if colour_selection is None:
             continue
+        chosen_colours = colour_selection["colours"]
         outfit_diagnostics["colour_eligible"] += 1
         seasons = {p.get("season") for p in selected if p.get("season") not in
                    ("", "Tutto l'anno", "All year", None)}
@@ -1607,9 +1607,12 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                  / len(selected) + quality["bonus"])
         outfit_cards.append({
             "id": outfit["id"], "score": round(score, 1),
+            "alternative_colours": colour_selection["substituted"],
             "style": outfit.get("style", ""), "occasion": outfit.get("occasion", ""),
             "total_price": total_price, "currency": "EUR",
-            "reason": quality["reason"] + " The total price is illustrative; no whole-outfit budget was specified.",
+            "reason": quality["reason"] +
+                      (f" {colour_selection['substituted']} source colour(s) were replaced by eligible, in-stock variants." if colour_selection["substituted"] else " Original source colours retained.") +
+                      " The total price is illustrative; no whole-outfit budget was specified.",
             "garments": [
                 {"name": p["name"], "category": p.get("category"),
                  "colour_names": [colour],
