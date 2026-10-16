@@ -38,3 +38,7 @@ The demo search endpoint now reads outfit references from the source XML and dis
 ## Outfit preview v2
 
 The Discover demo cards now use English product-name presentation where supported, source-defined outfit colours, per-garment simulated EUR prices and whole-outfit totals. Outfit previews require **every source outfit item** to survive account eligibility and the active search; season conflicts, hot/cold incompatibility and full-outfit totals above the profile budget are filtered. Results are ordered by the average score of the eligible members. This intentionally may yield fewer or no outfit previews when narrow searches or strict preferences are active. Italian names not yet in the translation map may remain untranslated. No images, checkout or Try-On are enabled.
+
+## Outfit recommendations: category diversity
+
+When several complete outfits meet the customer's existing colour, department, climate and per-garment-budget eligibility rules, Discover now applies a small category-combination diversity penalty during selection of the top eight. This reduces repeated near-identical outfits while preserving the original XML garment associations and exact chosen colours. The outfit diagnostic funnel is available through a Show/Hide control instead of occupying the default shopping view. No supplier, shopping bag, Try-On or payment behaviour changes.
