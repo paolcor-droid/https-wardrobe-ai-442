@@ -89,3 +89,31 @@ def demo_products(path: Path = DEMO_PATH) -> list[dict]:
     if not path.is_file():
         return []
     return [dict(p) for p in _load(str(path), path.stat().st_mtime_ns)]
+
+
+@lru_cache(maxsize=2)
+def _outfits(path: str, modified_ns: int) -> tuple[dict, ...]:
+    """Read coordinated outfit references from the bundled XML, not generated combinations."""
+    root = ET.parse(path).getroot()
+    outfits = []
+    for el in root.findall("./outfits/outfit"):
+        oid = el.get("id", "")
+        if not oid:
+            continue
+        refs = []
+        for item in el.iter("item"):
+            for key in ("productId", "product_id", "sku", "ref"):
+                if item.get(key):
+                    refs.append(item.get(key))
+                    break
+        if len(refs) >= 2:
+            outfits.append({"id": oid, "refs": refs})
+    return tuple(outfits)
+
+
+def demo_outfits(path: Path = DEMO_PATH) -> list[dict]:
+    if path == DEMO_PATH and not path.is_file() and LEGACY_DEMO_PATH.is_file():
+        path = LEGACY_DEMO_PATH
+    if not path.is_file():
+        return []
+    return [dict(o) for o in _outfits(str(path), path.stat().st_mtime_ns)]
