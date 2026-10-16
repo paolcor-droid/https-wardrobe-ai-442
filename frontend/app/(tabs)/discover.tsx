@@ -403,6 +403,22 @@ export default function DiscoverScreen() {
             </Pressable>
           </View>
         ) : null}
+        {demoMode && !!searchResults?.demo_outfits?.length ? (
+          <View>
+            <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
+            <Text style={styles.note}>Coordinated combinations from your test XML, filtered by your profile. Illustrative only: no actual garments or photos, purchase, or Try-On.</Text>
+            {searchResults.demo_outfits.map((outfit) => (
+              <View key={outfit.id} style={styles.card}>
+                <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} pieces</Text>
+                {outfit.garments.map((garment, index) => (
+                  <Text key={index} style={styles.body}>
+                    {index + 1}. {garment.name} · {garment.category || "Garment"} · {garment.colour_names.slice(0, 2).join(", ")}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
         <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
         <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not claim live price, stock or availability from these stores.</Text>
         {preferred.map(renderRetailer)}
