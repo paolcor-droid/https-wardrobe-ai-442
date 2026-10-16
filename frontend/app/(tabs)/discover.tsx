@@ -403,6 +403,9 @@ export default function DiscoverScreen() {
             </Pressable>
           </View>
         ) : null}
+        {demoMode && !searching && !searchError && searchResults && !searchResults.demo_outfits?.length ? (
+          <Text style={styles.note}>No complete coordinated demo outfits satisfy all current colour, climate and full-outfit budget rules. Individual garment results remain available above. Try widening your shopping budget or reviewing your saved preferences.</Text>
+        ) : null}
         {demoMode && !!searchResults?.demo_outfits?.length ? (
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
