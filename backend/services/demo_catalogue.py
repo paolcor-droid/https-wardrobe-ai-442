@@ -11,6 +11,32 @@ DEMO_PATH = Path(__file__).resolve().parents[1] / "demo-data" / "demo_catalogue.
 LEGACY_DEMO_PATH = Path(__file__).resolve().parents[1] / ".lumiere-private-catalogue" / "demo_catalogue.xml"
 MAX_BYTES = 64 * 1024 * 1024
 
+# Catalogue values are Italian even when descriptions are in English.
+# Normalize only demo presentation and matching, never alter the source XML.
+COLOUR_EN = {
+    "Nero": "Black", "Bianco": "White", "Panna": "Cream",
+    "Grigio Perla": "Pearl Grey", "Grigio Melange": "Grey",
+    "Antracite": "Charcoal", "Blu Navy": "Navy", "Azzurro": "Light Blue",
+    "Denim Chiaro": "Light Blue", "Denim Medio": "Blue",
+    "Denim Scuro": "Dark Blue", "Beige": "Beige", "Sabbia": "Sand",
+    "Tortora": "Taupe", "Cammello": "Camel", "Cuoio": "Tan",
+    "Marrone": "Brown", "Cioccolato": "Dark Brown",
+    "Verde Oliva": "Olive", "Verde Salvia": "Sage Green",
+    "Verde Bottiglia": "Forest Green", "Bordeaux": "Burgundy",
+    "Rosso": "Red", "Terracotta": "Terracotta", "Corallo": "Coral",
+    "Senape": "Mustard", "Blu Cobalto": "Cobalt Blue",
+    "Rosa Cipria": "Blush Pink", "Lilla": "Lilac",
+}
+MATERIAL_EN = {
+    "Cotone": "Cotton", "Lino": "Linen", "Lana": "Wool",
+    "Lana Merino": "Merino Wool", "Cashmere": "Cashmere",
+    "Seta": "Silk", "Viscosa": "Viscose", "Poliestere": "Polyester",
+    "Poliammide": "Nylon", "Elastan": "Elastane",
+    "Pelle Bovina": "Leather", "Pelle di Agnello": "Lambskin",
+    "Camoscio": "Suede", "Paglia": "Straw", "Gomma": "Rubber",
+}
+
+
 
 @lru_cache(maxsize=2)
 def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
@@ -39,8 +65,8 @@ def _load(path: str, modified_ns: int) -> tuple[dict, ...]:
             continue
         sizes = list(dict.fromkeys(s.get("label", "") for c in variants
                           for s in c.findall("sizes/size") if int(s.get("stock", "0")) > 0))
-        colour_names = list(dict.fromkeys(c.get("name", "") for c in variants))
-        materials = [f"{m.text or ''} {m.get('percentage', '')}%" for m in element.findall("composition/material") + element.findall("composition/part/material")]
+        colour_names = list(dict.fromkeys(COLOUR_EN.get(c.get("name", ""), c.get("name", "")) for c in variants))
+        materials = [f"{MATERIAL_EN.get(m.text or '', m.text or '')} {m.get('percentage', '')}%" for m in element.findall("composition/material") + element.findall("composition/part/material")]
         gender = element.findtext("gender", "")
         records.append({
             "provider_id": "lumiere-demo", "external_id": sku,
