@@ -60,7 +60,7 @@ def english_name(value: str) -> str:
     result = value
     import re
     for italian, english in sorted(NAME_TERMS.items(), key=lambda x: -len(x[0])):
-        result = re.sub(r"(?<!\\w)" + re.escape(italian) + r"(?!\\w)", english, result, flags=re.IGNORECASE)
+        result = re.sub(r"(?<!\w)" + re.escape(italian) + r"(?!\w)", english, result, flags=re.IGNORECASE)
     return result
 
 
