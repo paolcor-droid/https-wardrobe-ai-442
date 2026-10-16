@@ -403,14 +403,15 @@ export default function DiscoverScreen() {
             </Pressable>
           </View>
         ) : null}
-        {demoMode && !searching && !searchError && searchResults && !searchResults.demo_outfits?.length ? (
-          <Text style={styles.note}>No complete coordinated demo outfits satisfy all current colour, climate and full-outfit budget rules. Individual garment results remain available above. Try widening your shopping budget or reviewing your saved preferences.</Text>
-        ) : null}
-        {demoMode && !!searchResults?.demo_outfits?.length ? (
+        {demoMode && !searching && !searchError && searchResults ? (
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
-            <Text style={styles.note}>Coordinated combinations from your test XML, filtered by your profile. Illustrative only: no actual garments or photos, purchase, or Try-On.</Text>
-            {searchResults.demo_outfits.map((outfit) => (
+            <Text style={styles.note}>Complete outfit combinations from your test XML. Illustrative only; no photographs, purchasing or Try-On.</Text>
+            {searchResults.demo_outfit_diagnostics ? (
+              <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} within outfit budget.</Text>
+            ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>}
+            {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
+            {(searchResults.demo_outfits ?? []).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{outfit.id} · {outfit.garments.length} coordinated pieces</Text>
                 {(outfit.occasion || outfit.style) ? <Text style={styles.note}>{[outfit.occasion, outfit.style].filter(Boolean).join(" · ")}</Text> : null}
