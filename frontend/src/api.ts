@@ -448,7 +448,7 @@ export type CatalogueSearchFilters = {
 export type CatalogueSearchResponse = CatalogueRecommendationsResponse & {
   total: number; page: number; per_page: number; has_more: boolean;
   demo_diagnostics?: { loaded: number; search_matches: number; eligible_after_profile: number };
-  demo_outfits?: { id: string; garments: { name: string; category?: string; colour_names: string[]; price?: number; currency: string }[] }[];
+  demo_outfits?: { id: string; score: number; total_price: number; currency: string; reason: string; garments: { name: string; category?: string; colour_names: string[]; price?: number; currency: string }[] }[];
 };
 export async function searchCatalogue(filters: CatalogueSearchFilters): Promise<CatalogueSearchResponse> {
   const args = Object.entries(filters).filter(([, value]) => value !== "" && value != null);
