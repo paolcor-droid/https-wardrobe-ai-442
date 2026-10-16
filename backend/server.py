@@ -1565,6 +1565,17 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         if len(ids) < 2 or any(x not in allowed for x in ids):
             continue
         selected = [allowed[x] for x in ids]
+        chosen_colours = outfit.get("colours", [])
+        if len(chosen_colours) != len(selected):
+            continue
+        # Each XML outfit specifies an exact variant. Never replace a forbidden
+        # chosen colour with some other available product colour.
+        from services.recommendation_engine import is_colour_eligible
+        if any(not colour or colour not in p.get("colour_names", []) or
+               not is_colour_eligible({**p, "colour_names": [colour]}, profile.get("skin"),
+                                      prefs.get("preferred_colours"), prefs.get("avoided_colours"))
+               for p, colour in zip(selected, chosen_colours)):
+            continue
         seasons = {p.get("season") for p in selected if p.get("season") not in
                    ("", "Tutto l'anno", "All year", None)}
         if len(seasons) > 1:
@@ -1580,13 +1591,14 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         score = sum(float(p.get("recommendation_score") or 0) for p in selected) / len(selected)
         outfit_cards.append({
             "id": outfit["id"], "score": round(score, 1),
+            "style": outfit.get("style", ""), "occasion": outfit.get("occasion", ""),
             "total_price": total_price, "currency": "EUR",
             "reason": "All pieces pass your saved colour and shopping preferences; "
                       "the outfit has compatible seasonal suitability.",
             "garments": [
                 {"name": p["name"], "category": p.get("category"),
-                 "colour_names": p.get("colour_names", []),
-                 "price": p.get("price"), "currency": "EUR"} for p in selected],
+                 "colour_names": [colour],
+                 "price": p.get("price"), "currency": "EUR"} for p, colour in zip(selected, chosen_colours)],
         })
     outfit_cards.sort(key=lambda row: (-row["score"], row["id"]))
     outfit_cards = outfit_cards[:8]
