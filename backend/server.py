@@ -31,7 +31,7 @@ from services.product_recommendations import rank_verified_products, customer_re
 from services.matterhorn_trial_snapshot import MATTERHORN_TRIAL_SNAPSHOT
 from services.supplier_catalogue_store import read_catalogue, catalogue_enabled
 from services.discover_search import paginate, catalogue_view, product_key
-from services.demo_catalogue import demo_products
+from services.demo_catalogue import demo_products, demo_outfits
 
 try:
     from emergentintegrations.llm.chat import (
@@ -1550,12 +1550,29 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         item["stock_status"] = "synthetic_demo"
         item["image_url"] = None
         item["demo_only"] = True
+    # Outfit matching uses the actual XML associations, not fabricated pairings.
+    # Include only pairs whose products survived the same account eligibility rules.
+    # Resolve references through stable XML id or SKU, never client-supplied URLs.
+    allowed = {str(p["external_id"]): p for p in ranked}
+    id_to_sku = {str(p["external_id"]).split("-")[-1].lstrip("0"): str(p["external_id"]) for p in all_demo}
+    # Product IDs are separate from SKUs in the XML; use their numeric sequence.
+    by_numeric_id = {str(i + 1): str(p["external_id"]) for i, p in enumerate(all_demo)}
+    outfit_cards = []
+    for outfit in demo_outfits():
+        ids = [r if r in allowed else by_numeric_id.get(str(r), "") for r in outfit["refs"]]
+        selected = [allowed[x] for x in ids if x in allowed]
+        if len(selected) >= 2:
+            outfit_cards.append({"id": outfit["id"], "garments": [
+                {"name": p["name"], "category": p.get("category"), "colour_names": p.get("colour_names", []),
+                 "price": p.get("price"), "currency": "EUR"} for p in selected[:4]]})
+        if len(outfit_cards) == 8:
+            break
     return {
         "recommendations": visible, "count": len(visible), "total": total,
         "page": page, "per_page": per_page, "has_more": page * per_page < total,
         "source": "lumiere_demo_xml", "live_inventory_enabled": False,
         "notice": "SIMULATED TEST PRODUCTS. Not affiliated with the displayed brands. No purchase or Try-On.",
-        "demo_enabled": bool(all_demo),
+        "demo_enabled": bool(all_demo), "demo_outfits": outfit_cards,
         "demo_diagnostics": {"loaded": len(all_demo), "search_matches": len(source),
                              "eligible_after_profile": len(ranked)},
     }
