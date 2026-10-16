@@ -15,7 +15,7 @@ def test_monochrome_copy_does_not_claim_unseen_accent():
 
 def test_diversifier_still_returns_existing_complete_cards():
     def card(name, colours, score):
-        return {"id":name,"score":score,"garments":[{"name":"Shirt","colour_names":[colours[0]]},{"name":"Trousers","colour_names":[colours[1]]}]}
+        return {"id":name,"score":score,"garments":[{"name":"Shirt","category":"Tops","colour_names":[colours[0]]},{"name":"Trousers","category":"Bottoms","colour_names":[colours[1]]}]}
     src=[card("a",["Navy","Navy"],95),card("b",["Navy","Navy"],94),card("c",["Olive","Beige"],93)]
     result=diversify_outfits(src,3)
     assert [i["id"] for i in result]==["a","c"]
