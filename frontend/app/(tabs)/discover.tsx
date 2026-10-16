@@ -362,7 +362,7 @@ export default function DiscoverScreen() {
         {demoMode && !searching && !searchError && searchResults?.demo_diagnostics ? (
           <Text style={styles.note}>Demo search: {searchResults.demo_diagnostics.loaded} garments loaded · {searchResults.demo_diagnostics.search_matches} text/filter matches · {searchResults.demo_diagnostics.eligible_after_profile} match your personalisation.</Text>
         ) : null}
-        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>No demo results: {searchResults.demo_diagnostics?.loaded === 0 ? "the XML is not loaded by the backend" : searchResults.demo_diagnostics?.search_matches === 0 ? "no garments match this search; try Sneakers, Navy or Cotton" : "your saved colour, department, category or budget preferences exclude these results."}</Text> : null}
+        {demoMode && !searching && !searchError && searchResults?.source === "lumiere_demo_xml" && searchResults.total === 0 ? <Text style={styles.note}>No demo results: {!searchResults.demo_diagnostics ? "the backend has not supplied search diagnostics. Restart the old FastAPI process to load the latest code." : searchResults.demo_diagnostics.loaded === 0 ? "the XML is not loaded by the backend" : searchResults.demo_diagnostics.search_matches === 0 ? "no garments match this search; try Sneakers, Navy or Cotton" : "your saved colour, department, category or budget preferences exclude these results."}</Text> : null}
         {!searching && !searchError && shownProducts.length === 0 ? (
           <View style={styles.info}>
             <Text style={styles.infoTitle}>No suitable products found yet</Text>
