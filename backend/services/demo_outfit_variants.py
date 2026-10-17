@@ -1,5 +1,5 @@
 """Choose stock-backed demo colour variants without weakening saved restrictions."""
-from services.recommendation_engine import is_colour_eligible, _colour_match, _norm_colour
+from services.recommendation_engine import is_colour_eligible, is_demo_colour_eligible, _colour_match, _norm_colour
 
 def select_outfit_colours(products: list[dict], original: list[str], profile: dict) -> dict | None:
     """Retain a source colour where valid; otherwise prefer verified in-stock variants.
@@ -32,7 +32,7 @@ def select_outfit_colours(products: list[dict], original: list[str], profile: di
     return {"colours": selected, "substituted": substituted}
 
 
-def select_harmonised_outfit_colours(products: list[dict], original: list[str], profile: dict) -> dict | None:
+def select_harmonised_outfit_colours(products: list[dict], original: list[str], profile: dict, demo_exploratory_colours: bool = False) -> dict | None:
     """Choose a complete, stocked, profile-eligible palette rather than each colour alone.
 
     A bounded beam explores colour variants without fabricating stock or relaxing
@@ -46,7 +46,7 @@ def select_harmonised_outfit_colours(products: list[dict], original: list[str], 
     choices = []
     for product in products:
         acceptable = [str(c) for c in (product.get("colour_names") or [])
-                      if is_colour_eligible({**product, "colour_names": [str(c)]},
+                      if (is_demo_colour_eligible if demo_exploratory_colours else is_colour_eligible)({**product, "colour_names": [str(c)]},
                          profile.get("skin"), prefs.get("preferred_colours"), prefs.get("avoided_colours"))]
         if not acceptable:
             return None
