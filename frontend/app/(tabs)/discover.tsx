@@ -440,20 +440,20 @@ export default function DiscoverScreen() {
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).map((outfit) => (
-              <View key={outfit.id} style={styles.card}>
+              <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <Text style={styles.cardTitle}>{outfit.occasion || "Coordinated outfit"} · {outfit.garments.map(g => g.colour_names?.[0]).filter((x, i, all) => Boolean(x) && all.indexOf(x) === i).join(" / ")}</Text>
                 <Text style={styles.note}>{outfit.garments.map(g => `${g.colour_names?.[0] || "Unspecified"} ${g.name}`).join(" · ")}</Text>
                 <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{[outfit.occasion, outfit.style, outfit.season].filter((value, index, values) => Boolean(value) && values.findIndex(x => x?.toLowerCase() === value?.toLowerCase()) === index).map(value => ` · ${value}`).join("")}</Text>
                 {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
-                <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
+                <Text style={styles.price}>Outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour);
                     return (
-                      <View key={index} style={{ width: 176, maxWidth: "46%", alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <View style={{ height: 122, width: "100%", borderRadius: 6, backgroundColor: "#f5f5f2", justifyContent: "center", overflow: "hidden" }}>
+                      <View key={index} style={{ width: 164, maxWidth: "46%", alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <View style={{ height: 112, width: "100%", borderRadius: 6, backgroundColor: "#f5f5f2", justifyContent: "center", overflow: "hidden" }}>
                           {inspiration ? <Image source={{ uri: inspiration.uri }} resizeMode="cover" accessibilityLabel={inspiration.match} style={{ width: "100%", height: 122 }} /> :
                             <View style={{ width: 50, height: 68, borderRadius: 5, alignSelf: "center", backgroundColor: colour || "#ddd", borderWidth: 1, borderColor: "#ccc" }} />}
                         </View>
@@ -468,7 +468,7 @@ export default function DiscoverScreen() {
                     );
                   })}
                 </View>
-                <Text style={styles.note}>Curated licensed photos are illustrative inspiration, not the demo products. Colour bars show selected demo variants; unmatched items remain colour-only.</Text>
+                <Text style={styles.note}>Styling inspiration · Representative photos, not actual demo items</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
                 </Pressable>
