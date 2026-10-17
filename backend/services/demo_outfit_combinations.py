@@ -48,14 +48,14 @@ def occasion_for(items, climate):
 def make_generated_outfits(eligible_products, profile, max_results=16):
     """Build complete three-piece looks from actual eligible in-stock garments.
 
-    At most 24 candidates per role; no full Cartesian catalogue scan.
+    At most 48 candidates per role, sampled from the fully eligible pool.
     """
     prefs = profile.get("preferences") or {}
     climate = prefs.get("climate")
     roles = {k: [] for k in ("top","bottom","dress","shoes","layer")}
     for p in eligible_products:
         role = garment_role(p)
-        if role in roles and len(roles[role]) < 24:
+        if role in roles and len(roles[role]) < 48:
             roles[role].append(p)
     candidates = []
     seen = set()
@@ -87,9 +87,11 @@ def make_generated_outfits(eligible_products, profile, max_results=16):
             "garments":[{"name":p["name"],"category":p.get("category"),"colour_names":[c],"price":p.get("price"),"currency":"EUR"} for p,c in zip(parts,selected)]
         })
     # Rotating offsets avoid taking only the three highest-ranked garments.
-    for offset in range(24):
+    for offset in range(96):
         if roles["top"] and roles["bottom"] and roles["shoes"]:
             add([roles["top"][offset%len(roles["top"])],roles["bottom"][(offset*7)%len(roles["bottom"])],roles["shoes"][(offset*11)%len(roles["shoes"])]])
+        if roles["top"] and roles["bottom"] and roles["shoes"]:
+            add([roles["top"][(offset*5+1)%len(roles["top"])],roles["bottom"][(offset*11+2)%len(roles["bottom"])],roles["shoes"][(offset*13+3)%len(roles["shoes"])]])
         if roles["dress"] and roles["shoes"] and roles["layer"] and climate!="hot":
             add([roles["dress"][offset%len(roles["dress"])],roles["layer"][(offset*7)%len(roles["layer"])],roles["shoes"][(offset*11)%len(roles["shoes"])]])
     candidates.sort(key=lambda x:(-x["score"],x["id"]))
