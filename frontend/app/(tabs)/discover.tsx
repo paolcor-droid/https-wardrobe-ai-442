@@ -475,9 +475,9 @@ export default function DiscoverScreen() {
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour);
                     return (
-                      <View key={index} style={{ width: 164, maxWidth: "46%", alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={112} />
-                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 24, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
+                      <View key={index} style={{ width: screenWidth >= 760 ? "31.5%" : "31%", minWidth: screenWidth >= 760 ? 190 : 0, alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 116} />
+                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 10, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
                         </View>
