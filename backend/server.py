@@ -1566,17 +1566,17 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     step = max(1, len(extra_pool) // 1200)
     expanded_candidates = outfit_candidates + extra_pool[::step][:1200]
     eligible_outfit_items = rank_verified_products(
-        expanded_candidates, profile, limit=len(expanded_candidates), diversify=False)
+        expanded_candidates, profile, limit=len(expanded_candidates), diversify=False, demo_exploratory_colours=True)
     allowed = {str(p["external_id"]): p for p in eligible_outfit_items}
     from collections import Counter
     from services.demo_outfit_combinations import garment_role
-    from services.recommendation_engine import is_colour_eligible
+    from services.recommendation_engine import is_colour_eligible, is_demo_colour_eligible
     eligible_colour_counts = Counter()
     role_counts = Counter()
     for product in eligible_outfit_items:
         role_counts[garment_role(product)] += 1
         for colour in set(product.get("colour_names") or []):
-            if is_colour_eligible({**product, "colour_names": [colour]},
+            if is_demo_colour_eligible({**product, "colour_names": [colour]},
                                   profile.get("skin"),
                                   (profile.get("preferences") or {}).get("preferred_colours"),
                                   (profile.get("preferences") or {}).get("avoided_colours")):
@@ -1585,7 +1585,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
                      if p.get("demo_xml_id")}
     outfit_cards = []
-    outfit_diagnostics = {"candidate_products_checked": len(expanded_candidates), "eligible_colours": dict(eligible_colour_counts.most_common(15)), "eligible_roles": dict(role_counts), "xml_outfits": len(outfit_defs), "eligible_garments": len(allowed), "complete": 0, "colour_eligible": 0, "season_eligible": 0, "budget_eligible": 0}
+    outfit_diagnostics = {"candidate_products_checked": len(expanded_candidates), "eligible_colours": dict(eligible_colour_counts.most_common(15)), "colour_policy": "demo_exploratory_neutrals", "eligible_roles": dict(role_counts), "xml_outfits": len(outfit_defs), "eligible_garments": len(allowed), "complete": 0, "colour_eligible": 0, "season_eligible": 0, "budget_eligible": 0}
     prefs = profile.get("preferences") or {}
     climate = prefs.get("climate")
     for outfit in outfit_defs:
@@ -1602,7 +1602,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         # select another stocked variant of the SAME garment that passes the
         # saved palette and avoided-colour rules.
         from services.demo_outfit_variants import select_harmonised_outfit_colours
-        colour_selection = select_harmonised_outfit_colours(selected, chosen_colours, profile)
+        colour_selection = select_harmonised_outfit_colours(selected, chosen_colours, profile, demo_exploratory_colours=True)
         if colour_selection is None:
             continue
         chosen_colours = colour_selection["colours"]
@@ -1648,7 +1648,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                  "price": p.get("price"), "currency": "EUR"} for p, colour in zip(selected, chosen_colours)],
         })
     from services.demo_outfit_combinations import make_generated_outfits
-    generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=64)
+    generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=64, demo_exploratory_colours=True)
     outfit_diagnostics["generated_combinations"] = len(generated_outfits)
     outfit_cards.extend(generated_outfits)
     from services.demo_outfit_presentation import style_copy, diversify_outfits
@@ -1665,7 +1665,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                           [g["colour_names"][0] for g in card["garments"]],
                           card.get("occasion") or "")
         card["title"] = copy["title"]
-        card["reason"] = copy["explanation"] + " " + card["reason"]
+        card["reason"] = copy["explanation"] + " " + card["reason"] + " Demo colour exploration may include neutrals outside your verified skin-analysis palette; these are not verified colour-analysis matches."
     outfit_cards = diversify_outfits(outfit_cards, limit=16)
     return {
         "recommendations": visible, "count": len(visible), "total": total,
