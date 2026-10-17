@@ -24,22 +24,56 @@ def garment_role(p):
     if any(x in t for x in ("shirt","t-shirt","blouse","top","polo","sweater","knitwear","sweatshirt")): return "top"
     return "other"
 
+TONAL = {
+    "white": "light", "cream": "light", "pearl grey": "light",
+    "beige": "light", "sand": "light", "light blue": "light",
+    "navy": "dark", "charcoal": "dark", "black": "dark",
+    "dark brown": "dark", "dark blue": "dark", "forest green": "dark",
+    "camel": "mid", "tan": "mid", "brown": "mid", "taupe": "mid",
+    "grey": "mid", "olive": "mid", "blue": "mid", "sage green": "mid",
+}
+FAMILY_GROUPS = {
+    "blue": {"navy", "dark blue", "light blue", "blue", "denim blue", "cobalt blue"},
+    "earth": {"camel", "beige", "sand", "cream", "tan", "brown", "dark brown", "taupe", "olive", "sage green"},
+    "rose": {"blush pink", "coral", "burgundy", "red", "rust", "terracotta"},
+}
+
 def harmony(colours):
-    """Outfit-level harmony rewards restrained contrast, not identical neutrals."""
-    lowered = [str(c).strip().casefold() for c in colours]
-    unique = len(set(lowered))
-    neutral = sum(c in NEUTRAL or c.startswith(("dark blue", "light blue")) for c in lowered)
-    chromatic = [c for c in lowered if c not in NEUTRAL and not c.startswith(("dark blue","light blue"))]
-    families = {k for c in chromatic for k, words in FAMILY.items() if any(w in c for w in words)}
-    if unique == 1:
-        return -10, "All pieces share one named colour; texture and shade contrast cannot be verified."
-    if len(families) > 1 and len(chromatic) > 1:
-        return -8, "Several strong colour families compete; review the combination."
-    if unique == 2:
-        return (11 if neutral >= 2 else 6), "Two complementary named colours create a restrained outfit."
-    if len(families) <= 1 and neutral >= 1:
-        return 16, "A balanced three-colour palette adds variety without competing accents."
-    return 7, "The garments offer differentiated colours; check the final styling visually."
+    """Explainable named-colour heuristic; never claims actual fabric-level verification."""
+    names = [str(c).strip().casefold() for c in colours if str(c).strip()]
+    if not names:
+        return -10, "No garment colours are available to assess."
+    unique = set(names)
+    tones = {TONAL[c] for c in unique if c in TONAL}
+    if len(unique) == 1:
+        return -12, "Every piece has the same colour name; fabric and shade differences are unknown."
+    score = 5
+    messages = []
+    if "light" in tones and "dark" in tones:
+        score += 12
+        messages.append("Light and dark pieces create a clear tonal contrast")
+    elif len(tones) >= 2:
+        score += 6
+        messages.append("Different colour depths create gentle contrast")
+    else:
+        messages.append("The palette has limited verified tonal contrast")
+    if len(unique) == 2:
+        score += 4
+        messages.append("Two main colours keep the outfit restrained")
+    elif len(unique) == 3:
+        score += 6
+        messages.append("Three distinct colours provide variety")
+    elif len(unique) > 3:
+        score -= 5
+        messages.append("Many different colours may compete")
+    saturated = [c for c in unique if c not in NEUTRAL and c not in
+                 {"olive", "sage green", "white", "light blue", "forest green"}]
+    if len(saturated) > 1:
+        families = {group for c in saturated for group, values in FAMILY_GROUPS.items() if c in values}
+        if len(families) > 1:
+            score -= 11
+            messages.append("Strong accents from different families may clash")
+    return score, ". ".join(messages) + "."
 
 def occasion_for(items, climate):
     from services.demo_outfit_occasion import infer_occasion
