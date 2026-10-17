@@ -46,3 +46,24 @@ def test_joint_selection_never_invents_nonstocked_or_avoided_colour():
     profile = {"preferences": {"preferred_colours": ["Navy"], "avoided_colours": ["Black"]}}
     result = select_harmonised_outfit_colours(products, ["", "", ""], profile)
     assert result["colours"] == ["Navy", "Navy", "Navy"]
+
+
+def test_demo_exploration_expands_neutrals_but_respects_avoided_colours():
+    from services.demo_outfit_variants import select_harmonised_outfit_colours
+    profile = {"skin":{"best_neutrals":[{"name":"Navy"}]},
+               "preferences":{"avoided_colours":["Black", "Beige"]}}
+    parts = [_product("Navy"), _product("Beige", "Cream"), _product("Black", "Brown")]
+    strict = select_harmonised_outfit_colours(parts, ["", "", ""], profile)
+    exploratory = select_harmonised_outfit_colours(parts, ["", "", ""], profile, demo_exploratory_colours=True)
+    assert strict is None
+    assert exploratory is not None
+    assert exploratory["colours"] == ["Navy", "Cream", "Brown"]
+
+
+def test_demo_exploration_does_not_allow_unverified_bright_colours():
+    from services.recommendation_engine import is_demo_colour_eligible, is_colour_eligible
+    profile = {"best_neutrals":[{"name":"Navy"}]}
+    p = {"colour_names":["Coral"]}
+    assert not is_demo_colour_eligible(p, profile)
+    assert not is_colour_eligible({"colour_names":["Cream"]}, profile)
+    assert is_demo_colour_eligible({"colour_names":["Cream"]}, profile)
