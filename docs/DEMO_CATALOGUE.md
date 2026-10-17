@@ -86,3 +86,7 @@ The Discover demo outfit tiles now display generic category pictograms (top, tro
 ## Colour-matched silhouettes and compact cards
 
 Discover now uses dependency-free React Native geometric garment silhouettes instead of OS-coloured emoji. These are simplistic category representations coloured with the *selected, stocked colour label's indicative swatch*. Garment silhouettes, fabric hues and variants are not verified product photographs. Cards present short compact garment tiles with responsive wrapping; outfit titles list actual selected colour + garment name for each piece. No new external image links, supplier product photographs, storage, checkout, or Try-On actions were introduced. Real photograph integration is intentionally deferred until variant-specific authoritative imagery is available and verified.
+
+## Editorial demo cards (visual revision)
+
+After visual review, the geometric silhouettes were removed from Discover because they resembled neither the real garment nor the intended polished experience. Cards now use compact, source-labelled colour strips and concise occasion/palette headings, with garment names and prices beneath. The earlier silhouette component remains unused as a historical development asset; it is not rendered. Images remain deferred until genuine variant-matched supplier photographs can be verified. Backend styling, stored profiles and demo eligibility are unchanged.
