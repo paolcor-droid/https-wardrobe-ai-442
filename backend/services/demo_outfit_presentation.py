@@ -4,43 +4,27 @@ from services.demo_outfit_combinations import garment_role
 
 
 def style_copy(garments, colours, occasion):
+    """Ground titles in each selected garment and its actual selected colour."""
     pairs = list(zip(garments, colours))
     if not pairs:
         return {"title": "Coordinated outfit", "explanation": "Selected from eligible demo garments."}
-    shoe = next(((p, c) for p, c in pairs if garment_role(p) == "shoes"), None)
-    main = [c for p, c in pairs if garment_role(p) != "shoes"]
-    base = Counter(main).most_common(1)[0][0] if main else colours[0]
-    accent = shoe[1] if shoe else colours[-1]
-    shoe_name = str(shoe[0].get("name") or "").casefold() if shoe else ""
-    if "penny" in shoe_name and "loafer" in shoe_name:
-        shoe_type = "Penny Loafers"
-    elif "loafer" in shoe_name:
-        shoe_type = "Loafers"
-    elif "sneaker" in shoe_name:
-        shoe_type = "Sneakers"
-    elif "boot" in shoe_name:
-        shoe_type = "Boots"
-    elif "sandal" in shoe_name:
-        shoe_type = "Sandals"
+    def label(garment, colour):
+        name = str(garment.get("name") or "garment").strip()
+        # Keep source names recognizable and never manufacture a garment subtype.
+        return f"{colour} {name}".strip()
+    labelled = [label(item, colour) for item, colour in pairs]
+    if len(labelled) == 1:
+        look = labelled[0]
+    elif len(labelled) == 2:
+        look = " and ".join(labelled)
     else:
-        shoe_type = "Footwear"
-    if accent.casefold() != base.casefold():
-        title = f"{base} with {accent} {shoe_type}" if shoe else f"{base} with {accent} accents"
-        explanation = f"{base} anchors the outfit, with {accent} providing a contrasting footwear accent." if shoe else f"{base} anchors the outfit with a {accent} accent."
-    else:
-        # A monochrome look still needs to say what the garments actually are.
-        roles = [(garment_role(p), str(p.get("name") or "")) for p, _ in pairs]
-        top_name = next((name for role, name in roles if role in ("top", "dress")), "")
-        bottom_name = next((name for role, name in roles if role == "bottom"), "")
-        if top_name and bottom_name:
-            title = f"{base} {top_name} with {bottom_name}"
-        elif top_name:
-            title = f"{base} {top_name} outfit"
-        else:
-            title = f"{base} coordinated outfit"
-        explanation = f"The selected pieces use a consistent {base} colour direction."
-    if occasion:
-        title = f"{occasion}: {title}"
+        look = ", ".join(labelled[:-1]) + " and " + labelled[-1]
+    title = f"{occasion}: {look}" if occasion else look
+    unique = {str(c).casefold() for c in colours}
+    explanation = ("The selected pieces use a consistent colour direction; individual fabrics and shades remain unverified."
+                   if len(unique) == 1 else
+                   "The selected garments combine " + ", ".join(dict.fromkeys(str(c) for c in colours)) +
+                   "; colour swatches are illustrative, not verified fabric matches.")
     return {"title": title, "explanation": explanation}
 
 
