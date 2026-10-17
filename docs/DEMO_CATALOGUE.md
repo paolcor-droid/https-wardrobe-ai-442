@@ -60,3 +60,7 @@ Each demo outfit is classified from its whole garment set. A transparent **High 
 ## Occasion filters and readable titles
 
 Discover now supports client-side occasion chips: All, Casual, Hot-weather casual, Smart casual, Business, Formal and Evening. The chips filter **only** the already-eligible and already-diversified outfit results, so they cannot introduce off-profile, out-of-stock or prohibited products. Empty categories display a helpful empty state instead of expanding the recommendation pool. Repeated occasion/style/season labels are collapsed case-insensitively for display. Monochrome outfits use real garment names in titles instead of generic “coordinated look” wording. No persisted profile settings or source XML are changed.
+
+## Visual outfit preview (Priority 1)
+
+Discover shows a compact tile for every selected demo garment with its name, selected XML colour, illustrative colour swatch and simulated EUR price. Swatches use a fixed display-colour lookup only for known colour labels; unfamiliar colour names receive an explicit “No swatch” placeholder. The tiles are not product photography, AI-generated merchandise, fabric colour verification, stock claims or Try-On output. Existing occasion filters, eligibility and expanded styling explanations are preserved. No new backend, storage, accounts, purchase paths or external image services are introduced.
