@@ -1639,6 +1639,8 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         card["occasion"] = assessment["occasion"]
         card["occasion_confidence"] = assessment["confidence"]
         card["occasion_evidence"] = assessment["evidence"]
+        # Prefer well-supported occasion labels without bypassing eligibility.
+        card["score"] = round(card["score"] + {"High": 4, "Moderate": 0, "Low": -6}[assessment["confidence"]], 1)
         copy = style_copy(card["garments"],
                           [g["colour_names"][0] for g in card["garments"]],
                           card.get("occasion") or "")
