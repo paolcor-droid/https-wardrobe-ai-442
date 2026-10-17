@@ -210,7 +210,7 @@ export default function DiscoverScreen() {
 
   const renderProduct = (product: ProductRecommendation) => (
     <View key={product.product_id} style={styles.productCard}>
-      {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : null}
+      {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : demoMode ? <View style={{ height: 120, marginHorizontal: 14, marginTop: 12, backgroundColor: "#f5f5f2", borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 }}>{product.colour_names.slice(0, 4).map(c => <View key={c} accessibilityLabel={c} style={{ width: 32, height: 65, borderRadius: 5, borderWidth: 1, borderColor: "#ccc", backgroundColor: demoSwatch(c) || "#ddd" }} />)}</View> : null}
       <View style={styles.productBody}>
         {demoMode ? <Text style={styles.productMeta}>DEMO PRODUCT · SIMULATED · NOT FOR SALE</Text> : null}
         <Text style={styles.productBrand}>{product.brand || "LUMIÈRE EDIT"}</Text>
@@ -219,7 +219,7 @@ export default function DiscoverScreen() {
         {!demoMode && product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
         <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
-        <Text style={styles.productMeta}>{demoMode ? "Synthetic test price in EUR · no brand affiliation or live inventory" : "Supplier catalogue price · stock not verified live"}</Text>
+        <Text style={styles.productMeta}>{demoMode ? "Illustrative EUR price · No live inventory or sales" : "Supplier catalogue price · stock not verified live"}</Text>
         {!demoMode ? <Text style={styles.productMeta}>Choose size and colour before saving to bag</Text> : null}
         {(!demoMode || expandedProductDetails.includes(product.product_id)) ? <View style={styles.feedbackRow}>
           {product.sizes.map((size) => (
