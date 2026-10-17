@@ -8,6 +8,7 @@ import Feather from "@react-native-vector-icons/feather";
 import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
+import { demoSwatch } from "@/src/demo-outfit-colours";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -433,7 +434,23 @@ export default function DiscoverScreen() {
                 <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{[outfit.occasion, outfit.style, outfit.season].filter((value, index, values) => Boolean(value) && values.findIndex(x => x?.toLowerCase() === value?.toLowerCase()) === index).map(value => ` · ${value}`).join("")}</Text>
                 {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
-                <Text style={styles.note}>{outfit.garments.map(g => g.name).join(" · ")}</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginVertical: 12 }}>
+                  {outfit.garments.map((garment, index) => {
+                    const selectedColour = garment.colour_names?.[0] || "Colour not specified";
+                    const colour = demoSwatch(selectedColour);
+                    return (
+                      <View key={index} style={{ width: 138, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.20)", borderRadius: 12, padding: 10, gap: 5 }}>
+                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 65, borderRadius: 8, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
+                          {!colour ? <Text style={{ color: "#333", fontSize: 11 }}>No swatch</Text> : null}
+                        </View>
+                        <Text style={styles.body} numberOfLines={2}>{garment.name}</Text>
+                        <Text style={styles.note}>{selectedColour}</Text>
+                        <Text style={styles.note}>{typeof garment.price === "number" ? `€${garment.price.toFixed(2)}` : "Price unavailable"}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <Text style={styles.note}>Illustrative colour swatches—not product photographs. Actual fabric shades may differ.</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
                 </Pressable>
