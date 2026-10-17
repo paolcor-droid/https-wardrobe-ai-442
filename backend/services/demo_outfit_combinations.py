@@ -3,7 +3,7 @@
 Only products that already passed the caller's full hard eligibility gate.
 No synthetic outfit is supplier inventory, a purchase offer or Try-On input.
 """
-from services.demo_outfit_variants import select_outfit_colours
+from services.demo_outfit_variants import select_harmonised_outfit_colours
 from services.demo_outfit_quality import outfit_quality
 
 NEUTRAL = {"navy","white","cream","beige","sand","taupe","camel","grey","pearl grey","charcoal","black","brown","dark brown","denim blue","blue"}
@@ -25,15 +25,21 @@ def garment_role(p):
     return "other"
 
 def harmony(colours):
-    """Prefer restrained neutral + accent outfits over competing strong colours."""
-    lowered = [str(c).casefold() for c in colours]
-    neutral = sum(c in NEUTRAL or c.startswith("dark blue") or c.startswith("light blue") for c in lowered)
+    """Outfit-level harmony rewards restrained contrast, not identical neutrals."""
+    lowered = [str(c).strip().casefold() for c in colours]
+    unique = len(set(lowered))
+    neutral = sum(c in NEUTRAL or c.startswith(("dark blue", "light blue")) for c in lowered)
     chromatic = [c for c in lowered if c not in NEUTRAL and not c.startswith(("dark blue","light blue"))]
-    if not chromatic: return 8, "A versatile neutral colour combination."
-    families = {k for c in chromatic for k,words in FAMILY.items() if any(w in c for w in words)}
-    if len(chromatic) <= 1: return 12, "A neutral foundation balances one accent colour."
-    if len(families) <= 1: return 9, "The accent colours belong to a related colour family."
-    return -8, "The colours provide a stronger contrast."
+    families = {k for c in chromatic for k, words in FAMILY.items() if any(w in c for w in words)}
+    if unique == 1:
+        return -10, "All pieces share one named colour; texture and shade contrast cannot be verified."
+    if len(families) > 1 and len(chromatic) > 1:
+        return -8, "Several strong colour families compete; review the combination."
+    if unique == 2:
+        return (11 if neutral >= 2 else 6), "Two complementary named colours create a restrained outfit."
+    if len(families) <= 1 and neutral >= 1:
+        return 16, "A balanced three-colour palette adds variety without competing accents."
+    return 7, "The garments offer differentiated colours; check the final styling visually."
 
 def occasion_for(items, climate):
     from services.demo_outfit_occasion import infer_occasion
@@ -62,7 +68,7 @@ def make_generated_outfits(eligible_products, profile, max_results=16):
         if len(departments)>1: return
         seasons = {p.get("season") for p in parts if p.get("season") not in ("","All year","Tutto l'anno",None)}
         if len(seasons)>1 or (climate=="hot" and "Autunno/Inverno" in seasons) or (climate=="cold" and "Primavera/Estate" in seasons): return
-        colours=select_outfit_colours(parts, [""]*len(parts), profile)
+        colours=select_harmonised_outfit_colours(parts, [""]*len(parts), profile)
         if colours is None: return
         selected=colours["colours"]
         colour_points, colour_reason = harmony(selected)
