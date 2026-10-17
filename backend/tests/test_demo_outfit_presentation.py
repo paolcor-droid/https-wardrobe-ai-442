@@ -3,9 +3,9 @@ from services.demo_outfit_presentation import style_copy, diversify_outfits
 def test_title_mentions_real_shoe_accent():
     garments=[{"name":"T-shirt Heavy","category":"Tops"},{"name":"Chino trousers","category":"Bottoms"},{"name":"Loafers Penny","category":"Footwear"}]
     copy=style_copy(garments,["Navy","Navy","Camel"],"Casual")
-    assert "Camel" in copy["title"] and "Penny Loafers" in copy["title"]
+    assert "Camel Loafers Penny" in copy["title"] and "Navy Chino trousers" in copy["title"]
     assert "Navy" in copy["explanation"]
-    assert "contrast" in copy["explanation"]
+    assert "illustrative" in copy["explanation"]
 
 def test_monochrome_copy_does_not_claim_unseen_accent():
     garments=[{"name":"Shirt","category":"Tops"},{"name":"Trousers","category":"Bottoms"}]
@@ -57,3 +57,9 @@ def test_collection_ranking_prefers_distinct_palette_when_scores_are_close():
     ],limit=3)
     assert chosen[0]["id"] == "a"
     assert chosen[1]["id"] == "c"
+
+
+def test_outfit_title_names_all_three_selected_colours_and_pieces():
+    look = [{"name": "Shirt Oxford"}, {"name": "Chino trousers"}, {"name": "Loafers Penny"}]
+    title = style_copy(look, ["White", "Cream", "Navy"], "Smart casual")["title"]
+    assert title == "Smart casual: White Shirt Oxford, Cream Chino trousers and Navy Loafers Penny"
