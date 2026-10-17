@@ -1559,13 +1559,33 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     referenced = {str(ref) for outfit in outfit_defs for ref in outfit["refs"]}
     outfit_candidates = [p for p in all_demo if p.get("demo_xml_id") in referenced
                          or p.get("external_id") in referenced]
+    # Broaden beyond the small XML-referenced set without scanning every possible trio.
+    # All sampled products still pass exactly the same hard profile eligibility gate.
+    extra_pool = [p for p in all_demo if p.get("external_id") not in
+                  {x.get("external_id") for x in outfit_candidates}]
+    step = max(1, len(extra_pool) // 1200)
+    expanded_candidates = outfit_candidates + extra_pool[::step][:1200]
     eligible_outfit_items = rank_verified_products(
-        outfit_candidates, profile, limit=len(outfit_candidates), diversify=False)
+        expanded_candidates, profile, limit=len(expanded_candidates), diversify=False)
     allowed = {str(p["external_id"]): p for p in eligible_outfit_items}
+    from collections import Counter
+    from services.demo_outfit_combinations import garment_role
+    from services.recommendation_engine import is_colour_eligible
+    eligible_colour_counts = Counter()
+    role_counts = Counter()
+    for product in eligible_outfit_items:
+        role_counts[garment_role(product)] += 1
+        for colour in set(product.get("colour_names") or []):
+            if is_colour_eligible({**product, "colour_names": [colour]},
+                                  profile.get("skin"),
+                                  (profile.get("preferences") or {}).get("preferred_colours"),
+                                  (profile.get("preferences") or {}).get("avoided_colours")):
+                eligible_colour_counts[str(colour)] += 1
+
     by_numeric_id = {str(p["demo_xml_id"]): str(p["external_id"]) for p in all_demo
                      if p.get("demo_xml_id")}
     outfit_cards = []
-    outfit_diagnostics = {"xml_outfits": len(outfit_defs), "eligible_garments": len(allowed), "complete": 0, "colour_eligible": 0, "season_eligible": 0, "budget_eligible": 0}
+    outfit_diagnostics = {"candidate_products_checked": len(expanded_candidates), "eligible_colours": dict(eligible_colour_counts.most_common(15)), "eligible_roles": dict(role_counts), "xml_outfits": len(outfit_defs), "eligible_garments": len(allowed), "complete": 0, "colour_eligible": 0, "season_eligible": 0, "budget_eligible": 0}
     prefs = profile.get("preferences") or {}
     climate = prefs.get("climate")
     for outfit in outfit_defs:
@@ -1628,7 +1648,7 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
                  "price": p.get("price"), "currency": "EUR"} for p, colour in zip(selected, chosen_colours)],
         })
     from services.demo_outfit_combinations import make_generated_outfits
-    generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=16)
+    generated_outfits = make_generated_outfits(eligible_outfit_items, profile, max_results=64)
     outfit_diagnostics["generated_combinations"] = len(generated_outfits)
     outfit_cards.extend(generated_outfits)
     from services.demo_outfit_presentation import style_copy, diversify_outfits
