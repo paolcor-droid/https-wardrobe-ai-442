@@ -20,5 +20,8 @@ export function DemoPhotoTile({ photo, colour, height = 120 }: {
           style={{ height: Math.min(52,height-25), width: 54, borderRadius: 5, borderWidth: 1, borderColor: "#c7c7c7", backgroundColor: swatch || "#ddd" }}/>
         <Text style={{ fontSize: 10, color: "#555" }}>{photo && failed ? "Photo unavailable" : "Colour preview"}</Text>
       </View>}
+    {photo && !failed && !photo.colourAccurate ? <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#ffffffeb", paddingVertical: 3, paddingHorizontal: 5 }}>
+      <Text style={{ fontSize: 9, color: "#333", textAlign: "center" }}>Style reference · Colour differs</Text>
+    </View> : null}
   </View>;
 }
