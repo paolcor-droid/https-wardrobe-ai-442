@@ -187,6 +187,29 @@ def recommendation_reasons(product: dict, colour_profile: dict | None, occasion:
     ]
 
 
+# Demo-only exploration colours: not claims of scan compatibility.
+# The genuine supplier matcher keeps using is_colour_eligible unchanged.
+DEMO_EXPLORATORY_NEUTRALS = frozenset({
+    "white", "cream", "beige", "sand", "taupe", "grey",
+    "pearl grey", "charcoal", "brown", "tan", "olive",
+})
+
+def is_demo_colour_eligible(product, colour_profile, preferred_colours=None, avoided_colours=None):
+    """Extend demo look exploration with clearly unverified neutrals.
+
+    Explicitly avoided colours are always rejected. This function MUST NOT
+    be used to authorise genuine supplier recommendations or colour claims.
+    """
+    colours = _product_colour_names(product)
+    if not colours:
+        return False
+    avoided = {_norm_colour(str(c)) for c in (avoided_colours or []) if c}
+    if _colour_match(colours, avoided):
+        return False
+    return is_colour_eligible(product, colour_profile, preferred_colours, avoided_colours) or bool(
+        colours & DEMO_EXPLORATORY_NEUTRALS
+    )
+
 def is_colour_eligible(
     product: dict,
     colour_profile: dict | None,
