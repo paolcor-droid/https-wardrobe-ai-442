@@ -57,7 +57,12 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
  const colour=COLOUR_FAMILY_MAP[selectedColour.trim().toLowerCase()];
  if(!category||!colour)return null;
  const exact = DEMO_PHOTO_LIBRARY.find(p => p.category === category && p.colourFamilies.includes(colour));
- if (exact) return { ...exact, colourAccurate: true };
+ if (exact) {
+   // A colour family match does not prove an exact fabric shade.
+   const shadeVerified = selectedColour.trim().toLowerCase() === "grey" || exact.id !== "tshirt-grey";
+   return { ...exact, colourAccurate: shadeVerified,
+     match: shadeVerified ? exact.match : exact.match + "; exact fabric shade unverified" };
+ }
  if (category === "shirt" && /oxford|shirt/i.test(name)) {
    const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "oxford-white");
    if (photo) return { ...photo, colourAccurate: false,
