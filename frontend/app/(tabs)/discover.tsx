@@ -452,16 +452,11 @@ export default function DiscoverScreen() {
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour);
                     return (
-                      <View key={index} style={{ width: 164, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        {inspiration ? (
-                          <View>
-                            <Image source={{ uri: inspiration.uri }} resizeMode="cover" accessibilityLabel={inspiration.match} style={{ width: "100%", height: 130, borderRadius: 5, backgroundColor: "#f2f2ef" }} />
-                            <Text style={[styles.note, { fontSize: 10 }]}>Representative photo · Not the actual item</Text>
-                            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(inspiration.page)}>
-                              <Text style={[styles.note, { fontSize: 10, textDecorationLine: "underline" }]}>Photo: {inspiration.author} · {inspiration.licence} · Source</Text>
-                            </Pressable>
-                          </View>
-                        ) : null}
+                      <View key={index} style={{ width: 176, maxWidth: "46%", alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <View style={{ height: 122, width: "100%", borderRadius: 6, backgroundColor: "#f5f5f2", justifyContent: "center", overflow: "hidden" }}>
+                          {inspiration ? <Image source={{ uri: inspiration.uri }} resizeMode="cover" accessibilityLabel={inspiration.match} style={{ width: "100%", height: 122 }} /> :
+                            <View style={{ width: 50, height: 68, borderRadius: 5, alignSelf: "center", backgroundColor: colour || "#ddd", borderWidth: 1, borderColor: "#ccc" }} />}
+                        </View>
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 24, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
@@ -479,6 +474,12 @@ export default function DiscoverScreen() {
                 </Pressable>
                 {expandedDemoOutfits.includes(outfit.id) ? (
                   <View>
+                    {outfit.garments.map((g, i) => {
+                      const photo = demoInspiration(g.name, g.colour_names?.[0] || "");
+                      return photo ? <Pressable key={i} accessibilityRole="link" onPress={() => Linking.openURL(photo.page)}>
+                        <Text style={styles.note}>Image {i + 1}: {photo.author} · {photo.licence} · Wikimedia Commons source (representative only)</Text>
+                      </Pressable> : null;
+                    })}
                     {outfit.occasion_evidence ? <Text style={styles.note}>Occasion evidence: {outfit.occasion_evidence}</Text> : null}
                     {outfit.origin === "xml" && (outfit.source_occasion || outfit.source_style || outfit.source_season) ? <Text style={styles.note}>Original XML labels: {[outfit.source_occasion, outfit.source_style, outfit.source_season].filter(Boolean).join(" · ")}</Text> : null}
                     {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
