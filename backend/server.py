@@ -1613,6 +1613,10 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
             "title": f"{(outfit.get('occasion') or 'Coordinated').title()} · {chosen_colours[0]} and {chosen_colours[1]}",
             "score": round(score, 1),
             "alternative_colours": colour_selection["substituted"],
+            "source_occasion": outfit.get("source_occasion", ""),
+            "source_style": outfit.get("source_style", ""),
+            "source_season": outfit.get("source_season", ""),
+            "season": outfit.get("season", ""),
             "style": outfit.get("style", ""), "occasion": outfit.get("occasion", ""),
             "total_price": total_price, "currency": "EUR",
             "reason": harmony_reason + " " + quality["reason"] +
@@ -1628,7 +1632,13 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
     outfit_diagnostics["generated_combinations"] = len(generated_outfits)
     outfit_cards.extend(generated_outfits)
     from services.demo_outfit_presentation import style_copy, diversify_outfits
+    from services.demo_outfit_occasion import occasion_assessment
     for card in outfit_cards:
+        assessment = occasion_assessment(card["garments"], climate,
+                                         card.get("occasion") if card.get("origin") == "xml" else None)
+        card["occasion"] = assessment["occasion"]
+        card["occasion_confidence"] = assessment["confidence"]
+        card["occasion_evidence"] = assessment["evidence"]
         copy = style_copy(card["garments"],
                           [g["colour_names"][0] for g in card["garments"]],
                           card.get("occasion") or "")
