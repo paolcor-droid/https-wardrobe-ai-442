@@ -9,7 +9,7 @@ import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCat
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
-import { demoGarmentSymbol } from "@/src/demo-outfit-visual";
+import { DemoGarmentSilhouette } from "@/src/demo-garment-silhouette";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -436,18 +436,18 @@ export default function DiscoverScreen() {
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{outfit.title || outfit.id} · {outfit.garments.length} coordinated pieces</Text>
+                <Text style={styles.cardTitle}>{outfit.title || outfit.id}</Text>
                 <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{[outfit.occasion, outfit.style, outfit.season].filter((value, index, values) => Boolean(value) && values.findIndex(x => x?.toLowerCase() === value?.toLowerCase()) === index).map(value => ` · ${value}`).join("")}</Text>
                 {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginVertical: 12 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
                     return (
-                      <View key={index} style={{ width: 138, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.20)", borderRadius: 12, padding: 10, gap: 5 }}>
-                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 65, borderRadius: 8, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
-                          <Text accessibilityLabel="Generic garment illustration, not a product photograph" style={{ fontSize: 30, textAlign: "center" }}>{demoGarmentSymbol(garment.name, garment.category)}</Text>
+                      <View key={index} style={{ width: 152, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.20)", borderRadius: 10, padding: 9, gap: 3 }}>
+                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 86, borderRadius: 8, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: "#f5f5f2", alignItems: "center", justifyContent: "center" }}>
+                          <DemoGarmentSilhouette name={garment.name} category={garment.category} colour={colour || "#d1d1d1"} />
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
                         </View>
                         <Text style={styles.body} numberOfLines={2}>{garment.name}</Text>
@@ -457,7 +457,7 @@ export default function DiscoverScreen() {
                     );
                   })}
                 </View>
-                <Text style={styles.note}>Generic garment illustrations with indicative colour swatches—not product photographs or verified fabric colours. Actual items may differ.</Text>
+                <Text style={styles.note}>Illustrative silhouettes tinted to selected colour names; not actual garments or verified fabric colours.</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
                 </Pressable>
