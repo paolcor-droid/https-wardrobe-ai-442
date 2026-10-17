@@ -45,7 +45,7 @@ def occasion_for(items, climate):
     from services.demo_outfit_occasion import infer_occasion
     return infer_occasion(items, climate)
 
-def make_generated_outfits(eligible_products, profile, max_results=16):
+def make_generated_outfits(eligible_products, profile, max_results=16, demo_exploratory_colours=False):
     """Build complete three-piece looks from actual eligible in-stock garments.
 
     At most 48 candidates per role, sampled from the fully eligible pool.
@@ -68,7 +68,7 @@ def make_generated_outfits(eligible_products, profile, max_results=16):
         if len(departments)>1: return
         seasons = {p.get("season") for p in parts if p.get("season") not in ("","All year","Tutto l'anno",None)}
         if len(seasons)>1 or (climate=="hot" and "Autunno/Inverno" in seasons) or (climate=="cold" and "Primavera/Estate" in seasons): return
-        colours=select_harmonised_outfit_colours(parts, [""]*len(parts), profile)
+        colours=select_harmonised_outfit_colours(parts, [""]*len(parts), profile, demo_exploratory_colours=demo_exploratory_colours)
         if colours is None: return
         selected=colours["colours"]
         colour_points, colour_reason = harmony(selected)
