@@ -118,6 +118,16 @@ def demo_products(path: Path = DEMO_PATH) -> list[dict]:
     return [dict(p) for p in _load(str(path), path.stat().st_mtime_ns)]
 
 
+OUTFIT_SEASON_EN = {"Estate": "Summer", "Inverno": "Winter", "Primavera": "Spring", "Autunno": "Autumn", "Primavera/Estate": "Spring/Summer", "Autunno/Inverno": "Autumn/Winter", "Tutto l'anno": "All year"}
+OUTFIT_OCCASION_EN = {"Casual": "Casual", "Lavoro": "Work", "Ufficio": "Office", "Formale": "Formal", "Cerimonia": "Ceremony", "Elegante": "Dressy", "Sera": "Evening", "Tempo libero": "Leisure", "Weekend": "Weekend", "Business": "Business", "Smart Casual": "Smart casual", "Sportivo": "Sporty", "Estate": "Summer"}
+OUTFIT_STYLE_EN = {"Classico": "Classic", "Elegante": "Elegant", "Casual": "Casual", "Sportivo": "Sporty", "Minimalista": "Minimalist", "Moderno": "Modern", "Romantico": "Romantic", "Boho": "Bohemian", "Urban": "Urban", "Contemporaneo": "Contemporary", "Chic": "Chic", "Streetwear": "Streetwear"}
+
+def translate_outfit_label(value: str, kind: str) -> str:
+    label = (value or "").strip()
+    mappings = {"season": OUTFIT_SEASON_EN, "occasion": OUTFIT_OCCASION_EN, "style": OUTFIT_STYLE_EN}
+    return mappings[kind].get(label, label)
+
+
 @lru_cache(maxsize=2)
 def _outfits(path: str, modified_ns: int) -> tuple[dict, ...]:
     """Read coordinated outfit references from the bundled XML, not generated combinations."""
@@ -137,8 +147,12 @@ def _outfits(path: str, modified_ns: int) -> tuple[dict, ...]:
                     break
         if len(refs) >= 2:
             outfits.append({"id": oid, "refs": refs, "colours": colour_selections,
-                            "season": el.get("season", ""), "occasion": el.get("occasion", ""),
-                            "style": el.get("style", "")})
+                            "season": translate_outfit_label(el.get("season", ""), "season"),
+                            "occasion": translate_outfit_label(el.get("occasion", ""), "occasion"),
+                            "style": translate_outfit_label(el.get("style", ""), "style"),
+                            "source_season": el.get("season", ""),
+                            "source_occasion": el.get("occasion", ""),
+                            "source_style": el.get("style", "")})
     return tuple(outfits)
 
 
