@@ -20,6 +20,7 @@ export default function DiscoverScreen() {
   const [demoMode, setDemoMode] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
+  const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
     if (!completingOutfit.stylistQuery) return;
@@ -409,7 +410,15 @@ export default function DiscoverScreen() {
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
             <Text style={styles.note}>Complete looks from the source XML and carefully generated combinations of eligible demo garments. Illustrative only; no photographs, purchasing or Try-On.</Text>
-            <Text style={styles.note}>{searchResults.demo_outfits?.length || 0} complete personalised outfits · All prices are simulated EUR amounts</Text>
+            <Text style={styles.note}>{(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).length} shown of {searchResults.demo_outfits?.length || 0} eligible outfits · Simulated EUR prices</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 12 }}>
+              {["All", "Casual", "Hot-weather casual", "Smart casual", "Business", "Formal", "Evening"].map(occasion => (
+                <Pressable key={occasion} accessibilityRole="button" accessibilityState={{ selected: outfitOccasionFilter === occasion }} onPress={() => setOutfitOccasionFilter(occasion)}
+                  style={{ borderWidth: 1, borderRadius: 18, borderColor: outfitOccasionFilter === occasion ? "#444" : "#ccc", paddingHorizontal: 12, paddingVertical: 7, backgroundColor: outfitOccasionFilter === occasion ? "#eee" : "transparent" }}>
+                  <Text style={styles.body}>{occasion}</Text>
+                </Pressable>
+              ))}
+            </View>
             <Pressable accessibilityRole="button" onPress={() => setShowOutfitDiagnostics(v => !v)}>
               <Text style={styles.body}>{showOutfitDiagnostics ? "Hide outfit diagnostics" : "Show outfit diagnostics"}</Text>
             </Pressable>
@@ -417,10 +426,11 @@ export default function DiscoverScreen() {
               <Text style={styles.note}>Outfit checks: {searchResults.demo_outfit_diagnostics.xml_outfits} in XML · {searchResults.demo_outfit_diagnostics.complete} complete candidate sets · {searchResults.demo_outfit_diagnostics.colour_eligible} pass exact colours · {searchResults.demo_outfit_diagnostics.season_eligible} match season/climate · {searchResults.demo_outfit_diagnostics.budget_eligible} eligible XML outfits · {searchResults.demo_outfit_diagnostics.generated_combinations ?? 0} generated combinations.</Text>
             ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>)}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
-            {(searchResults.demo_outfits ?? []).map((outfit) => (
+            {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
+            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{outfit.title || outfit.id} · {outfit.garments.length} coordinated pieces</Text>
-                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{outfit.occasion ? ` · ${outfit.occasion}` : ""}{outfit.style ? ` · ${outfit.style}` : ""}{outfit.season ? ` · ${outfit.season}` : ""}</Text>
+                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{[outfit.occasion, outfit.style, outfit.season].filter((value, index, values) => Boolean(value) && values.findIndex(x => x?.toLowerCase() === value?.toLowerCase()) === index).map(value => ` · ${value}`).join("")}</Text>
                 {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
                 <Text style={styles.note}>{outfit.garments.map(g => g.name).join(" · ")}</Text>
