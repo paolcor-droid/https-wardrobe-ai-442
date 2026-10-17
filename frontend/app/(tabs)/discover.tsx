@@ -411,6 +411,7 @@ export default function DiscoverScreen() {
           <View>
             <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
             <Text style={styles.note}>Complete looks from the source XML and carefully generated combinations of eligible demo garments. Illustrative only; no photographs, purchasing or Try-On.</Text>
+            <Text style={styles.note}>Colour exploration: these demo outfits may include stocked neutral colours beyond your verified skin-analysis palette. They are suggestions to try, not verified complexion matches. Colours you explicitly avoid remain excluded.</Text>
             <Text style={styles.note}>{(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).length} shown of {searchResults.demo_outfits?.length || 0} eligible outfits · Simulated EUR prices</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 12 }}>
               {["All", "Casual", "Hot-weather casual", "Smart casual", "Business", "Formal", "Evening"].map(occasion => (
