@@ -22,6 +22,7 @@ export default function DiscoverScreen() {
   const [demoMode, setDemoMode] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
+  const [expandedProductDetails, setExpandedProductDetails] = useState<string[]>([]);
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
@@ -214,40 +215,44 @@ export default function DiscoverScreen() {
         {demoMode ? <Text style={styles.productMeta}>DEMO PRODUCT · SIMULATED · NOT FOR SALE</Text> : null}
         <Text style={styles.productBrand}>{product.brand || "LUMIÈRE EDIT"}</Text>
         <Text style={styles.productName}>{product.name}</Text>
-        {product.colour_names.length ? <Text style={styles.productMeta}>Colour · {product.colour_names.join(", ")}</Text> : null}
-        {product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
+        {product.colour_names.length ? <View style={{ flexDirection: "row", gap: 5, flexWrap: "wrap", alignItems: "center", marginVertical: 5 }}>{product.colour_names.slice(0, 6).map(colour => <View key={colour} accessibilityLabel={colour} style={{ width: 18, height: 18, borderWidth: 1, borderColor: "#bbb", borderRadius: 9, backgroundColor: demoSwatch(colour) || "#ddd" }} />)}<Text style={styles.productMeta}>{product.colour_names.length} colours</Text></View> : null}
+        {!demoMode && product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
         <Text style={styles.price}>{product.price != null ? `${product.currency || "AUD"} ${product.price.toFixed(2)}` : "Price unavailable"}</Text>
         <Text style={styles.productMeta}>{demoMode ? "Synthetic test price in EUR · no brand affiliation or live inventory" : "Supplier catalogue price · stock not verified live"}</Text>
         {!demoMode ? <Text style={styles.productMeta}>Choose size and colour before saving to bag</Text> : null}
-        <View style={styles.feedbackRow}>
+        {(!demoMode || expandedProductDetails.includes(product.product_id)) ? <View style={styles.feedbackRow}>
           {product.sizes.map((size) => (
             <Pressable key={size} onPress={() => setSelectedSizes(v => ({ ...v, [product.product_id]: size }))}
               style={[styles.feedbackButton, selectedSizes[product.product_id] === size && styles.feedbackSelected]}>
               <Text style={styles.feedbackText}>{size}</Text>
             </Pressable>
           ))}
-        </View>
-        <View style={styles.feedbackRow}>
+        </View> : null}
+        {(!demoMode || expandedProductDetails.includes(product.product_id)) ? <View style={styles.feedbackRow}>
           {product.colour_names.map((colour) => (
             <Pressable key={colour} onPress={() => setSelectedColours(v => ({ ...v, [product.product_id]: colour }))}
               style={[styles.feedbackButton, selectedColours[product.product_id] === colour && styles.feedbackSelected]}>
               <Text style={styles.feedbackText}>{colour}</Text>
             </Pressable>
           ))}
-        </View>
+        </View> : null}
         {!demoMode ? <Pressable accessibilityRole="button" testID={`add-to-bag-${product.product_id}`}
           onPress={() => addToBag(product)} style={styles.tryOnButton}>
           <Feather name="shopping-bag" size={16}/>
           <Text style={styles.tryOnText}>Add to bag</Text>
         </Pressable> : null}
         {bagMessageProduct === product.product_id && bagMessage ? <Text testID={`bag-message-${product.product_id}`} accessibilityRole="alert" style={styles.productMeta}>{bagMessage}</Text> : null}
-        <View style={styles.why}>
+        <Pressable accessibilityRole="button" onPress={() => setExpandedProductDetails(v => v.includes(product.product_id) ? v.filter(x => x !== product.product_id) : [...v, product.product_id])}>
+          <Text style={styles.productMeta}>{expandedProductDetails.includes(product.product_id) ? "Hide styling explanation ▲" : "Why this suits you ▼"}</Text>
+        </Pressable>
+        {expandedProductDetails.includes(product.product_id) ? <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
+          {demoMode ? <Text style={styles.reason}>Only specifically matched colour variants have verified scan evidence; other listed colours are not automatically verified.</Text> : null}
           {product.recommendation_reasons.map((reason) => (
             <Text key={reason} style={styles.reason}>• {reason}</Text>
           ))}
-        </View>
+        </View> : null}
         {!demoMode ? <View style={styles.feedbackRow}>
           {(["liked", "disliked", "saved", "purchased"] as ProductSentiment[]).map((sentiment) => (
             <Pressable key={sentiment} testID={`feedback-${sentiment}-${product.product_id}`}
