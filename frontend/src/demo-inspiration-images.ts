@@ -1,6 +1,6 @@
 /** Licensed representative demo references. Never treated as photographs of demo SKUs. */
 export type DemoPhotoAsset = {
- id: string; category: "shirt" | "trousers" | "sneakers" | "loafers";
+ id: string; category: "shirt" | "tshirt" | "trousers" | "sneakers" | "loafers";
  colourFamilies: string[]; uri: string; page: string;
  author: string; licence: string; match: string; attributionRequired: boolean;
 };
@@ -16,6 +16,11 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
    page:"https://commons.wikimedia.org/wiki/File:Button_up_(Unsplash).jpg",
    author:"michael m_minimal",licence:"CC0 1.0",
    match:"White button-up shirt, representative photo",attributionRequired:false },
+ { id:"tshirt-white",category:"tshirt",colourFamilies:["white"],
+   uri:"https://commons.wikimedia.org/wiki/Special:FilePath/White-tshirt.jpg?width=500",
+   page:"https://commons.wikimedia.org/wiki/File:White-tshirt.jpg",
+   author:"Paulinaela",licence:"CC0 1.0",
+   match:"White T-shirt, representative photo",attributionRequired:false },
  { id:"sneakers-white",category:"sneakers",colourFamilies:["white"],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/Fashion-shoes-white-snickers_%2823699823403%29.jpg?width=500",
    page:"https://commons.wikimedia.org/wiki/File:Fashion-shoes-white-snickers_(23699823403).jpg",
@@ -32,6 +37,7 @@ function demoCategory(name:string): DemoPhotoAsset["category"] | null {
  if(/loafer|mocassin/.test(t))return "loafers";
  if(/sneaker|trainer/.test(t))return "sneakers";
  if(/chino|trouser|pants/.test(t))return "trousers";
+ if(/t-shirt|tee|tshirt/.test(t))return "tshirt";
  if(/shirt|oxford|blouse/.test(t))return "shirt";
  return null;
 }
