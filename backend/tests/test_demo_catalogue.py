@@ -68,10 +68,22 @@ def test_outfits_keep_actual_xml_references(tmp_path):
     </products><outfits><outfit id="OUT-1"><items><item productId="2"/><item productId="7"/></items></outfit></outfits></catalogue>''')
     products = demo_products(path)
     assert [p["demo_xml_id"] for p in products] == ["2", "7"]
-    assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"], "colours": ["", ""], "season": "", "occasion": "", "style": ""}]
+    assert demo_outfits(path) == [{"id": "OUT-1", "refs": ["2", "7"], "colours": ["", ""], "season": "", "occasion": "", "style": "", "source_season": "", "source_occasion": "", "source_style": ""}]
 
 
 def test_demo_product_names_translate_without_mutating_identity():
     assert english_name("T-shirt Girocollo") == "Crew-neck T-shirt"
     assert english_name("Pantaloni Chino") == "Chino trousers"
     assert english_name("Giacca Sfoderata") == "Unlined jacket"
+
+
+def test_outfit_metadata_translation_keeps_original_xml(tmp_path):
+    from services.demo_catalogue import translate_outfit_label
+    assert translate_outfit_label("Estate", "season") == "Summer"
+    assert translate_outfit_label("Lavoro", "occasion") == "Work"
+    assert translate_outfit_label("Classico", "style") == "Classic"
+    path = tmp_path / "translated.xml"
+    path.write_text('<catalogue><outfits><outfit id="OUT-X" season="Estate" occasion="Lavoro" style="Classico"><items><item productId="1"/><item productId="2"/></items></outfit></outfits></catalogue>')
+    record = demo_outfits(path)[0]
+    assert (record["season"], record["occasion"], record["style"]) == ("Summer", "Work", "Classic")
+    assert (record["source_season"], record["source_occasion"], record["source_style"]) == ("Estate", "Lavoro", "Classico")
