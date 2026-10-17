@@ -78,6 +78,7 @@ def diversify_outfits(outfits, limit=16):
     seen_titles = set()
     palette_counts = Counter()
     main_pair_counts = Counter()
+    dominant_counts = Counter()
     while remaining and len(selected) < limit:
         eligible = []
         for o in remaining:
@@ -94,7 +95,12 @@ def diversify_outfits(outfits, limit=16):
             eligible.append(o)
         if not eligible:
             break
-        winner = max(eligible, key=lambda o: (o["score"] - 7 * palette_counts[_look_signature(o)[1]], o["id"]))
+        winner = max(eligible, key=lambda o: (
+            o["score"]
+            - 18 * palette_counts[_look_signature(o)[1]]
+            - 8 * dominant_counts[next((g.get("colour_names", [""])[0].casefold()
+                                      for g in o["garments"] if garment_role(g) != "shoes"), "")],
+            o["id"]))
         remaining.remove(winner)
         selected.append(winner)
         sig = _look_signature(winner)
@@ -104,4 +110,6 @@ def diversify_outfits(outfits, limit=16):
         main = tuple(sorted(set(g.get("colour_names", [""])[0].casefold() for g in winner["garments"] if garment_role(g) != "shoes")))
         footwear = tuple(sorted(set(g.get("colour_names", [""])[0].casefold() for g in winner["garments"] if garment_role(g) == "shoes")))
         main_pair_counts[(main, footwear)] += 1
+        if main:
+            dominant_counts[next((g.get("colour_names", [""])[0].casefold() for g in winner["garments"] if garment_role(g) != "shoes"), "")] += 1
     return selected
