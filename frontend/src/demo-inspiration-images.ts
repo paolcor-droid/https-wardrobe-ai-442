@@ -26,6 +26,11 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
    page:"https://commons.wikimedia.org/wiki/File:Fashion-shoes-white-snickers_(23699823403).jpg",
    author:"www.Pixel.la Free Stock Photos",licence:"CC0 1.0",
    match:"White sneakers, representative photograph",attributionRequired:false },
+ { id:"penny-loafer-brown",category:"loafers",colourFamilies:["brown","camel","tan"],
+   uri:"https://commons.wikimedia.org/wiki/Special:FilePath/A_Penny_Loafer.jpg?width=500",
+   page:"https://commons.wikimedia.org/wiki/File:A_Penny_Loafer.jpg",
+   author:"Wikipedia-ce",licence:"CC0 1.0",
+   match:"Penny loafer style reference; photographed colour may differ",attributionRequired:false },
  { id:"chino-sand",category:"trousers",colourFamilies:["sand","beige"],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/Chino_pants.jpg?width=500",
    page:"https://commons.wikimedia.org/wiki/File:Chino_pants.jpg",
@@ -48,6 +53,11 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
  if(!category||!colour)return null;
  const exact = DEMO_PHOTO_LIBRARY.find(p => p.category === category && p.colourFamilies.includes(colour));
  if (exact) return { ...exact, colourAccurate: true };
+ if (category === "loafers") {
+   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "penny-loafer-brown");
+   if (photo) return { ...photo, colourAccurate: false,
+     match: "Representative loafer design, not a photo of selected " + selectedColour + " loafers" };
+ }
  if (category === "trousers" && /chino/i.test(name)) {
    const reference = DEMO_PHOTO_LIBRARY.find(p => p.id === "chino-sand");
    if (reference) return { ...reference, colourAccurate: false,
