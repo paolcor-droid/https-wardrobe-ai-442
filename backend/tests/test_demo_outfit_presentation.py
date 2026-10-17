@@ -42,3 +42,18 @@ def test_palette_diversity_does_not_repeat_navy_and_camel_footwear():
         look("b", "Navy", "Navy", "Camel", 88),
         look("c", "Olive", "Cream", "Brown", 86)], 10)
     assert [x["id"] for x in result] == ["a", "c"]
+
+
+def test_collection_ranking_prefers_distinct_palette_when_scores_are_close():
+    def outfit(code, colours, score, top):
+        return {"id":code,"title":code,"score":score,"garments":[
+            {"name":top,"category":"Tops","colour_names":[colours[0]]},
+            {"name":"Chino trousers","category":"Bottoms","colour_names":[colours[1]]},
+            {"name":"Loafers Penny","category":"Footwear","colour_names":[colours[2]]}]}
+    chosen=diversify_outfits([
+        outfit("a",["Navy","Navy","Camel"],100,"T-shirt"),
+        outfit("b",["Navy","Camel","Navy"],99,"Sweatshirt"),
+        outfit("c",["Olive","Cream","Brown"],93,"Linen shirt"),
+    ],limit=3)
+    assert chosen[0]["id"] == "a"
+    assert chosen[1]["id"] == "c"
