@@ -28,3 +28,21 @@ def test_all_pieces_required_and_no_unknown_unstocked_colours():
     assert select_outfit_colours([_product("Navy"), _product("Red")], ["Navy", "Red"], profile) is None
     assert select_outfit_colours([_product("Navy")], ["Navy", "Navy"], profile) is None
     assert select_outfit_colours([_product("Red")], ["Navy"], profile) is None
+
+
+def test_joint_selection_prefers_contrast_over_all_navy():
+    from services.demo_outfit_variants import select_harmonised_outfit_colours
+    products = [_product("Navy"), _product("Navy", "Beige"), _product("Navy", "Camel")]
+    profile = {"preferences": {"preferred_colours": ["Navy", "Beige", "Camel"], "avoided_colours": ["Black"]}}
+    result = select_harmonised_outfit_colours(products, ["", "", ""], profile)
+    assert result is not None
+    assert len(set(result["colours"])) > 1
+    assert all(c in p["colour_names"] for c, p in zip(result["colours"], products))
+
+
+def test_joint_selection_never_invents_nonstocked_or_avoided_colour():
+    from services.demo_outfit_variants import select_harmonised_outfit_colours
+    products = [_product("Navy", "Black"), _product("Navy"), _product("Navy")]
+    profile = {"preferences": {"preferred_colours": ["Navy"], "avoided_colours": ["Black"]}}
+    result = select_harmonised_outfit_colours(products, ["", "", ""], profile)
+    assert result["colours"] == ["Navy", "Navy", "Navy"]
