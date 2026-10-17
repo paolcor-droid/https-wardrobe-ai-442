@@ -32,3 +32,16 @@ def test_no_incomplete_or_avoided_colour_or_mixed_department():
     assert make_generated_outfits(base,prefs)==[]
     assert make_generated_outfits(base+[item("c","Shoes","Black","Footwear")],prefs)==[]
     assert make_generated_outfits(base+[item("c","Shoes","Navy","Footwear","womens")],prefs)==[]
+
+
+def test_tonal_compatibility_rewards_light_dark_balance():
+    balanced, explanation = harmony(["White", "Cream", "Navy"])
+    flat, _ = harmony(["Navy", "Navy", "Navy"])
+    assert balanced > flat
+    assert "tonal contrast" in explanation
+
+
+def test_two_accent_families_are_not_automatically_rewarded():
+    restrained, _ = harmony(["Navy", "Cream", "Camel"])
+    busy, _ = harmony(["Navy", "Coral", "Olive", "Cobalt Blue"])
+    assert restrained > busy
