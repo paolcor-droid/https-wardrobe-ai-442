@@ -59,9 +59,9 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
  const exact = DEMO_PHOTO_LIBRARY.find(p => p.category === category && p.colourFamilies.includes(colour));
  if (exact) {
    // A colour family match does not prove an exact fabric shade.
-   const shadeVerified = selectedColour.trim().toLowerCase() === "grey" || exact.id !== "tshirt-grey";
+   const shadeVerified = !["tshirt-grey", "chino-sand"].includes(exact.id);
    return { ...exact, colourAccurate: shadeVerified,
-     match: shadeVerified ? exact.match : exact.match + "; exact fabric shade unverified" };
+     match: shadeVerified ? exact.match : exact.match + "; photographed shade is an approximate reference" };
  }
  if (category === "shirt" && /oxford|shirt/i.test(name)) {
    const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "oxford-white");
