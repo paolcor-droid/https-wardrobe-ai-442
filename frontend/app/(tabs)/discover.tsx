@@ -9,6 +9,7 @@ import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCat
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
+import { demoGarmentSymbol } from "@/src/demo-outfit-visual";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -446,7 +447,8 @@ export default function DiscoverScreen() {
                     return (
                       <View key={index} style={{ width: 138, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.20)", borderRadius: 12, padding: 10, gap: 5 }}>
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 65, borderRadius: 8, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
-                          {!colour ? <Text style={{ color: "#333", fontSize: 11 }}>No swatch</Text> : null}
+                          <Text accessibilityLabel="Generic garment illustration, not a product photograph" style={{ fontSize: 30, textAlign: "center" }}>{demoGarmentSymbol(garment.name, garment.category)}</Text>
+                          {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
                         </View>
                         <Text style={styles.body} numberOfLines={2}>{garment.name}</Text>
                         <Text style={styles.note}>{selectedColour}</Text>
@@ -455,7 +457,7 @@ export default function DiscoverScreen() {
                     );
                   })}
                 </View>
-                <Text style={styles.note}>Illustrative colour swatches—not product photographs. Actual fabric shades may differ.</Text>
+                <Text style={styles.note}>Generic garment illustrations with indicative colour swatches—not product photographs or verified fabric colours. Actual items may differ.</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
                 </Pressable>
