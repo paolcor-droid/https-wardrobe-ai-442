@@ -420,7 +420,8 @@ export default function DiscoverScreen() {
             {(searchResults.demo_outfits ?? []).map((outfit) => (
               <View key={outfit.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{outfit.title || outfit.id} · {outfit.garments.length} coordinated pieces</Text>
-                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{outfit.occasion ? ` · ${outfit.occasion}` : ""}{outfit.style ? ` · ${outfit.style}` : ""}</Text>
+                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{outfit.occasion ? ` · ${outfit.occasion}` : ""}{outfit.style ? ` · ${outfit.style}` : ""}{outfit.season ? ` · ${outfit.season}` : ""}</Text>
+                {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
                 <Text style={styles.price}>Demo outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
                 <Text style={styles.note}>{outfit.garments.map(g => g.name).join(" · ")}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
@@ -428,6 +429,8 @@ export default function DiscoverScreen() {
                 </Pressable>
                 {expandedDemoOutfits.includes(outfit.id) ? (
                   <View>
+                    {outfit.occasion_evidence ? <Text style={styles.note}>Occasion evidence: {outfit.occasion_evidence}</Text> : null}
+                    {outfit.origin === "xml" && (outfit.source_occasion || outfit.source_style || outfit.source_season) ? <Text style={styles.note}>Original XML labels: {[outfit.source_occasion, outfit.source_style, outfit.source_season].filter(Boolean).join(" · ")}</Text> : null}
                     {outfit.reason ? <Text style={styles.note}>{outfit.reason}</Text> : null}
                     {outfit.garments.map((garment, index) => (
                   <View key={index} style={{ marginVertical: 7, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(128,128,128,0.18)" }}>
