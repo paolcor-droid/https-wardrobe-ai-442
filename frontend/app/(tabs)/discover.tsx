@@ -10,6 +10,7 @@ import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
+import { DemoPhotoTile } from "@/src/demo-photo-tile";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -213,9 +214,11 @@ export default function DiscoverScreen() {
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : demoMode ? (() => {
         const chosen = selectedColours[product.product_id] || (product.colour_names.length === 1 ? product.colour_names[0] : "");
         const photo = chosen ? demoInspiration(product.name, chosen) : null;
-        return <View style={{ height: 132, marginHorizontal: 14, marginTop: 12, backgroundColor: "#f5f5f2", borderRadius: 8, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-          {photo ? <Image source={{ uri: photo.uri }} resizeMode="cover" accessibilityLabel={photo.match} style={{ width: "100%", height: 132 }} /> :
-            <View style={{ flexDirection: "row", gap: 6 }}>{product.colour_names.slice(0, 4).map(c => <View key={c} accessibilityLabel={c} style={{ width: 28, height: 55, borderRadius: 4, borderWidth: 1, borderColor: "#ccc", backgroundColor: demoSwatch(c) || "#ddd" }} />)}</View>}
+        return <View style={{ marginHorizontal: 14, marginTop: 12 }}>
+          {photo ? <DemoPhotoTile photo={photo} colour={chosen} height={132} /> :
+            <View style={{ height: 132, backgroundColor: "#f5f5f2", borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 }}>
+              {product.colour_names.slice(0, 4).map(c => <View key={c} accessibilityLabel={c} style={{ width: 28, height: 55, borderRadius: 4, borderWidth: 1, borderColor: "#ccc", backgroundColor: demoSwatch(c) || "#ddd" }} />)}
+            </View>}
         </View>;
       })() : null}
       <View style={styles.productBody}>
@@ -473,10 +476,7 @@ export default function DiscoverScreen() {
                     const inspiration = demoInspiration(garment.name, selectedColour);
                     return (
                       <View key={index} style={{ width: 164, maxWidth: "46%", alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <View style={{ height: 112, width: "100%", borderRadius: 6, backgroundColor: "#f5f5f2", justifyContent: "center", overflow: "hidden" }}>
-                          {inspiration ? <Image source={{ uri: inspiration.uri }} resizeMode="cover" accessibilityLabel={inspiration.match} style={{ width: "100%", height: 122 }} /> :
-                            <View style={{ width: 50, height: 68, borderRadius: 5, alignSelf: "center", backgroundColor: colour || "#ddd", borderWidth: 1, borderColor: "#ccc" }} />}
-                        </View>
+                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={112} />
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 24, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
