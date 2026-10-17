@@ -110,3 +110,7 @@ The carefully matched Commons manifest now also contains a **White T-shirt** ima
 ## Chino photo reused as a labelled style reference
 
 Both Sand and Cream chino trousers can now display the existing CC BY-SA photographed chinos. Exact colour matches display normally. Other stocked chino variants use the same photo strictly as a **style reference**, with an on-image label **Style reference · Colour differs** and the accurate selected-colour swatch beneath. This corrects the apparent missing image between otherwise identical chino types without pretending the photographed pair is the selected shade. Shirt, sneaker and loafer colour matching remains conservative. No source imagery or customer profile was changed.
+
+## Expanded style-reference coverage
+
+The Commons CC0 photograph `A Penny Loafer.jpg` by Wikipedia-ce (https://commons.wikimedia.org/wiki/File:A_Penny_Loafer.jpg) has been added as a loafer style reference, **never an asserted exact navy/camel colour match**. Existing licensed Oxford shirt, white tee and white sneaker photographs may now be used for alternate coloured examples **only with an explicit in-photo `Style reference · Colour differs` label** and a separately labelled, selected garment colour swatch. The cream/sand chino reference follows the same rule. These remain synthetic demo outfit illustrations, not exact supplier merchandise. Unmatched categories still show honest colour placeholders. Verify all new remote image URLs and browser rendering before production use.
