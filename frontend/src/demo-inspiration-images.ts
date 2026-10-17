@@ -19,7 +19,7 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
  { id:"polo-white-knit",category:"polo",colourFamilies:[],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/Classical_polo_shirt.jpg?width=500",
    page:"https://commons.wikimedia.org/wiki/File:Classical_polo_shirt.jpg",
-   author:"Wikimedia Commons contributor",licence:"CC BY-SA 3.0 / GFDL (confirm file page)",
+   author:"Elkagye",licence:"CC BY-SA 3.0",
    match:"Classic knitted polo shirt style; photographed shade differs from selected colour",attributionRequired:true },
  { id:"tshirt-white",category:"tshirt",colourFamilies:["white"],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/White-tshirt.jpg?width=500",
