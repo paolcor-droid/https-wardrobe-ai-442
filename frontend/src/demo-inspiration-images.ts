@@ -1,6 +1,6 @@
 /** Licensed representative demo references. Never treated as photographs of demo SKUs. */
 export type DemoPhotoAsset = {
- id: string; category: "shirt" | "tshirt" | "trousers" | "sneakers" | "loafers";
+ id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "sneakers" | "loafers";
  colourFamilies: string[]; uri: string; page: string;
  author: string; licence: string; match: string; attributionRequired: boolean;
 };
@@ -16,6 +16,11 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
    page:"https://commons.wikimedia.org/wiki/File:Button_up_(Unsplash).jpg",
    author:"michael m_minimal",licence:"CC0 1.0",
    match:"White button-up shirt, representative photo",attributionRequired:false },
+ { id:"polo-white-knit",category:"polo",colourFamilies:[],
+   uri:"https://commons.wikimedia.org/wiki/Special:FilePath/Classical_polo_shirt.jpg?width=500",
+   page:"https://commons.wikimedia.org/wiki/File:Classical_polo_shirt.jpg",
+   author:"Wikimedia Commons contributor",licence:"CC BY-SA 3.0 / GFDL (confirm file page)",
+   match:"Classic knitted polo shirt style; photographed shade differs from selected colour",attributionRequired:true },
  { id:"tshirt-white",category:"tshirt",colourFamilies:["white"],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/White-tshirt.jpg?width=500",
    page:"https://commons.wikimedia.org/wiki/File:White-tshirt.jpg",
@@ -47,6 +52,7 @@ function demoCategory(name:string): DemoPhotoAsset["category"] | null {
  if(/loafer|mocassin/.test(t))return "loafers";
  if(/sneaker|trainer/.test(t))return "sneakers";
  if(/chino|trouser|pants/.test(t))return "trousers";
+ if(/polo|maglia/.test(t))return "polo";
  if(/t-shirt|tee|tshirt/.test(t))return "tshirt";
  if(/shirt|oxford|blouse/.test(t))return "shirt";
  return null;
@@ -62,6 +68,11 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
    const shadeVerified = !["tshirt-grey", "chino-sand"].includes(exact.id);
    return { ...exact, colourAccurate: shadeVerified,
      match: shadeVerified ? exact.match : exact.match + "; photographed shade is an approximate reference" };
+ }
+ if (category === "polo") {
+   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "polo-white-knit");
+   if (photo) return { ...photo, colourAccurate: false,
+     match: "Knitted polo style inspiration; the photographed colour is not the selected " + selectedColour };
  }
  if (category === "shirt" && /oxford|shirt/i.test(name)) {
    const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "oxford-white");
