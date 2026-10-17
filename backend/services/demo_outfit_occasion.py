@@ -27,3 +27,32 @@ def infer_occasion(items, climate=None):
     if climate=="hot" and any(x in words for x in ("linen","shorts","cotton","sundress")):
         return "Hot-weather casual"
     return "Casual"
+
+def occasion_assessment(items, climate=None, source_occasion=None):
+    """Explain classification strength; confidence is heuristic, not probability."""
+    label = infer_occasion(items, climate)
+    text = " ".join(str(p.get("name") or "") for p in items).casefold()
+    if label == "Formal":
+        strong = "tuxedo" in text or ("blazer" in text and ("tailored" in text or "suit" in text))
+        evidence = "Multiple formal tailoring indicators" if strong else "Limited formal indicators"
+    elif label == "Business":
+        strong = "blazer" in text and ("shirt" in text or "tailored" in text)
+        evidence = "Blazer with professional separates" if strong else "Some professional garments"
+    elif label == "Smart casual":
+        strong = any(t in text for t in ("shirt", "blouse")) and any(t in text for t in ("chino", "trouser", "skirt"))
+        evidence = "Shirt and smart trousers/skirt" if strong else "Mixed casual and polished pieces; dress code may vary"
+    elif label == "Evening":
+        strong = any(t in text for t in ("cocktail dress", "evening dress", "satin dress"))
+        evidence = "Explicit eveningwear description" if strong else "Limited eveningwear evidence"
+    elif label == "Hot-weather casual":
+        strong = any(t in text for t in ("shorts", "linen", "sundress"))
+        evidence = "Lightweight garment evidence" if strong else "Some warm-weather material clues"
+    else:
+        strong = any(t in text for t in ("t-shirt", "sneaker", "sweatshirt", "shorts"))
+        evidence = "Everyday casual clothing" if strong else "No strong specific occasion evidence"
+    confidence = "High" if strong else "Moderate" if label in ("Casual", "Smart casual") else "Low"
+    source = str(source_occasion or "").strip()
+    if source and source.casefold() != label.casefold():
+        confidence = "Moderate" if confidence == "High" else "Low"
+        evidence += "; catalogue label differs from inferred occasion"
+    return {"occasion": label, "confidence": confidence, "evidence": evidence}
