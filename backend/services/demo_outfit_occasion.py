@@ -39,7 +39,7 @@ def occasion_assessment(items, climate=None, source_occasion=None):
         strong = "blazer" in text and ("shirt" in text or "tailored" in text)
         evidence = "Blazer with professional separates" if strong else "Some professional garments"
     elif label == "Smart casual":
-        strong = any(t in text for t in ("shirt", "blouse")) and any(t in text for t in ("chino", "trouser", "skirt"))
+        strong = (any(t in text for t in ("button-down shirt", "dress shirt", "blouse", "collared shirt")) or ("shirt" in text and not any(t in text for t in ("t-shirt", "sweatshirt")))) and any(t in text for t in ("chino", "trouser", "skirt")) and not any(t in text for t in ("t-shirt", "sweatshirt", "hoodie"))
         evidence = "Shirt and smart trousers/skirt" if strong else "Mixed casual and polished pieces; dress code may vary"
     elif label == "Evening":
         strong = any(t in text for t in ("cocktail dress", "evening dress", "satin dress"))
