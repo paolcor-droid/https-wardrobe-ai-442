@@ -67,3 +67,20 @@ def test_demo_exploration_does_not_allow_unverified_bright_colours():
     assert not is_demo_colour_eligible(p, profile)
     assert not is_colour_eligible({"colour_names":["Cream"]}, profile)
     assert is_demo_colour_eligible({"colour_names":["Cream"]}, profile)
+
+
+def test_demo_ranking_keeps_safe_stocked_variant_and_does_not_change_strict_mode():
+    from services.product_recommendations import rank_verified_products
+    product = {
+        "provider_kind":"demo", "provider_id":"lumiere-demo",
+        "live":True, "source_verified":True, "external_id":"demo-test",
+        "name":"Chino trousers", "department":"mens", "price":50,
+        "availability":1, "colour_names":["Black", "Cream"], "category":"Trousers",
+    }
+    profile = {"skin":{"best_neutrals":[{"name":"Navy"}]},
+               "preferences":{"avoided_colours":["Black"]}}
+    assert rank_verified_products([product], profile, diversify=False) == []
+    exploratory = rank_verified_products([product], profile, diversify=False, demo_exploratory_colours=True)
+    assert len(exploratory) == 1
+    assert exploratory[0]["colour_names"] == ["Cream"]
+    assert exploratory[0]["colour_match"]["basis"] == "demo_exploratory_neutral"
