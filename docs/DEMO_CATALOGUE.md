@@ -56,3 +56,7 @@ The Discover shortlist also deduplicates visual silhouettes (e.g. two different 
 ## Occasion confidence and translated metadata
 
 Each demo outfit is classified from its whole garment set. A transparent **High / Moderate / Low** confidence label identifies clear evidence versus borderline combinations; it is a rule-based evidence grade, not a calibrated probability. The expanded card reports the evidence and flags differences between source XML occasion labels and garment-derived classifications. The original Italian XML file is unchanged; translated season, occasion and style labels are displayed in English where a verified mapping exists, and original source labels are preserved separately for auditability. Unknown labels are left unchanged rather than guessed.
+
+## Occasion filters and readable titles
+
+Discover now supports client-side occasion chips: All, Casual, Hot-weather casual, Smart casual, Business, Formal and Evening. The chips filter **only** the already-eligible and already-diversified outfit results, so they cannot introduce off-profile, out-of-stock or prohibited products. Empty categories display a helpful empty state instead of expanding the recommendation pool. Repeated occasion/style/season labels are collapsed case-insensitively for display. Monochrome outfits use real garment names in titles instead of generic “coordinated look” wording. No persisted profile settings or source XML are changed.
