@@ -1581,8 +1581,8 @@ async def search_demo_catalogue_for_customer(user_id, filters, page=1, per_page=
         # Source-defined garments remain fixed. When an exact XML colour fails,
         # select another stocked variant of the SAME garment that passes the
         # saved palette and avoided-colour rules.
-        from services.demo_outfit_variants import select_outfit_colours
-        colour_selection = select_outfit_colours(selected, chosen_colours, profile)
+        from services.demo_outfit_variants import select_harmonised_outfit_colours
+        colour_selection = select_harmonised_outfit_colours(selected, chosen_colours, profile)
         if colour_selection is None:
             continue
         chosen_colours = colour_selection["colours"]
