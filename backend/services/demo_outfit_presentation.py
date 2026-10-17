@@ -28,7 +28,16 @@ def style_copy(garments, colours, occasion):
         title = f"{base} with {accent} {shoe_type}" if shoe else f"{base} with {accent} accents"
         explanation = f"{base} anchors the outfit, with {accent} providing a contrasting footwear accent." if shoe else f"{base} anchors the outfit with a {accent} accent."
     else:
-        title = f"{base} coordinated look"
+        # A monochrome look still needs to say what the garments actually are.
+        roles = [(garment_role(p), str(p.get("name") or "")) for p, _ in pairs]
+        top_name = next((name for role, name in roles if role in ("top", "dress")), "")
+        bottom_name = next((name for role, name in roles if role == "bottom"), "")
+        if top_name and bottom_name:
+            title = f"{base} {top_name} with {bottom_name}"
+        elif top_name:
+            title = f"{base} {top_name} outfit"
+        else:
+            title = f"{base} coordinated outfit"
         explanation = f"The selected pieces use a consistent {base} colour direction."
     if occasion:
         title = f"{occasion}: {title}"
