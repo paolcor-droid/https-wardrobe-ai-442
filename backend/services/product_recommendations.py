@@ -104,6 +104,23 @@ def rank_verified_products(
         if not product.get("external_id") or not product.get("name"):
             continue
 
+        if demo_exploratory_colours and product.get("provider_kind") == "demo":
+            # A garment with a stocked Black variant and stocked Cream variant
+            # must not lose its Cream variant just because Black is avoided.
+            # Keep only individually eligible variants for downstream outfit use.
+            allowed_variants = [
+                c for c in (product.get("colour_names") or [])
+                if is_demo_colour_eligible(
+                    {**product, "colour_names": [c]},
+                    colour_profile,
+                    prefs.get("preferred_colours"),
+                    prefs.get("avoided_colours"),
+                )
+            ]
+            if not allowed_variants:
+                continue
+            product = {**product, "colour_names": allowed_variants}
+
         # Strict colour eligibility: scan palette or preferred colours,
         # with avoided colours always excluded.
         if not (is_demo_colour_eligible if demo_exploratory_colours and product.get("provider_kind") == "demo" else is_colour_eligible)(
