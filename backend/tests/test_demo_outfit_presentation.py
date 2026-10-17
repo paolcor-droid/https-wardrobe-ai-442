@@ -28,3 +28,17 @@ def test_monochrome_titles_describe_actual_garments():
     assert "Crew-neck T-shirt" in copy["title"]
     assert "Tailored trousers" in copy["title"]
     assert "coordinated look" not in copy["title"]
+
+
+def test_palette_diversity_does_not_repeat_navy_and_camel_footwear():
+    def look(id, top, bottom, shoes, score):
+        return {"id": id, "score": score, "garments": [
+            {"name": "T-shirt", "category": "Tops", "colour_names": [top]},
+            {"name": "Chinos", "category": "Bottoms", "colour_names": [bottom]},
+            {"name": "Penny loafers", "category": "Footwear", "colour_names": [shoes]},
+        ]}
+    result = diversify_outfits([
+        look("a", "Navy", "Navy", "Camel", 90),
+        look("b", "Navy", "Navy", "Camel", 88),
+        look("c", "Olive", "Cream", "Brown", 86)], 10)
+    assert [x["id"] for x in result] == ["a", "c"]
