@@ -30,3 +30,23 @@ def test_duplicate_look_signatures_excluded_despite_different_skus_and_prices():
     looks=[outfit("a","Cotton T-shirt",30),outfit("b","Premium T-shirt",80),outfit("c","Crew-neck Sweatshirt",50)]
     chosen=diversify_outfits(looks)
     assert {o["id"] for o in chosen}=={"a","c"}
+
+
+def test_occasion_confidence_flags_borderline_smart_casual():
+    from services.demo_outfit_occasion import occasion_assessment
+    look=[part("T-shirt Heavy","Tops"),part("Chino trousers","Bottoms"),part("Penny loafers","Footwear")]
+    result=occasion_assessment(look)
+    assert result["occasion"] == "Smart casual"
+    assert result["confidence"] == "Moderate"
+    assert "Mixed" in result["evidence"]
+
+
+def test_confidence_is_reduced_when_xml_disagrees():
+    from services.demo_outfit_occasion import occasion_assessment
+    look=[part("Classic shirt","Tops"),part("Tailored trousers","Bottoms"),part("Blazer","Outerwear")]
+    strong=occasion_assessment(look)
+    conflicting=occasion_assessment(look,source_occasion="Casual")
+    assert strong["occasion"] == "Business"
+    assert strong["confidence"] == "High"
+    assert conflicting["confidence"] == "Moderate"
+    assert "differs" in conflicting["evidence"]
