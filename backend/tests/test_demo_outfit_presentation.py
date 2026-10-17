@@ -20,3 +20,11 @@ def test_diversifier_still_returns_existing_complete_cards():
     result=diversify_outfits(src,3)
     assert [i["id"] for i in result]==["a","c"]
     assert len(result)==2
+
+
+def test_monochrome_titles_describe_actual_garments():
+    garments=[{"name":"Crew-neck T-shirt","category":"Tops"}, {"name":"Tailored trousers","category":"Bottoms"}, {"name":"Loafers","category":"Footwear"}]
+    copy=style_copy(garments,["Navy","Navy","Navy"],"Smart casual")
+    assert "Crew-neck T-shirt" in copy["title"]
+    assert "Tailored trousers" in copy["title"]
+    assert "coordinated look" not in copy["title"]
