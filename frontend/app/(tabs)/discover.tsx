@@ -255,6 +255,13 @@ export default function DiscoverScreen() {
         </Pressable>
         {expandedProductDetails.includes(product.product_id) ? <View style={styles.why}>
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
+          {demoMode ? (() => {
+            const variant = selectedColours[product.product_id] || (product.colour_names.length === 1 ? product.colour_names[0] : "");
+            const photo = variant ? demoInspiration(product.name, variant) : null;
+            return photo ? <Pressable accessibilityRole="link" onPress={() => Linking.openURL(photo.page)}>
+              <Text style={styles.productMeta}>Representative photo: {photo.author} · {photo.licence} · Wikimedia Commons source</Text>
+            </Pressable> : null;
+          })() : null}
           {demoMode ? <Text style={styles.reason}>Only specifically matched colour variants have verified scan evidence; other listed colours are not automatically verified.</Text> : null}
           {product.recommendation_reasons.map((reason) => (
             <Text key={reason} style={styles.reason}>• {reason}</Text>
