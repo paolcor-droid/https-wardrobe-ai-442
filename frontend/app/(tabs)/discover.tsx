@@ -9,6 +9,7 @@ import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCat
 import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
+import { demoInspiration } from "@/src/demo-inspiration-images";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -444,9 +445,19 @@ export default function DiscoverScreen() {
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
+                    const inspiration = demoInspiration(garment.name, selectedColour);
                     return (
                       <View key={index} style={{ width: 164, maxWidth: "46%", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 34, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
+                        {inspiration ? (
+                          <View>
+                            <Image source={{ uri: inspiration.uri }} resizeMode="cover" accessibilityLabel={inspiration.match} style={{ width: "100%", height: 130, borderRadius: 5, backgroundColor: "#f2f2ef" }} />
+                            <Text style={[styles.note, { fontSize: 10 }]}>Representative photo · Not the actual item</Text>
+                            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(inspiration.page)}>
+                              <Text style={[styles.note, { fontSize: 10, textDecorationLine: "underline" }]}>Photo: {inspiration.author} · {inspiration.licence} · Source</Text>
+                            </Pressable>
+                          </View>
+                        ) : null}
+                        <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 24, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
                         </View>
@@ -457,7 +468,7 @@ export default function DiscoverScreen() {
                     );
                   })}
                 </View>
-                <Text style={styles.note}>Indicative colour samples only; actual garment photography and colour verification are not yet available.</Text>
+                <Text style={styles.note}>Curated licensed photos are illustrative inspiration, not the demo products. Colour bars show selected demo variants; unmatched items remain colour-only.</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
                 </Pressable>
