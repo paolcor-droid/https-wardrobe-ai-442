@@ -448,11 +448,17 @@ export default function DiscoverScreen() {
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).map((outfit) => (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
-                <Text style={styles.cardTitle}>{outfit.occasion || "Coordinated outfit"} · {outfit.garments.map(g => g.colour_names?.[0]).filter((x, i, all) => Boolean(x) && all.indexOf(x) === i).join(" / ")}</Text>
-                <Text style={styles.note}>{outfit.garments.map(g => `${g.colour_names?.[0] || "Unspecified"} ${g.name}`).join(" · ")}</Text>
-                <Text style={styles.note}>{outfit.origin === "generated" ? "New combination · Demo items only" : "Source XML outfit"}{[outfit.occasion, outfit.style, outfit.season].filter((value, index, values) => Boolean(value) && values.findIndex(x => x?.toLowerCase() === value?.toLowerCase()) === index).map(value => ` · ${value}`).join("")}</Text>
-                {outfit.occasion_confidence ? <Text style={styles.note}>Occasion match: {outfit.occasion_confidence} confidence{outfit.occasion_confidence === "Low" ? " · Borderline look" : ""}</Text> : null}
-                <Text style={styles.price}>Outfit total: {typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `EUR ${outfit.total_price.toFixed(2)}` : "unavailable until the backend is updated"}</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
+                  <View style={{ flex: 2, minWidth: 230 }}>
+                    <Text style={styles.cardTitle}>{outfit.occasion || "Curated look"} · {outfit.garments.map(g => g.colour_names?.[0]).filter((x, i, all) => Boolean(x) && all.indexOf(x) === i).join(" / ")}</Text>
+                    <Text style={styles.note} numberOfLines={2}>{outfit.garments.map(g => g.name).join(" · ")}</Text>
+                    <Text style={styles.note}>{outfit.occasion_confidence ? `${outfit.occasion_confidence} occasion confidence · ` : ""}{outfit.origin === "generated" ? "New demo combination" : "Source XML look"}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                    <Text style={styles.price}>{typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `€${outfit.total_price.toFixed(2)}` : "Demo price unavailable"}</Text>
+                    <Text style={styles.note}>Simulated outfit total</Text>
+                  </View>
+                </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
