@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from services.customer_pricing import PricingPolicy, apply_customer_price
-from services.recommendation_engine import is_colour_eligible, recommendation_reasons, recommendation_score, scan_colour_evidence, _product_colour_names, _colour_match, _norm_colour
+from services.recommendation_engine import is_colour_eligible, is_demo_colour_eligible, recommendation_reasons, recommendation_score, scan_colour_evidence, _product_colour_names, _colour_match, _norm_colour
 
 # LUMIÈRE retails wholesale-sourced trial products at a fixed +25% markup.
 # Supplier cost stays private; the customer only ever sees this derived price.
@@ -78,6 +78,7 @@ def rank_verified_products(
     profile: dict,
     limit: int = 20,
     diversify: bool = True,
+    demo_exploratory_colours: bool = False,
 ) -> list[dict]:
     """Rank verified catalogue records against the active LUMIÈRE profile.
 
@@ -105,7 +106,7 @@ def rank_verified_products(
 
         # Strict colour eligibility: scan palette or preferred colours,
         # with avoided colours always excluded.
-        if not is_colour_eligible(
+        if not (is_demo_colour_eligible if demo_exploratory_colours and product.get("provider_kind") == "demo" else is_colour_eligible)(
             product,
             colour_profile,
             prefs.get("preferred_colours"),
@@ -200,6 +201,9 @@ def rank_verified_products(
             "image_colour_verified": False,
         }
 
+        if demo_exploratory_colours and product.get("provider_kind") == "demo" and colour_match["basis"] == "unverified":
+            colour_match["basis"] = "demo_exploratory_neutral"
+            reasons = ["Demo exploration: a stocked neutral colour, not verified as suitable by your skin analysis."] + reasons
         ranked.append({
             "colour_match": colour_match,
             **product,
