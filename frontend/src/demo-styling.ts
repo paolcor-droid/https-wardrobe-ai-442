@@ -2,15 +2,19 @@
 export type StylingPrefs = { climate?: string | null; style?: string | null; occasion?: string | null; preferred_colours?: string[] } | null | undefined;
 export type DemoLook = { occasion?: string; style?: string; reason?: string; garments: Array<{name:string; colour_names:string[]}> };
 export function explainDemoLook(look: DemoLook, prefs: StylingPrefs): string[] {
-  const colours = [...new Set(look.garments.map(x => x.colour_names[0]).filter(Boolean))];
-  const statements: string[] = [];
-  if (colours.length) statements.push("Colour palette: " + colours.join(", ") + ". Each garment passed the saved eligibility rules; the photographs are illustrative, not a new colour-analysis measurement.");
-  if (prefs?.style) statements.push("Style preference: " + prefs.style + ". " + ((look.occasion || "").toLowerCase() === (prefs.occasion || "").toLowerCase() ? "The occasion label matches your preference." : "Review the styling details to judge whether this look suits your usual style."));
-  if (prefs?.climate === "hot") statements.push("Hot-climate preference: the outfit has passed the configured seasonal screening; fabric weight and comfort have not been physically verified.");
-  else if (prefs?.climate === "cold") statements.push("Cold-climate preference: the configured seasonal rules have been applied; check garment warmth before use.");
-  else if (prefs?.climate) statements.push("Climate preference: " + prefs.climate + ". The recommendations respect configured seasonal rules, not a live forecast.");
-  if (look.occasion) statements.push("Suggested occasion: " + look.occasion + " (a heuristic classification, not a dress-code guarantee).");
-  return statements;
+ const garments=look.garments.map(g=>g.name);
+ const colours=[...new Set(look.garments.map(g=>g.colour_names?.[0]).filter(Boolean))];
+ const detail=garments.length ? "Pieces: " + garments.join(" + ") + "." : "Coordinated garments.";
+ const lines:string[]=[detail];
+ if(colours.length) lines.push("Colour combination: "+colours.join(" / ")+". This mix was selected by the recommendation filters, not independently checked against a new colour analysis.");
+ if(prefs?.style) lines.push("Your saved style is "+prefs.style+". "+(look.style && look.style.toLowerCase()===prefs.style.toLowerCase() ? "The look's style label agrees." : "Assess whether these silhouettes feel consistent with that preference."));
+ if(prefs?.climate==="hot") {
+   const seasonal=/shorts|sandali|sandals|t-shirt|tee|blouse|linen/i.test(garments.join(" "));
+   lines.push(seasonal ? "Warm-weather styling: the included shorts, light top or open footwear can support a less layered look; confirm actual fabric weight and comfort." : "Hot-climate filter has been applied. Check material and layering before wearing in heat.");
+ } else if(prefs?.climate==="cold") lines.push("Cold-climate preference: assess insulating layers and materials; a seasonal screen is not a warmth guarantee.");
+ else if(prefs?.climate) lines.push("Climate preference: "+prefs.climate+". This is not based on live weather.");
+ if(look.occasion)lines.push("Suggested occasion: "+look.occasion+". This is styling guidance, not a verified dress code.");
+ return lines;
 }
 export type DemoInventoryReadiness = { mode: "synthetic_demo" | "verified_supplier"; purchasable: false; requires: string[] };
 export const DEMO_INVENTORY_READINESS: DemoInventoryReadiness = {
