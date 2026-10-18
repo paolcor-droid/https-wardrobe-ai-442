@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
 import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
-import { RETAILERS, DEFAULT_RETAILERS, retailerUrl } from "@/src/retailers";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
@@ -28,6 +27,8 @@ export default function DiscoverScreen() {
   const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [brandSort, setBrandSort] = useState(false);
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
     if (!completingOutfit.stylistQuery) return;
@@ -54,7 +55,7 @@ export default function DiscoverScreen() {
     queryFn: () => demoMode ? searchDemoCatalogue(searchFilters) : searchCatalogue(searchFilters),
     enabled: Boolean(profile),
   });
-  const shownProducts = searchResults?.recommendations ?? [];
+  const shownProducts = [...(searchResults?.recommendations ?? [])].sort((a,b) => brandSort ? (a.brand || "").localeCompare(b.brand || "") : 0);
   const [bagMessage, setBagMessage] = useState("");
   const [bagMessageProduct, setBagMessageProduct] = useState("");
   const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
@@ -87,28 +88,6 @@ export default function DiscoverScreen() {
   };
 
   const prefs = profile?.preferences;
-  const preferredIds = prefs?.preferred_retailers ?? DEFAULT_RETAILERS;
-  const preferred = RETAILERS.filter((r) => preferredIds.includes(r.id));
-  const others = RETAILERS.filter((r) => !preferredIds.includes(r.id));
-  const bestColour = profile?.skin?.best_accents?.[0]?.name ?? prefs?.preferred_colours?.[0] ?? "";
-  const paletteGroups = profile?.skin ? [
-    { label: "Best neutrals", colours: profile.skin.best_neutrals ?? [] },
-    { label: "Best accents", colours: profile.skin.best_accents ?? [] },
-    { label: "Statement colours", colours: profile.skin.statement_colours ?? [] },
-  ] : [];
-  const climateTerm = prefs?.climate === "hot" ? "lightweight linen cotton" : prefs?.climate === "cold" ? "warm layering" : "";
-  const query = [bestColour, prefs?.style, climateTerm, prefs?.occasion].filter(Boolean).join(" ");
-
-  const renderRetailer = (r: (typeof RETAILERS)[number]) => (
-    <Pressable key={r.id} style={styles.retailer} onPress={() => Linking.openURL(retailerUrl(r, query))}>
-      <View style={styles.flex}>
-        <Text style={styles.retailerName}>{r.name}</Text>
-        <Text style={styles.retailerMeta}>{r.kind === "wholesale" ? "Wholesale catalogue" : query || "Retail catalogue"}</Text>
-      </View>
-      <Feather name="external-link" size={18} />
-    </Pressable>
-  );
-
   const openTryOn = async (product: ProductRecommendation) => {
     if (!product.image_url || preparingTryOn) return;
     if (completingOutfit.outfitFirstPath && completingOutfit.outfitFirstId) {
@@ -352,7 +331,9 @@ export default function DiscoverScreen() {
           </Pressable>
         </View>
         {demoMode ? <Text style={styles.note}>SIMULATED TEST DATA ONLY. Brands, inventory, prices and reviews are fictional examples; no affiliation, purchasing or Virtual Try-On. Test images are intentionally hidden.</Text> : null}
-        <Text style={styles.section}>FIND YOUR STYLE</Text>
+        <Text style={styles.section}>DISCOVER THE CATALOGUE</Text>
+        <Text style={styles.note}>Browse only catalogue-listed products. Synthetic demo looks are styling concepts, not items for sale.</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{selected:brandSort}} onPress={() => setBrandSort(x=>!x)} style={{marginVertical:6}}><Text style={styles.body}>{brandSort ? "✓ Sort catalogue by brand · A–Z" : "Sort catalogue by brand · A–Z"}</Text></Pressable>
         <View style={styles.card}>
           {([
             ["Search garments", searchText, setSearchText], ["Brand", brandFilter, setBrandFilter],
@@ -460,8 +441,9 @@ export default function DiscoverScreen() {
             ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>)}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
+            <Pressable accessibilityRole="button" onPress={() => setShowSavedOnly(x=>!x)}><Text style={styles.body}>{showSavedOnly ? "Show all eligible outfits" : "Show saved outfits only"}</Text></Pressable>
             <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
-            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => (
+            {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
                   <View style={{ flex: 2, minWidth: 230 }}>
@@ -472,6 +454,15 @@ export default function DiscoverScreen() {
                   <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
                     <Text style={styles.price}>{typeof outfit.total_price === "number" && Number.isFinite(outfit.total_price) ? `€${outfit.total_price.toFixed(2)}` : "Demo price unavailable"}</Text>
                     <Text style={styles.note}>Simulated outfit total</Text>
+                  </View>
+                </View>
+                <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 10, marginTop: 12 }}>
+                  <Text style={styles.body}>COMPLETE LOOK · STYLE BOARD</Text>
+                  <Text style={styles.note}>Garments shown together as one coordinated concept. A model-wearing-this-outfit image is not available without a configured image renderer and per-outfit validation.</Text>
+                  <View style={{ flexDirection: "row", gap: 5, marginTop: 8 }}>
+                    {outfit.garments.slice(0, 3).map((garment,i) => <View key={i} style={{ flex: 1, minWidth: 0 }}>
+                      <DemoPhotoTile photo={demoInspiration(garment.name, garment.colour_names?.[0] || "", prefs?.shop_for === "womens" ? "women" : "men")} colour={garment.colour_names?.[0] || ""} height={screenWidth >= 760 ? 150 : 90} />
+                    </View>)}
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
@@ -535,12 +526,6 @@ export default function DiscoverScreen() {
             ))}
           </View>
         ) : null}
-        <Text style={styles.section}>SHOP YOUR RETAILERS</Text>
-        <Text style={styles.note}>These buttons open retailer searches or catalogues. LUMIÈRE does not claim live price, stock or availability from these stores.</Text>
-        {preferred.map(renderRetailer)}
-
-        {others.length > 0 ? <Text style={styles.section}>MORE RETAILERS</Text> : null}
-        {others.map(renderRetailer)}
       </ScrollView>
     </View>
   );
