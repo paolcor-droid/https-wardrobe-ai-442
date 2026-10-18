@@ -459,7 +459,8 @@ export default function DiscoverScreen() {
             ) : <Text style={styles.note}>Outfit diagnostics unavailable; restart FastAPI to load the updated backend.</Text>)}
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
-            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).map((outfit) => (
+            <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
+            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).sort((a,b) => Number(favouriteOutfitIds.includes(b.id)) - Number(favouriteOutfitIds.includes(a.id))).map((outfit) => (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
                   <View style={{ flex: 2, minWidth: 230 }}>
