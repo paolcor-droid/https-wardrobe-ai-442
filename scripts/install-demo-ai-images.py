@@ -22,6 +22,21 @@ FILENAMES = {
     "navy-chinos": "navy_chinos_ai_demo.jpg",
     "camel-loafers": "camel_loafers_ai_demo.jpg",
 }
+OPTIONAL_FILES = {
+    "sand-shirt": "sand_shirt_ai_demo.jpg",
+    "grey-polo": "grey_polo_ai_demo.jpg",
+    "beige-polo": "beige_polo_ai_demo.jpg",
+    "olive-tshirt": "olive_tshirt_ai_demo.jpg",
+    "taupe-chinos": "taupe_chinos_ai_demo.jpg",
+    "navy-shorts": "navy_shorts_ai_demo.jpg",
+    "grey-tailored": "grey_tailored_ai_demo.jpg",
+    "camel-tailored": "camel_tailored_ai_demo.jpg",
+    "cream-sneakers": "cream_sneakers_ai_demo.jpg",
+    "navy-sneakers": "navy_sneakers_ai_demo.jpg",
+    "beige-sneakers": "beige_sneakers_ai_demo.jpg",
+    "pearl-grey-sneakers": "pearl_grey_sneakers_ai_demo.jpg",
+    "tan-loafers": "tan_loafers_ai_demo.jpg",
+}
 OUT = pathlib.Path(__file__).resolve().parents[1] / "frontend/src/demo-ai-assets.ts"
 
 def main():
@@ -32,7 +47,9 @@ def main():
         raise SystemExit(f"Archive not found: {src}")
     with zipfile.ZipFile(src) as z:
         files = {}
-        for key, filename in FILENAMES.items():
+        for key, filename in {**FILENAMES, **OPTIONAL_FILES}.items():
+            if key in OPTIONAL_FILES and filename not in z.namelist():
+                continue
             data = z.read(filename)
             if not data.startswith(bytes.fromhex('ffd8ff')):
                 raise ValueError(f"{filename} is not a JPEG")
