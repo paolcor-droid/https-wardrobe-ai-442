@@ -1,7 +1,7 @@
 import { DEMO_AI_ASSETS } from "./demo-ai-assets";
 /** Licensed representative demo references. Never treated as photographs of demo SKUs. */
 export type DemoPhotoAsset = {
- id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "sneakers" | "loafers";
+ id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "shorts" | "tailored" | "sneakers" | "loafers" | "belt";
  colourFamilies: string[]; uri: string; page: string;
  kind?: "licensed_reference" | "ai_generated_demo";
  author: string; licence: string; match: string; attributionRequired: boolean;
@@ -60,14 +60,18 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
    author:"Kuha455405",licence:"CC BY-SA 3.0",
    match:"Light khaki chino trousers, representative photo",attributionRequired:true }
 ];
-function demoCategory(name:string): DemoPhotoAsset["category"] | null {
+/** Garment subtype must match before the colour; avoid long chinos on short/tailored cuts. */
+export function demoCategory(name:string): DemoPhotoAsset["category"] | null {
  const t=name.toLowerCase();
+ if(/belt|cintura/.test(t))return "belt";
  if(/loafer|mocassin/.test(t))return "loafers";
- if(/sneaker|trainer/.test(t))return "sneakers";
+ if(/sneaker|trainer|canvas shoe/.test(t))return "sneakers";
+ if(/shorts|bermuda|short chino/.test(t))return "shorts";
+ if(/tailored|sartorial|dress trousers|suit trouser/.test(t))return "tailored";
  if(/chino|trouser|pants/.test(t))return "trousers";
- if(/polo|maglia/.test(t))return "polo";
+ if(/polo|maglia|piqu[eé]/.test(t))return "polo";
  if(/t-shirt|tee|tshirt/.test(t))return "tshirt";
- if(/shirt|oxford|blouse/.test(t))return "shirt";
+ if(/shirt|oxford|blouse|camicia/.test(t))return "shirt";
  return null;
 }
 /** Exact-colour first; a clearly marked chino photo can illustrate style in other shades. */
@@ -78,7 +82,7 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
  const exact = DEMO_PHOTO_LIBRARY.find(p => p.category === category && p.colourFamilies.includes(colour));
  if (exact) {
    // A colour family match does not prove an exact fabric shade.
-   const shadeVerified = !["tshirt-grey", "chino-sand"].includes(exact.id);
+   const shadeVerified = exact.kind === "ai_generated_demo" || !["tshirt-grey", "chino-sand"].includes(exact.id);
    return { ...exact, colourAccurate: shadeVerified,
      match: shadeVerified ? exact.match : exact.match + "; photographed shade is an approximate reference" };
  }
