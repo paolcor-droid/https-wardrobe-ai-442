@@ -1,16 +1,16 @@
 import { DEMO_AI_ASSETS } from "./demo-ai-assets";
 /** Licensed representative demo references. Never treated as photographs of demo SKUs. */
 export type DemoPhotoAsset = {
- id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "shorts" | "tailored" | "sneakers" | "loafers" | "belt";
+ id: string; segment?: "women" | "men" | "unisex"; subtype?: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "shorts" | "tailored" | "sneakers" | "loafers" | "belt" | "blouse" | "bodysuit" | "knit" | "culotte" | "palazzo" | "fluid-trousers" | "straight-trousers" | "pleated-trousers" | "summer-trousers" | "flats" | "sandals" | "cropped-tshirt" | "platform-sneakers" | "horsebit-loafers";
  colourFamilies: string[]; uri: string; page: string;
  kind?: "licensed_reference" | "ai_generated_demo";
  author: string; licence: string; match: string; attributionRequired: boolean;
 };
 export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean };
 export const COLOUR_FAMILY_MAP: Record<string,string> = {
- white:"white",cream:"cream",beige:"beige",sand:"sand",
+ white:"white",cream:"cream",beige:"beige",sand:"sand",ivory:"cream",ecru:"cream",
  "pearl grey":"grey",grey:"grey",navy:"navy",olive:"olive",
- camel:"camel",brown:"brown",tan:"tan",taupe:"taupe","light blue":"blue"
+ camel:"camel",brown:"brown",tan:"tan",taupe:"taupe",coral:"coral",salmon:"coral","light blue":"blue"
 };
 export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
  ...(DEMO_AI_ASSETS["sand-shirt"] ? [{ id:"ai-sand-shirt", category:"shirt" as const, colourFamilies:["sand"], uri:DEMO_AI_ASSETS["sand-shirt"], page:"", author:"AI-generated", licence:"Synthetic AI-generated demo illustration", match:"AI-generated sand dress shirt; not actual product", attributionRequired:false, kind:"ai_generated_demo" as const }] : []),
@@ -73,31 +73,58 @@ export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
    author:"Kuha455405",licence:"CC BY-SA 3.0",
    match:"Light khaki chino trousers, representative photo",attributionRequired:true }
 ];
-/** Garment subtype must match before the colour; avoid long chinos on short/tailored cuts. */
-export function demoCategory(name:string): DemoPhotoAsset["category"] | null {
+/** Canonical Italian/English subtype normalisation: most specific rules precede generic ones. */
+export function canonicalDemoSubtype(name:string):string {
+ const t=name.toLowerCase().trim();
+ const patterns: Array<[RegExp,string]> = [
+ [/blouse.*seta/,"blouse_fluid_silk"],[/blouse|blusa/,"blouse_fluid"],
+ [/body|bodysuit/,"bodysuit"],[/pullover.*v.neck/,"vneck_knit"],
+ [/t.shirt.*cropp/,"tshirt_cropped"],
+ [/pantalone.*pince/,"trousers_pleated"],[/pantalone.*culotte/,"trousers_culotte"],
+ [/pantalone.*palazzo/,"trousers_palazzo"],[/pantalone.*fluido/,"trousers_fluid"],
+ [/pantalone.*gamba.dritta/,"trousers_straight"],[/pantalone.*estivo/,"trousers_summer"],
+ [/shorts.*cargo/,"shorts_cargo"],[/shorts/,"shorts_classic"],
+ [/ballerine.*punta/,"flats_pointed"],[/ballerine.*cinturino/,"flats_strap"],
+ [/sandali.*tacco/,"sandals_heel"],[/sandali.*intrecciat/,"sandals_woven"],
+ [/sandali/,"sandals_flat"],[/loafer.*morsetto/,"loafers_horsebit"],
+ [/sneaker.*plateau/,"sneakers_platform"],
+ [/tailored|sartorial/,"trousers_tailored"],[/chino|trouser|pants/,"trousers_chino"],
+ [/v.neck.*t.shirt/,"tshirt_vneck"],[/t.shirt|tshirt|tee/,"tshirt_basic"],
+ [/polo|maglia|piqu[eé]/,"polo"],[/shirt|oxford|camicia/,"shirt"],[/loafer/,"loafers"],[/sneaker/,"sneakers"],
+ ];
+ return patterns.find(([re])=>re.test(t))?.[1] ?? "unknown";
+}
+const WOMEN_KEYS: Array<[string,string,string]> = [["blouse_fluid_navy","blouse_fluid","navy"],["blouse_fluid_cream","blouse_fluid","cream"],["blouse_fluid_silk_beige","blouse_fluid_silk","beige"],["bodysuit_coral","bodysuit","coral"],["vneck_knit_camel","vneck_knit","camel"],["tshirt_cropped_grey","tshirt_cropped","grey"],["tshirt_basic_cream","tshirt_basic","cream"],["tshirt_crew_coral","tshirt_basic","coral"],["tshirt_vneck_navy","tshirt_vneck","navy"],["trousers_pleated_cream","trousers_pleated","cream"],["trousers_culotte_navy","trousers_culotte","navy"],["trousers_palazzo_beige","trousers_palazzo","beige"],["trousers_palazzo_navy","trousers_palazzo","navy"],["trousers_fluid_coral","trousers_fluid","coral"],["trousers_straight_navy","trousers_straight","navy"],["trousers_summer_beige","trousers_summer","beige"],["shorts_classic_white","shorts_classic","white"],["shorts_classic_navy","shorts_classic","navy"],["shorts_cargo_navy","shorts_cargo","navy"],["flats_pointed_beige","flats_pointed","beige"],["flats_strap_navy","flats_strap","navy"],["sandals_flat_brown","sandals_flat","brown"],["sandals_flat_navy","sandals_flat","navy"],["sandals_heel_brown","sandals_heel","brown"],["sandals_heel_camel","sandals_heel","camel"],["sandals_heel_navy","sandals_heel","navy"],["sandals_woven_camel","sandals_woven","camel"],["loafers_horsebit_tan","loafers_horsebit","tan"],["sneakers_platform_beige","sneakers_platform","beige"]];
+export const WOMENS_DEMO_PHOTOS:DemoPhotoAsset[] = WOMEN_KEYS.flatMap(([key,subtype,colour]) => DEMO_AI_ASSETS["women_"+key] ? [{
+ id:"women_"+key,segment:"women" as const,subtype,category:"shirt" as const,colourFamilies:[colour],
+ uri:DEMO_AI_ASSETS["women_"+key],page:"",kind:"ai_generated_demo" as const,author:"AI-generated",licence:"Synthetic AI illustration",match:"Women's "+subtype+" in "+colour+"; illustrative, not actual product",attributionRequired:false
+}] : []);
+/** Default remains legacy for menswear; women's items cannot borrow male imagery. */
+export function demoInspiration(name:string, selectedColour:string, segment:"women"|"men"|"unisex"="men"):DemoInspiration|null {
+ const colour=COLOUR_FAMILY_MAP[selectedColour.trim().toLowerCase()];
+ if(!colour)return null;
+ if(segment==="women") {
+   const subtype=canonicalDemoSubtype(name);
+   const match=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype&&p.colourFamilies.includes(colour));
+   return match ? {...match,colourAccurate:true}:null;
+ }
+ const category=demoCategory(name);
+ if(!category)return null;
+ const exact=DEMO_PHOTO_LIBRARY.find(p=>p.category===category&&p.colourFamilies.includes(colour));
+ if(!exact)return null;
+ const accurate=exact.kind==="ai_generated_demo"||!["tshirt-grey","chino-sand"].includes(exact.id);
+ return {...exact,colourAccurate:accurate,match:accurate?exact.match:exact.match+"; approximate reference"};
+}
+function demoCategory(name:string):DemoPhotoAsset["category"]|null {
  const t=name.toLowerCase();
  if(/belt|cintura/.test(t))return "belt";
  if(/loafer|mocassin/.test(t))return "loafers";
- if(/sneaker|trainer|canvas shoe/.test(t))return "sneakers";
- if(/shorts|bermuda|short chino/.test(t))return "shorts";
- if(/tailored|sartorial|dress trousers|suit trouser/.test(t))return "tailored";
+ if(/sneaker|trainer/.test(t))return "sneakers";
+ if(/shorts|bermuda/.test(t))return "shorts";
+ if(/tailored|sartorial/.test(t))return "tailored";
  if(/chino|trouser|pants/.test(t))return "trousers";
  if(/polo|maglia|piqu[eé]/.test(t))return "polo";
  if(/t-shirt|tee|tshirt/.test(t))return "tshirt";
- if(/shirt|oxford|blouse|camicia/.test(t))return "shirt";
- return null;
-}
-/** Exact-colour first; a clearly marked chino photo can illustrate style in other shades. */
-export function demoInspiration(name:string, selectedColour:string):DemoInspiration|null {
- const category=demoCategory(name);
- const colour=COLOUR_FAMILY_MAP[selectedColour.trim().toLowerCase()];
- if(!category||!colour)return null;
- const exact = DEMO_PHOTO_LIBRARY.find(p => p.category === category && p.colourFamilies.includes(colour));
- if (exact) {
-   // A colour family match does not prove an exact fabric shade.
-   const shadeVerified = exact.kind === "ai_generated_demo" || !["tshirt-grey", "chino-sand"].includes(exact.id);
-   return { ...exact, colourAccurate: shadeVerified,
-     match: shadeVerified ? exact.match : exact.match + "; photographed shade is an approximate reference" };
- }
+ if(/shirt|oxford|blouse/.test(t))return "shirt";
  return null;
 }
