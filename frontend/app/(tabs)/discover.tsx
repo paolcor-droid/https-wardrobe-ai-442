@@ -11,6 +11,7 @@ import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
+import { explainDemoLook } from "@/src/demo-styling";
 
 export default function DiscoverScreen() {
   const styles = useStyles();
@@ -24,6 +25,7 @@ export default function DiscoverScreen() {
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
   const [expandedProductDetails, setExpandedProductDetails] = useState<string[]>([]);
+  const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
@@ -225,6 +227,7 @@ export default function DiscoverScreen() {
         {demoMode ? <Text style={styles.productMeta}>DEMO PRODUCT · SIMULATED · NOT FOR SALE</Text> : null}
         <Text style={styles.productBrand}>{product.brand || "LUMIÈRE EDIT"}</Text>
         <Text style={styles.productName}>{product.name}</Text>
+        {demoMode && product.colour_names.length > 1 ? <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>{product.colour_names.slice(0, 8).map(c => <Pressable key={c} onPress={() => setSelectedColours(v => ({...v,[product.product_id]:c}))} accessibilityRole="button" style={{ borderWidth: selectedColours[product.product_id] === c ? 2 : 1, borderColor: "#aaa", borderRadius: 6, padding: 5 }}><Text style={styles.productMeta}>{c}</Text></Pressable>)}</View> : null}
         {product.colour_names.length ? <View style={{ flexDirection: "row", gap: 5, flexWrap: "wrap", alignItems: "center", marginVertical: 5 }}>{product.colour_names.slice(0, 6).map(colour => <View key={colour} accessibilityLabel={colour} style={{ width: 18, height: 18, borderWidth: 1, borderColor: "#bbb", borderRadius: 9, backgroundColor: demoSwatch(colour) || "#ddd" }} />)}<Text style={styles.productMeta}>{product.colour_names.length} colours</Text></View> : null}
         {!demoMode && product.sizes.length ? <Text style={styles.productMeta}>Available in snapshot · {product.sizes.join(", ")}</Text> : null}
         {product.materials.length ? <Text style={styles.productMeta}>{product.materials.join(" · ")}</Text> : null}
@@ -488,6 +491,10 @@ export default function DiscoverScreen() {
                     );
                   })}
                 </View>
+                <View style={{ marginVertical: 8, gap: 4 }}>{explainDemoLook(outfit, prefs).map((line, index) => <Text key={index} style={styles.note}>• {line}</Text>)}</View>
+                <Pressable accessibilityRole="button" onPress={() => setFavouriteOutfitIds(ids => ids.includes(outfit.id) ? ids.filter(id => id !== outfit.id) : [...ids,outfit.id])}>
+                  <Text style={styles.body}>{favouriteOutfitIds.includes(outfit.id) ? "♥ Saved this session · Remove favourite" : "♡ Save outfit for this session"}</Text>
+                </Pressable>
                 <Text style={styles.note}>Styling inspiration · Representative photos, not actual demo items</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
