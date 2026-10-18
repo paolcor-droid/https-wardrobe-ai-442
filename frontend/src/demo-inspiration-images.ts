@@ -2,6 +2,7 @@
 export type DemoPhotoAsset = {
  id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "sneakers" | "loafers";
  colourFamilies: string[]; uri: string; page: string;
+ kind?: "licensed_reference" | "ai_generated_demo";
  author: string; licence: string; match: string; attributionRequired: boolean;
 };
 export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean };
@@ -68,36 +69,6 @@ export function demoInspiration(name:string, selectedColour:string):DemoInspirat
    const shadeVerified = !["tshirt-grey", "chino-sand"].includes(exact.id);
    return { ...exact, colourAccurate: shadeVerified,
      match: shadeVerified ? exact.match : exact.match + "; photographed shade is an approximate reference" };
- }
- if (category === "polo") {
-   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "polo-white-knit");
-   if (photo) return { ...photo, colourAccurate: false,
-     match: "Knitted polo style inspiration; the photographed colour is not the selected " + selectedColour };
- }
- if (category === "shirt" && /oxford|shirt/i.test(name)) {
-   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "oxford-white");
-   if (photo) return { ...photo, colourAccurate: false,
-     match: "Representative Oxford-style shirt; pictured white differs from selected " + selectedColour };
- }
- if (category === "tshirt") {
-   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "tshirt-white");
-   if (photo) return { ...photo, colourAccurate: false,
-     match: "Representative T-shirt design; pictured white differs from selected " + selectedColour };
- }
- if (category === "sneakers") {
-   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "sneakers-white");
-   if (photo) return { ...photo, colourAccurate: false,
-     match: "Representative sneaker style; pictured white differs from selected " + selectedColour };
- }
- if (category === "loafers") {
-   const photo = DEMO_PHOTO_LIBRARY.find(p => p.id === "penny-loafer-brown");
-   if (photo) return { ...photo, colourAccurate: false,
-     match: "Representative loafer design, not a photo of selected " + selectedColour + " loafers" };
- }
- if (category === "trousers" && /chino/i.test(name)) {
-   const reference = DEMO_PHOTO_LIBRARY.find(p => p.id === "chino-sand");
-   if (reference) return { ...reference, colourAccurate: false,
-     match: "Representative chino style, not the selected " + selectedColour + " colour" };
  }
  return null;
 }
