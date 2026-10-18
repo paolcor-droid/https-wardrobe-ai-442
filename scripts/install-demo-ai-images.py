@@ -37,6 +37,37 @@ OPTIONAL_FILES = {
     "pearl-grey-sneakers": "pearl_grey_sneakers_ai_demo.jpg",
     "tan-loafers": "tan_loafers_ai_demo.jpg",
 }
+WOMEN_FILES = {
+    "women_blouse_fluid_navy": "women_blouse_fluid_navy.jpg",
+    "women_blouse_fluid_cream": "women_blouse_fluid_cream.jpg",
+    "women_blouse_fluid_silk_beige": "women_blouse_fluid_silk_beige.jpg",
+    "women_bodysuit_coral": "women_bodysuit_coral.jpg",
+    "women_vneck_knit_camel": "women_vneck_knit_camel.jpg",
+    "women_tshirt_cropped_grey": "women_tshirt_cropped_grey.jpg",
+    "women_tshirt_basic_cream": "women_tshirt_basic_cream.jpg",
+    "women_tshirt_crew_coral": "women_tshirt_crew_coral.jpg",
+    "women_tshirt_vneck_navy": "women_tshirt_vneck_navy.jpg",
+    "women_trousers_pleated_cream": "women_trousers_pleated_cream.jpg",
+    "women_trousers_culotte_navy": "women_trousers_culotte_navy.jpg",
+    "women_trousers_palazzo_beige": "women_trousers_palazzo_beige.jpg",
+    "women_trousers_palazzo_navy": "women_trousers_palazzo_navy.jpg",
+    "women_trousers_fluid_coral": "women_trousers_fluid_coral.jpg",
+    "women_trousers_straight_navy": "women_trousers_straight_navy.jpg",
+    "women_trousers_summer_beige": "women_trousers_summer_beige.jpg",
+    "women_shorts_classic_white": "women_shorts_classic_white.jpg",
+    "women_shorts_classic_navy": "women_shorts_classic_navy.jpg",
+    "women_shorts_cargo_navy": "women_shorts_cargo_navy.jpg",
+    "women_flats_pointed_beige": "women_flats_pointed_beige.jpg",
+    "women_flats_strap_navy": "women_flats_strap_navy.jpg",
+    "women_sandals_flat_brown": "women_sandals_flat_brown.jpg",
+    "women_sandals_flat_navy": "women_sandals_flat_navy.jpg",
+    "women_sandals_heel_brown": "women_sandals_heel_brown.jpg",
+    "women_sandals_heel_camel": "women_sandals_heel_camel.jpg",
+    "women_sandals_heel_navy": "women_sandals_heel_navy.jpg",
+    "women_sandals_woven_camel": "women_sandals_woven_camel.jpg",
+    "women_loafers_horsebit_tan": "women_loafers_horsebit_tan.jpg",
+    "women_sneakers_platform_beige": "women_sneakers_platform_beige.jpg",
+}
 OUT = pathlib.Path(__file__).resolve().parents[1] / "frontend/src/demo-ai-assets.ts"
 
 def main():
@@ -47,8 +78,8 @@ def main():
         raise SystemExit(f"Archive not found: {src}")
     with zipfile.ZipFile(src) as z:
         files = {}
-        for key, filename in {**FILENAMES, **OPTIONAL_FILES}.items():
-            if key in OPTIONAL_FILES and filename not in z.namelist():
+        for key, filename in {**FILENAMES, **OPTIONAL_FILES, **WOMEN_FILES}.items():
+            if key in {**OPTIONAL_FILES, **WOMEN_FILES} and filename not in z.namelist():
                 continue
             data = z.read(filename)
             if not data.startswith(bytes.fromhex('ffd8ff')):
