@@ -88,6 +88,13 @@ export default function DiscoverScreen() {
   };
 
   const prefs = profile?.preferences;
+  const bestColour = profile?.skin?.best_accents?.[0]?.name ?? prefs?.preferred_colours?.[0] ?? "";
+  const paletteGroups = profile?.skin ? [
+    { label: "Best neutrals", colours: profile.skin.best_neutrals ?? [] },
+    { label: "Best accents", colours: profile.skin.best_accents ?? [] },
+    { label: "Statement colours", colours: profile.skin.statement_colours ?? [] },
+  ] : [];
+
   const openTryOn = async (product: ProductRecommendation) => {
     if (!product.image_url || preparingTryOn) return;
     if (completingOutfit.outfitFirstPath && completingOutfit.outfitFirstId) {
