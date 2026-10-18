@@ -26,7 +26,7 @@ def main():
         files = {}
         for key, filename in FILENAMES.items():
             data = z.read(filename)
-            if not data.startswith(b"\\xff\\xd8\\xff"):
+            if not data.startswith(bytes.fromhex('ffd8ff')):
                 raise ValueError(f"{filename} is not a JPEG")
             if len(data) > 250_000:
                 raise ValueError(f"{filename} exceeds demo size limit")
@@ -36,7 +36,7 @@ def main():
     for key, uri in files.items():
         lines.append(f"  {key!r}: {uri!r},")
     lines.append("};")
-    OUT.write_text("\\n".join(lines) + "\\n", encoding="utf8")
+    OUT.write_text(chr(10).join(lines) + chr(10), encoding="utf8")
     print("Installed 3 synthetic demo images into", OUT)
 if __name__ == "__main__":
     main()
