@@ -68,6 +68,20 @@ WOMEN_FILES = {
     "women_loafers_horsebit_tan": "women_loafers_horsebit_tan.jpg",
     "women_sneakers_platform_beige": "women_sneakers_platform_beige.jpg",
 }
+MORE_WOMEN_FILES = {
+    "women_tshirt_crew_white": "women_tshirt_crew_white.jpg",
+    "women_tshirt_crew_navy": "women_tshirt_crew_navy.jpg",
+    "women_tshirt_vneck_coral": "women_tshirt_vneck_coral.jpg",
+    "women_trousers_tailored_camel": "women_trousers_tailored_camel.jpg",
+    "women_trousers_tailored_grey": "women_trousers_tailored_grey.jpg",
+    "women_shorts_classic_sand": "women_shorts_classic_sand.jpg",
+    "women_loafers_navy": "women_loafers_navy.jpg",
+    "women_loafers_camel": "women_loafers_camel.jpg",
+    "women_loafers_horsebit_navy": "women_loafers_horsebit_navy.jpg",
+    "women_loafers_horsebit_camel": "women_loafers_horsebit_camel.jpg",
+    "women_sneakers_platform_white": "women_sneakers_platform_white.jpg",
+    "women_sneakers_low_cream": "women_sneakers_low_cream.jpg",
+}
 OUT = pathlib.Path(__file__).resolve().parents[1] / "frontend/src/demo-ai-assets.ts"
 
 def main():
@@ -78,8 +92,8 @@ def main():
         raise SystemExit(f"Archive not found: {src}")
     with zipfile.ZipFile(src) as z:
         files = {}
-        for key, filename in {**FILENAMES, **OPTIONAL_FILES, **WOMEN_FILES}.items():
-            if key in {**OPTIONAL_FILES, **WOMEN_FILES} and filename not in z.namelist():
+        for key, filename in {**FILENAMES, **OPTIONAL_FILES, **WOMEN_FILES, **MORE_WOMEN_FILES}.items():
+            if key in {**OPTIONAL_FILES, **WOMEN_FILES, **MORE_WOMEN_FILES} and filename not in z.namelist():
                 continue
             data = z.read(filename)
             if not data.startswith(bytes.fromhex('ffd8ff')):
