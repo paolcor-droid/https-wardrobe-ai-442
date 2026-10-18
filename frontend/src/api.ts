@@ -594,3 +594,12 @@ export type CheckoutReadiness = {
 export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<CheckoutReadiness> {
   return accountRequest<CheckoutReadiness>(`/checkout/readiness?country=${country}`);
 }
+
+/** Optional authenticated AI illustration; charged only on user action and cached per account/outfit. */
+export async function generateOutfitPreview(input: {
+  outfit_id: string;
+  presentation: "woman" | "man";
+  garments: Array<{name: string; colour: string}>;
+}): Promise<{image: string; cached: boolean; label: string}> {
+  return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
+}
