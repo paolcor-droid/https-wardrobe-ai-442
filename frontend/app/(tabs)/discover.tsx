@@ -215,7 +215,7 @@ export default function DiscoverScreen() {
     <View key={product.product_id} style={styles.productCard}>
       {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} resizeMode="cover" /> : demoMode ? (() => {
         const chosen = selectedColours[product.product_id] || (product.colour_names.length === 1 ? product.colour_names[0] : "");
-        const photo = chosen ? demoInspiration(product.name, chosen) : null;
+        const photo = chosen ? demoInspiration(product.name, chosen, prefs?.shop_for === "womens" ? "women" : "men") : null;
         return <View style={{ marginHorizontal: 14, marginTop: 12 }}>
           {photo ? <DemoPhotoTile photo={photo} colour={chosen} height={132} /> :
             <View style={{ height: 132, backgroundColor: "#f5f5f2", borderRadius: 8, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 }}>
@@ -263,7 +263,7 @@ export default function DiscoverScreen() {
           <Text style={styles.whyTitle}>WHY THIS SUITS YOU</Text>
           {demoMode ? (() => {
             const variant = selectedColours[product.product_id] || (product.colour_names.length === 1 ? product.colour_names[0] : "");
-            const photo = variant ? demoInspiration(product.name, variant) : null;
+            const photo = variant ? demoInspiration(product.name, variant, prefs?.shop_for === "womens" ? "women" : "men") : null;
             return photo ? <Pressable accessibilityRole="link" onPress={() => Linking.openURL(photo.page)}>
               <Text style={styles.productMeta}>Representative photo: {photo.author} · {photo.licence} · Wikimedia Commons source</Text>
             </Pressable> : null;
@@ -477,7 +477,7 @@ export default function DiscoverScreen() {
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
-                    const inspiration = demoInspiration(garment.name, selectedColour);
+                    const inspiration = demoInspiration(garment.name, selectedColour, prefs?.shop_for === "womens" ? "women" : "men");
                     return (
                       <View key={index} style={{ width: screenWidth >= 760 ? "31.5%" : "31%", minWidth: screenWidth >= 760 ? 190 : 0, alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
                         <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 116} />
@@ -503,7 +503,7 @@ export default function DiscoverScreen() {
                 {expandedDemoOutfits.includes(outfit.id) ? (
                   <View>
                     {outfit.garments.map((g, i) => {
-                      const photo = demoInspiration(g.name, g.colour_names?.[0] || "");
+                      const photo = demoInspiration(g.name, g.colour_names?.[0] || "", prefs?.shop_for === "womens" ? "women" : "men");
                       return photo ? <Pressable key={i} accessibilityRole="link" onPress={() => Linking.openURL(photo.page)}>
                         <Text style={styles.note}>Image {i + 1}: {photo.author} · {photo.licence} · Wikimedia Commons source (representative only)</Text>
                       </Pressable> : null;
