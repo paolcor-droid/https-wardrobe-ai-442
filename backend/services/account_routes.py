@@ -7,6 +7,9 @@ import os
 import secrets
 import json
 import logging
+import hashlib
+import base64
+import requests
 
 logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
@@ -50,6 +53,12 @@ class RecoveryConfirm(BaseModel):
 class DeleteAccountConfirmation(BaseModel):
     password: str
     confirmation: str
+
+
+class OutfitPreviewInput(BaseModel):
+    outfit_id: str = Field(min_length=1, max_length=150)
+    presentation: str = Field(pattern="^(woman|man)$")
+    garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
 
 
 class BagAdd(BaseModel):
@@ -1227,5 +1236,83 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def feedback(user_id: str = Depends(current_user)):
         records = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(500)
         return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
+
+
+    @router.post("/outfit-preview")
+    async def generate_outfit_preview(payload: OutfitPreviewInput, user_id: str = Depends(current_user)):
+        """Private on-demand styling concept, never supplier SKU imagery or personal try-on."""
+        from datetime import timedelta
+        import asyncio
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key or os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") != "1":
+            raise HTTPException(503, "Outfit previews are not enabled on this server")
+        validated = []
+        for garment in payload.garments:
+            name = str(garment.get("name", "")).strip()
+            colour = str(garment.get("colour", "")).strip()
+            if not name or not colour or len(name) > 100 or len(colour) > 40:
+                raise HTTPException(422, "Invalid garment description")
+            validated.append({"name": name, "colour": colour})
+        # Hash the exact selected garment set: do not confuse unrelated outfits.
+        fingerprint = hashlib.sha256(json.dumps(
+            [payload.presentation, validated], sort_keys=True
+        ).encode()).hexdigest()
+        existing = await db.customer_outfit_previews.find_one(
+            {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
+        )
+        if existing:
+            return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
+        now = datetime.now(timezone.utc)
+        day = now.strftime("%Y-%m-%d")
+        # Atomic daily quota reservation, including concurrent requests.
+        quota = await db.customer_preview_quotas.find_one_and_update(
+            {"_id": f"{user_id}:{day}", "count": {"$lt": 3}},
+            {"$inc": {"count": 1}},
+            upsert=False,
+        )
+        if quota is None:
+            from pymongo.errors import DuplicateKeyError
+            try:
+                await db.customer_preview_quotas.insert_one({"_id": f"{user_id}:{day}", "count": 1, "created_at": now})
+            except DuplicateKeyError:
+                raise HTTPException(429, "Daily outfit preview limit reached (3 per day)")
+        prompt = (
+            "Fashion editorial studio photograph of one fully clothed adult "
+            + ("woman" if payload.presentation == "woman" else "man")
+            + " model standing full length, neutral backdrop, natural proportions. "
+            "Wear exactly these coordinating pieces, respecting the garment categories and colours: "
+            + "; ".join(g["colour"] + " " + g["name"] for g in validated)
+            + ". One person, no text, no brand logos, no additional garments changing the look. "
+            "This is a generic styling interpretation, not a supplier product or customer's likeness."
+        )
+        def render():
+            resp = requests.post(
+                "https://api.openai.com/v1/images/generations",
+                headers={"Authorization": "Bearer " + key},
+                json={"model": os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini"),
+                      "prompt": prompt, "size": "1024x1536", "n": 1},
+                timeout=100,
+            )
+            if resp.status_code != 200:
+                logger.warning("Outfit preview generation failed (%s)", resp.status_code)
+                raise ValueError("Image service unavailable")
+            item = resp.json()["data"][0]
+            b64 = item.get("b64_json")
+            if not isinstance(b64, str) or len(b64) > 12000000:
+                raise ValueError("Image response missing or too large")
+            return "data:image/png;base64," + b64
+        try:
+            image = await run_in_threadpool(render)
+        except Exception:
+            # Refund unsuccessful reservations.
+            await db.customer_preview_quotas.update_one({"_id": f"{user_id}:{day}"}, {"$inc": {"count": -1}})
+            raise HTTPException(502, "Outfit preview could not be generated. Please try later.")
+        await db.customer_outfit_previews.update_one(
+            {"user_id": user_id, "fingerprint": fingerprint},
+            {"$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint,
+                               "image": image, "created_at": now}},
+            upsert=True,
+        )
+        return {"image": image, "cached": False, "label": "AI-generated styling concept · Not actual supplier products"}
 
     return router
