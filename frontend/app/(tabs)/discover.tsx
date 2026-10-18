@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
@@ -27,6 +27,9 @@ export default function DiscoverScreen() {
   const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
+  const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
+  const [outfitPreviewLoading, setOutfitPreviewLoading] = useState<string | null>(null);
+  const [outfitPreviewErrors, setOutfitPreviewErrors] = useState<Record<string,string>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [brandSort, setBrandSort] = useState(false);
   const [stylistContext, setStylistContext] = useState("");
@@ -463,14 +466,36 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>Simulated outfit total</Text>
                   </View>
                 </View>
-                <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 10, marginTop: 12 }}>
-                  <Text style={styles.body}>COMPLETE LOOK · STYLE BOARD</Text>
-                  <Text style={styles.note}>Garments shown together as one coordinated concept. A model-wearing-this-outfit image is not available without a configured image renderer and per-outfit validation.</Text>
-                  <View style={{ flexDirection: "row", gap: 5, marginTop: 8 }}>
-                    {outfit.garments.slice(0, 3).map((garment,i) => <View key={i} style={{ flex: 1, minWidth: 0 }}>
-                      <DemoPhotoTile photo={demoInspiration(garment.name, garment.colour_names?.[0] || "", prefs?.shop_for === "womens" ? "women" : "men")} colour={garment.colour_names?.[0] || ""} height={screenWidth >= 760 ? 150 : 90} />
-                    </View>)}
-                  </View>
+                <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
+                  <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
+                  {outfitPreviewImages[outfit.id] ? (
+                    <View>
+                      <Image source={{uri:outfitPreviewImages[outfit.id]}} resizeMode="contain" style={{width:"100%",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
+                      <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
+                    </View>
+                  ) : (
+                    <Pressable accessibilityRole="button" disabled={outfitPreviewLoading !== null}
+                      onPress={async () => {
+                        setOutfitPreviewLoading(outfit.id);
+                        setOutfitPreviewErrors(v=>({...v,[outfit.id]:""}));
+                        try {
+                          const result=await generateOutfitPreview({
+                            outfit_id:outfit.id,
+                            presentation:prefs?.shop_for==="womens"?"woman":"man",
+                            garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                          });
+                          setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image}));
+                        } catch(e) {
+                          setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error?e.message:"Preview could not be generated"}));
+                        } finally {setOutfitPreviewLoading(null);}
+                      }}
+                      style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
+                      {outfitPreviewLoading===outfit.id ? <ActivityIndicator /> : <Feather name="image" size={22} />}
+                      <Text style={styles.body}>{outfitPreviewLoading===outfit.id?"Generating outfit preview…":"Generate AI outfit preview"}</Text>
+                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces · 3 new previews per account/day</Text>
+                    </Pressable>
+                  )}
+                  {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
                 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
                   {outfit.garments.map((garment, index) => {
