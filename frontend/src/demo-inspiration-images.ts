@@ -1,3 +1,4 @@
+import { DEMO_AI_ASSETS } from "./demo-ai-assets";
 /** Licensed representative demo references. Never treated as photographs of demo SKUs. */
 export type DemoPhotoAsset = {
  id: string; category: "shirt" | "polo" | "tshirt" | "trousers" | "sneakers" | "loafers";
@@ -9,9 +10,12 @@ export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean };
 export const COLOUR_FAMILY_MAP: Record<string,string> = {
  white:"white",cream:"cream",beige:"beige",sand:"sand",
  "pearl grey":"grey",grey:"grey",navy:"navy",olive:"olive",
- camel:"camel",brown:"brown",tan:"tan","light blue":"blue"
+ camel:"camel",brown:"brown",tan:"tan",taupe:"taupe","light blue":"blue"
 };
 export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
+ ...(DEMO_AI_ASSETS["taupe-polo"] ? [{ id:"ai-taupe-polo", category:"polo" as const, colourFamilies:["taupe"], uri:DEMO_AI_ASSETS["taupe-polo"], page:"", author:"AI-generated", licence:"Synthetic AI-generated demo illustration", match:"AI-generated taupe knitted polo; not actual product", attributionRequired:false, kind:"ai_generated_demo" as const }] : []),
+ ...(DEMO_AI_ASSETS["cream-chinos"] ? [{ id:"ai-cream-chinos", category:"trousers" as const, colourFamilies:["cream"], uri:DEMO_AI_ASSETS["cream-chinos"], page:"", author:"AI-generated", licence:"Synthetic AI-generated demo illustration", match:"AI-generated cream chino trousers; not actual product", attributionRequired:false, kind:"ai_generated_demo" as const }] : []),
+ ...(DEMO_AI_ASSETS["navy-loafers"] ? [{ id:"ai-navy-loafers", category:"loafers" as const, colourFamilies:["navy"], uri:DEMO_AI_ASSETS["navy-loafers"], page:"", author:"AI-generated", licence:"Synthetic AI-generated demo illustration", match:"AI-generated navy penny loafers; not actual product", attributionRequired:false, kind:"ai_generated_demo" as const }] : []),
  { id:"oxford-white",category:"shirt",colourFamilies:["white"],
    uri:"https://commons.wikimedia.org/wiki/Special:FilePath/Button_up_%28Unsplash%29.jpg?width=500",
    page:"https://commons.wikimedia.org/wiki/File:Button_up_(Unsplash).jpg",
