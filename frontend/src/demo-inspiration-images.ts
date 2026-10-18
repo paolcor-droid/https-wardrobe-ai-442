@@ -6,7 +6,7 @@ export type DemoPhotoAsset = {
  kind?: "licensed_reference" | "ai_generated_demo";
  author: string; licence: string; match: string; attributionRequired: boolean;
 };
-export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean };
+export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean; matchKind?: "exact" | "style-reference" };
 export const COLOUR_FAMILY_MAP: Record<string,string> = {
  white:"white",cream:"cream",beige:"beige",sand:"sand",ivory:"cream",ecru:"cream",
  "pearl grey":"grey",grey:"grey",navy:"navy",olive:"olive",
@@ -106,14 +106,14 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
  if(segment==="women") {
    const subtype=canonicalDemoSubtype(name);
    const match=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype&&p.colourFamilies.includes(colour));
-   return match ? {...match,colourAccurate:true}:null;
+   return match ? {...match,colourAccurate:true,matchKind:"exact"}:null;
  }
  const category=demoCategory(name);
  if(!category)return null;
  const exact=DEMO_PHOTO_LIBRARY.find(p=>p.category===category&&p.colourFamilies.includes(colour));
  if(!exact)return null;
  const accurate=exact.kind==="ai_generated_demo"||!["tshirt-grey","chino-sand"].includes(exact.id);
- return {...exact,colourAccurate:accurate,match:accurate?exact.match:exact.match+"; approximate reference"};
+ return {...exact,colourAccurate:accurate,matchKind:accurate?"exact":"style-reference",match:accurate?exact.match:exact.match+"; approximate reference"};
 }
 function demoCategory(name:string):DemoPhotoAsset["category"]|null {
  const t=name.toLowerCase();
