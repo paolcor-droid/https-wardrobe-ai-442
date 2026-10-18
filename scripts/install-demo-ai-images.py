@@ -13,6 +13,14 @@ FILENAMES = {
     "taupe-polo": "taupe_polo_ai_demo.jpg",
     "cream-chinos": "cream_chinos_ai_demo.jpg",
     "navy-loafers": "navy_loafers_ai_demo.jpg",
+    "pearl-grey-oxford": "pearl_grey_oxford_ai_demo.jpg",
+    "taupe-polo-new": "taupe_polo_updated_ai_demo.jpg",
+    "beige-tshirt": "beige_tshirt_ai_demo.jpg",
+    "navy-tshirt": "navy_tshirt_ai_demo.jpg",
+    "sand-chinos": "sand_chinos_ai_demo.jpg",
+    "olive-chinos": "olive_chinos_ai_demo.jpg",
+    "navy-chinos": "navy_chinos_ai_demo.jpg",
+    "camel-loafers": "camel_loafers_ai_demo.jpg",
 }
 OUT = pathlib.Path(__file__).resolve().parents[1] / "frontend/src/demo-ai-assets.ts"
 
@@ -37,6 +45,6 @@ def main():
         lines.append(f"  {key!r}: {uri!r},")
     lines.append("};")
     OUT.write_text(chr(10).join(lines) + chr(10), encoding="utf8")
-    print("Installed 3 synthetic demo images into", OUT)
+    print("Installed", len(files), "synthetic demo images into", OUT)
 if __name__ == "__main__":
     main()
