@@ -26,6 +26,7 @@ export default function DiscoverScreen() {
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
   const [expandedProductDetails, setExpandedProductDetails] = useState<string[]>([]);
   const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
+  const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [stylistContext, setStylistContext] = useState("");
   useEffect(() => {
@@ -460,7 +461,7 @@ export default function DiscoverScreen() {
             {!searchResults.demo_outfits?.length ? <Text style={styles.note}>No complete outfit is currently eligible. The counts above show which rule is removing the combinations.</Text> : null}
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
-            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).sort((a,b) => Number(favouriteOutfitIds.includes(b.id)) - Number(favouriteOutfitIds.includes(a.id))).map((outfit) => (
+            {(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
                   <View style={{ flex: 2, minWidth: 230 }}>
@@ -496,6 +497,12 @@ export default function DiscoverScreen() {
                 <Pressable accessibilityRole="button" onPress={() => setFavouriteOutfitIds(ids => ids.includes(outfit.id) ? ids.filter(id => id !== outfit.id) : [...ids,outfit.id])}>
                   <Text style={styles.body}>{favouriteOutfitIds.includes(outfit.id) ? "♥ Saved this session · Remove favourite" : "♡ Save outfit for this session"}</Text>
                 </Pressable>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginVertical: 7 }}>
+                  {(["loved","disliked"] as const).map(reaction => <Pressable key={reaction} accessibilityRole="button" accessibilityState={{selected: outfitReactions[outfit.id] === reaction}} onPress={() => setOutfitReactions(v => ({...v,[outfit.id]:v[outfit.id] === reaction ? undefined as never : reaction}))}>
+                    <Text style={styles.body}>{outfitReactions[outfit.id] === reaction ? "✓ " : ""}{reaction === "loved" ? "Love this" : "Not for me"}</Text>
+                  </Pressable>)}
+                </View>
+                <Text style={styles.note}>Reactions and favourites influence ordering in this session only; they do not bypass colour, size, budget or eligibility rules.</Text>
                 <Text style={styles.note}>Styling inspiration · Representative photos, not actual demo items</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={expandedDemoOutfits.includes(outfit.id) ? "Hide outfit details" : "View outfit details"} onPress={() => setExpandedDemoOutfits(current => current.includes(outfit.id) ? current.filter(id => id !== outfit.id) : [...current, outfit.id])}>
                   <Text style={styles.body}>{expandedDemoOutfits.includes(outfit.id) ? "Hide styling details ▲" : "View styling details ▼"}</Text>
