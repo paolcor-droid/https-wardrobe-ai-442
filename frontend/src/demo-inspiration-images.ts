@@ -87,14 +87,14 @@ export function canonicalDemoSubtype(name:string):string {
  [/ballerine.*punta/,"flats_pointed"],[/ballerine.*cinturino/,"flats_strap"],
  [/sandali.*tacco/,"sandals_heel"],[/sandali.*intrecciat/,"sandals_woven"],
  [/sandali/,"sandals_flat"],[/loafer.*morsetto/,"loafers_horsebit"],
- [/sneaker.*plateau/,"sneakers_platform"],
+ [/sneaker.*plateau/,"sneakers_platform"],[/sneaker.*alte/,"sneakers_low"],
  [/tailored|sartorial/,"trousers_tailored"],[/chino|trouser|pants/,"trousers_chino"],
  [/v.neck.*t.shirt/,"tshirt_vneck"],[/t.shirt|tshirt|tee/,"tshirt_basic"],
  [/polo|maglia|piqu[eé]/,"polo"],[/shirt|oxford|camicia/,"shirt"],[/loafer/,"loafers"],[/sneaker/,"sneakers"],
  ];
  return patterns.find(([re])=>re.test(t))?.[1] ?? "unknown";
 }
-const WOMEN_KEYS: Array<[string,string,string]> = [["blouse_fluid_navy","blouse_fluid","navy"],["blouse_fluid_cream","blouse_fluid","cream"],["blouse_fluid_silk_beige","blouse_fluid_silk","beige"],["bodysuit_coral","bodysuit","coral"],["vneck_knit_camel","vneck_knit","camel"],["tshirt_cropped_grey","tshirt_cropped","grey"],["tshirt_basic_cream","tshirt_basic","cream"],["tshirt_crew_coral","tshirt_basic","coral"],["tshirt_vneck_navy","tshirt_vneck","navy"],["trousers_pleated_cream","trousers_pleated","cream"],["trousers_culotte_navy","trousers_culotte","navy"],["trousers_palazzo_beige","trousers_palazzo","beige"],["trousers_palazzo_navy","trousers_palazzo","navy"],["trousers_fluid_coral","trousers_fluid","coral"],["trousers_straight_navy","trousers_straight","navy"],["trousers_summer_beige","trousers_summer","beige"],["shorts_classic_white","shorts_classic","white"],["shorts_classic_navy","shorts_classic","navy"],["shorts_cargo_navy","shorts_cargo","navy"],["flats_pointed_beige","flats_pointed","beige"],["flats_strap_navy","flats_strap","navy"],["sandals_flat_brown","sandals_flat","brown"],["sandals_flat_navy","sandals_flat","navy"],["sandals_heel_brown","sandals_heel","brown"],["sandals_heel_camel","sandals_heel","camel"],["sandals_heel_navy","sandals_heel","navy"],["sandals_woven_camel","sandals_woven","camel"],["loafers_horsebit_tan","loafers_horsebit","tan"],["sneakers_platform_beige","sneakers_platform","beige"]];
+const WOMEN_KEYS: Array<[string,string,string]> = [["blouse_fluid_navy","blouse_fluid","navy"],["blouse_fluid_cream","blouse_fluid","cream"],["blouse_fluid_silk_beige","blouse_fluid_silk","beige"],["bodysuit_coral","bodysuit","coral"],["vneck_knit_camel","vneck_knit","camel"],["tshirt_cropped_grey","tshirt_cropped","grey"],["tshirt_basic_cream","tshirt_basic","cream"],["tshirt_crew_coral","tshirt_basic","coral"],["tshirt_vneck_navy","tshirt_vneck","navy"],["trousers_pleated_cream","trousers_pleated","cream"],["trousers_culotte_navy","trousers_culotte","navy"],["trousers_palazzo_beige","trousers_palazzo","beige"],["trousers_palazzo_navy","trousers_palazzo","navy"],["trousers_fluid_coral","trousers_fluid","coral"],["trousers_straight_navy","trousers_straight","navy"],["trousers_summer_beige","trousers_summer","beige"],["shorts_classic_white","shorts_classic","white"],["shorts_classic_navy","shorts_classic","navy"],["shorts_cargo_navy","shorts_cargo","navy"],["flats_pointed_beige","flats_pointed","beige"],["flats_strap_navy","flats_strap","navy"],["sandals_flat_brown","sandals_flat","brown"],["sandals_flat_navy","sandals_flat","navy"],["sandals_heel_brown","sandals_heel","brown"],["sandals_heel_camel","sandals_heel","camel"],["sandals_heel_navy","sandals_heel","navy"],["sandals_woven_camel","sandals_woven","camel"],["loafers_horsebit_tan","loafers_horsebit","tan"],["sneakers_platform_beige","sneakers_platform","beige"],["tshirt_crew_white","tshirt_basic","white"],["tshirt_crew_navy","tshirt_basic","navy"],["tshirt_vneck_coral","tshirt_vneck","coral"],["trousers_tailored_camel","trousers_tailored","camel"],["trousers_tailored_grey","trousers_tailored","grey"],["shorts_classic_sand","shorts_classic","sand"],["loafers_navy","loafers","navy"],["loafers_camel","loafers","camel"],["loafers_horsebit_navy","loafers_horsebit","navy"],["loafers_horsebit_camel","loafers_horsebit","camel"],["sneakers_platform_white","sneakers_platform","white"],["sneakers_low_cream","sneakers_low","cream"]];
 export const WOMENS_DEMO_PHOTOS:DemoPhotoAsset[] = WOMEN_KEYS.flatMap(([key,subtype,colour]) => DEMO_AI_ASSETS["women_"+key] ? [{
  id:"women_"+key,segment:"women" as const,subtype,category:"shirt" as const,colourFamilies:[colour],
  uri:DEMO_AI_ASSETS["women_"+key],page:"",kind:"ai_generated_demo" as const,author:"AI-generated",licence:"Synthetic AI illustration",match:"Women's "+subtype+" in "+colour+"; illustrative, not actual product",attributionRequired:false
@@ -105,8 +105,10 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
  if(!colour)return null;
  if(segment==="women") {
    const subtype=canonicalDemoSubtype(name);
-   const match=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype&&p.colourFamilies.includes(colour));
-   return match ? {...match,colourAccurate:true,matchKind:"exact"}:null;
+   const exact=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype&&p.colourFamilies.includes(colour));
+   if(exact)return {...exact,colourAccurate:true,matchKind:"exact"};
+   // Only accept a visibly correct cut. Nearby colours can mislead users, so retain selected-colour swatches instead.
+   return null;
  }
  const category=demoCategory(name);
  if(!category)return null;
