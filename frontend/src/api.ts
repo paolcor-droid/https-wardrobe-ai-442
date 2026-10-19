@@ -599,6 +599,7 @@ export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<Checko
 export async function generateOutfitPreview(input: {
   outfit_id: string;
   force_regenerate?: boolean;
+  reference_images?: string[];
   presentation: "woman" | "man";
   garments: Array<{name: string; colour: string}>;
 }): Promise<{image: string; cached: boolean; label: string}> {
