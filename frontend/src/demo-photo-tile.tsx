@@ -23,8 +23,8 @@ export function DemoPhotoTile({ photo, colour, height = 120 }: {
     {photo && !failed && photo.kind === "ai_generated_demo" ? <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#ffffffeb", paddingVertical: 3 }}>
       <Text style={{ fontSize: 9, color: "#333", textAlign: "center" }}>AI-generated demo image · Not actual product</Text>
     </View> : null}
-    {photo && !failed && !photo.colourAccurate && photo.kind !== "ai_generated_demo" ? <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#ffffffeb", paddingVertical: 3, paddingHorizontal: 5 }}>
-      <Text style={{ fontSize: 9, color: "#333", textAlign: "center" }}>Style reference · Colour differs</Text>
+    {photo && !failed && !photo.colourAccurate ? <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#ffffffeb", paddingVertical: 3, paddingHorizontal: 5 }}>
+      <Text style={{ fontSize: 9, color: "#333", textAlign: "center" }}>Silhouette reference · Colour may differ</Text>
     </View> : null}
   </View>;
 }
