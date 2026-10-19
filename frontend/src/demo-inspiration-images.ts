@@ -107,7 +107,16 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
    const subtype=canonicalDemoSubtype(name);
    const exact=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype&&p.colourFamilies.includes(colour));
    if(exact)return {...exact,colourAccurate:true,matchKind:"exact"};
-   // Only accept a visibly correct cut. Nearby colours can mislead users, so retain selected-colour swatches instead.
+   // Women only: same silhouette and adjacent neutral colour may be displayed as a clearly marked reference.
+   const close:Record<string,string[]> = {
+     white:["cream","beige","sand"], cream:["white","beige","sand"],
+     beige:["sand","cream","white"], sand:["beige","cream","white"],
+     camel:["tan","brown"], tan:["camel","brown"], brown:["tan","camel"],
+     grey:["grey"], navy:["navy"], coral:["coral"], olive:["olive"]
+   };
+   const family = close[colour] || [];
+   const related = WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype && p.colourFamilies.some(c=>family.includes(c)));
+   if(related) return {...related,colourAccurate:false,matchKind:"style-reference",match:related.match+"; similar neutral shade only, not the selected "+selectedColour};
    return null;
  }
  // Prefer a garment-specific menswear image to the broad category matcher.
@@ -121,7 +130,7 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
  };
  const expected=subtypeCategory[subtype];
  const subtypeAliases: Record<string,string[]> = {
-   shirt:["shirt"], trousers_chino:["trousers_chino","chino"], trousers_tailored:["trousers_tailored","tailored"],
+   shirt:["shirt","oxford"], trousers_chino:["trousers_chino","chino","chinos"], trousers_tailored:["trousers_tailored","tailored"],
    shorts_classic:["shorts_classic","shorts"], shorts_cargo:["shorts_cargo"],
    sneakers:["sneakers","sneakers_low"], sneakers_low:["sneakers_low","sneakers"],
    loafers:["loafers"], polo:["polo"], tshirt_basic:["tshirt_basic","tshirt"], tshirt_vneck:["tshirt_vneck","tshirt"]
