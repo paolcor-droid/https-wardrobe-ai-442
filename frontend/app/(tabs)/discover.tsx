@@ -492,7 +492,7 @@ export default function DiscoverScreen() {
                       style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
                       {outfitPreviewLoading===outfit.id ? <ActivityIndicator /> : <Feather name="image" size={22} />}
                       <Text style={styles.body}>{outfitPreviewLoading===outfit.id?"Generating outfit preview…":"Generate AI outfit preview"}</Text>
-                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces · 3 new previews per account/day</Text>
+                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces · up to 20 previews per account/day in development</Text>
                     </Pressable>
                   )}
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
