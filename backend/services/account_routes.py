@@ -1307,7 +1307,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 data = base64.b64decode(raw.split(",", 1)[1], validate=True)
             except Exception:
                 raise HTTPException(422, "Invalid outfit reference encoding")
-            if not (data.startswith(b"\\xff\\xd8\\xff") and len(data) < 600000):
+            if not (data.startswith(bytes([0xff, 0xd8, 0xff])) and len(data) < 600000):
                 raise HTTPException(422, "Invalid outfit reference photograph")
             references.append(data)
         def render():
