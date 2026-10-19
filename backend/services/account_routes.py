@@ -1253,8 +1253,6 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         from datetime import timedelta
         import asyncio
         key = os.environ.get("OPENAI_API_KEY")
-        if not key or os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") != "1":
-            raise HTTPException(503, "Outfit previews are not enabled on this server")
         validated = []
         for garment in payload.garments:
             name = str(garment.get("name", "")).strip()
@@ -1271,6 +1269,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         )
         if existing and not payload.force_regenerate:
             return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
+        if not key or os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") != "1":
+            raise HTTPException(503, "Outfit previews are not enabled on this server")
+
         now = datetime.now(timezone.utc)
         day = now.strftime("%Y-%m-%d")
         daily_limit = max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "3"))))
