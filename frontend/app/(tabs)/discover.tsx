@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,13 +32,22 @@ export default function DiscoverScreen() {
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
-  useEffect(() => {
-    let active=true;
+  useFocusEffect(useCallback(() => {
+    let active = true;
     getSavedOutfitPreviews().then(({previews}) => {
-      if(active)setOutfitPreviewImages(old=>({...Object.fromEntries(previews.flatMap(p=>[[p.outfit_id,p.image],...(p.presentation && p.garments ? [[previewGarmentKey(p.presentation,p.garments),p.image]] : [])])),...old}));
-    }).catch(()=>{});
-    return ()=>{active=false;};
-  }, []);
+      if (!active) return;
+      const saved: Record<string,string> = {};
+      for (const p of previews) {
+        if (!saved[p.outfit_id]) saved[p.outfit_id] = p.image;
+        if (p.presentation && p.garments) {
+          const key = previewGarmentKey(p.presentation,p.garments);
+          if (!saved[key]) saved[key] = p.image;
+        }
+      }
+      setOutfitPreviewImages(previous => ({...previous,...saved}));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []));
 
   const [outfitPreviewLoading, setOutfitPreviewLoading] = useState<string | null>(null);
   const [outfitPreviewErrors, setOutfitPreviewErrors] = useState<Record<string,string>>({});
@@ -496,7 +505,7 @@ export default function DiscoverScreen() {
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.colourAccurate && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image}));
+                          setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
                           setOutfitPreviewErrors(old=>({...old,[outfit.id]:""}));
                         } catch(e) {
                           setOutfitPreviewErrors(old=>({...old,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
@@ -520,7 +529,7 @@ export default function DiscoverScreen() {
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image}));
+                          setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
                         } catch(e) {
                           setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
                         } finally {setOutfitPreviewLoading(null);}
@@ -534,7 +543,7 @@ export default function DiscoverScreen() {
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
                 </View>
                 {screenWidth < 760 ? <Text style={styles.note}>Swipe left for garment photos, colours and prices →</Text> : null}
-                <ScrollView horizontal={screenWidth < 760} showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8}} style={{marginVertical:8}}>
+                <ScrollView horizontal={screenWidth < 760} nestedScrollEnabled showsHorizontalScrollIndicator={screenWidth < 760} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8,paddingRight:screenWidth<760?20:0}} style={{marginVertical:8,maxWidth:"100%"}}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
