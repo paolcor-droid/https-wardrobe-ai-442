@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
@@ -28,6 +28,14 @@ export default function DiscoverScreen() {
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
+  useEffect(() => {
+    let active=true;
+    getSavedOutfitPreviews().then(({previews}) => {
+      if(active)setOutfitPreviewImages(old=>({...Object.fromEntries(previews.map(p=>[p.outfit_id,p.image])),...old}));
+    }).catch(()=>{});
+    return ()=>{active=false;};
+  }, []);
+
   const [outfitPreviewLoading, setOutfitPreviewLoading] = useState<string | null>(null);
   const [outfitPreviewErrors, setOutfitPreviewErrors] = useState<Record<string,string>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
@@ -472,6 +480,23 @@ export default function DiscoverScreen() {
                     <View>
                       <Image source={{uri:outfitPreviewImages[outfit.id]}} resizeMode="contain" style={{width:"100%",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
                       <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
+                      <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
+                        setOutfitPreviewLoading(outfit.id);
+                        try {
+                          const result=await generateOutfitPreview({
+                            outfit_id:outfit.id,
+                            force_regenerate:true,
+                            presentation:prefs?.shop_for==="womens"?"woman":"man",
+                            garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                          });
+                          setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image}));
+                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:""}));
+                        } catch(e) {
+                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
+                        } finally {setOutfitPreviewLoading(null);}
+                      }} style={{paddingVertical:10}}>
+                        <Text style={styles.body}>↻ Regenerate preview (uses one daily generation)</Text>
+                      </Pressable>
                     </View>
                   ) : (
                     <Pressable accessibilityRole="button" disabled={outfitPreviewLoading !== null}
@@ -480,13 +505,14 @@ export default function DiscoverScreen() {
                         setOutfitPreviewErrors(v=>({...v,[outfit.id]:""}));
                         try {
                           const result=await generateOutfitPreview({
+                            force_regenerate:false,
                             outfit_id:outfit.id,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
                           });
                           setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image}));
                         } catch(e) {
-                          setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error?e.message:"Preview could not be generated"}));
+                          setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
                         } finally {setOutfitPreviewLoading(null);}
                       }}
                       style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
@@ -497,14 +523,14 @@ export default function DiscoverScreen() {
                   )}
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
                 </View>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
+                <ScrollView horizontal={screenWidth < 760} showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8}} style={{marginVertical:8}}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour, prefs?.shop_for === "womens" ? "women" : "men");
                     return (
-                      <View key={index} style={{ width: screenWidth >= 760 ? "31.5%" : "31%", minWidth: screenWidth >= 760 ? 190 : 0, alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 116} />
+                      <View key={index} style={{ width: screenWidth >= 760 ? 225 : Math.min(screenWidth * 0.60,260), alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 164} />
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 10, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
@@ -515,7 +541,7 @@ export default function DiscoverScreen() {
                       </View>
                     );
                   })}
-                </View>
+                </ScrollView>
                 <View style={{ marginVertical: 8, gap: 4 }}>{explainDemoLook(outfit, prefs).map((line, index) => <Text key={index} style={styles.note}>• {line}</Text>)}</View>
                 <Pressable accessibilityRole="button" onPress={() => setFavouriteOutfitIds(ids => ids.includes(outfit.id) ? ids.filter(id => id !== outfit.id) : [...ids,outfit.id])}>
                   <Text style={styles.body}>{favouriteOutfitIds.includes(outfit.id) ? "♥ Saved this session · Remove favourite" : "♡ Save outfit for this session"}</Text>
