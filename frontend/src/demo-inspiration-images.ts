@@ -122,6 +122,18 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
  const expected=subtypeCategory[subtype];
  const matching=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.colourFamilies.includes(colour) && p.kind==="ai_generated_demo") : undefined;
  if(matching)return {...matching,colourAccurate:true,matchKind:"exact"};
+ // A colour-family fallback is an illustrative style reference, NEVER an exact-colour claim.
+ // For neutral shades only; avoid showing a misleading vivid or unrelated colour.
+ const neutralFamily:Record<string,string[]> = {
+   white:["cream","beige","sand"], cream:["white","beige","sand"],
+   beige:["sand","cream","white"], sand:["beige","cream","white"],
+   grey:["grey"], navy:["navy"], olive:["olive"], camel:["tan","brown"],
+   tan:["camel","brown"], brown:["tan","camel"]
+ };
+ const family=(neutralFamily[colour]||[]).filter(c=>c!==colour);
+ const familyMatch=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.kind==="ai_generated_demo" && p.colourFamilies.some(c=>family.includes(c))) : undefined;
+ if(familyMatch)return {...familyMatch,colourAccurate:false,matchKind:"style-reference",match:familyMatch.match+"; neutral-colour reference only, not the selected "+selectedColour};
+
  const category=demoCategory(name);
  if(!category)return null;
  const exact=DEMO_PHOTO_LIBRARY.find(p=>p.category===category&&p.colourFamilies.includes(colour));
