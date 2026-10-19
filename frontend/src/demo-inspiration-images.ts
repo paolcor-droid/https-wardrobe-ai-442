@@ -120,7 +120,16 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
    sneakers:"sneakers", sneakers_low:"sneakers", loafers:"loafers"
  };
  const expected=subtypeCategory[subtype];
- const matching=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.colourFamilies.includes(colour) && p.kind==="ai_generated_demo") : undefined;
+ const subtypeAliases: Record<string,string[]> = {
+   shirt:["shirt"], trousers_chino:["trousers_chino","chino"], trousers_tailored:["trousers_tailored","tailored"],
+   shorts_classic:["shorts_classic","shorts"], shorts_cargo:["shorts_cargo"],
+   sneakers:["sneakers","sneakers_low"], sneakers_low:["sneakers_low","sneakers"],
+   loafers:["loafers"], polo:["polo"], tshirt_basic:["tshirt_basic","tshirt"], tshirt_vneck:["tshirt_vneck","tshirt"]
+ };
+ const candidates=DEMO_PHOTO_LIBRARY.filter(p=>p.kind==="ai_generated_demo" && p.segment!=="women" && p.colourFamilies.includes(colour));
+ const matching=candidates.find(p=>p.subtype===subtype)
+   || candidates.find(p=>subtypeAliases[subtype]?.some(alias=>p.id.includes(alias) || p.subtype===alias))
+   || (expected ? candidates.find(p=>p.category===expected && (p.subtype===undefined || p.subtype===subtype)) : undefined);
  if(matching)return {...matching,colourAccurate:true,matchKind:"exact"};
  // A colour-family fallback is an illustrative style reference, NEVER an exact-colour claim.
  // For neutral shades only; avoid showing a misleading vivid or unrelated colour.
@@ -131,7 +140,7 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
    tan:["camel","brown"], brown:["tan","camel"]
  };
  const family=(neutralFamily[colour]||[]).filter(c=>c!==colour);
- const familyMatch=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.kind==="ai_generated_demo" && p.colourFamilies.some(c=>family.includes(c))) : undefined;
+ const familyMatch=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.segment!=="women" && p.kind==="ai_generated_demo" && p.colourFamilies.some(c=>family.includes(c)) && (p.subtype===undefined || p.subtype===subtype || subtypeAliases[subtype]?.includes(p.subtype))) : undefined;
  if(familyMatch)return {...familyMatch,colourAccurate:false,matchKind:"style-reference",match:familyMatch.match+"; neutral-colour reference only, not the selected "+selectedColour};
 
  const category=demoCategory(name);
