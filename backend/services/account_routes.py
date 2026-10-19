@@ -59,6 +59,7 @@ class OutfitPreviewInput(BaseModel):
     outfit_id: str = Field(min_length=1, max_length=150)
     presentation: str = Field(pattern="^(woman|man)$")
     garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
+    force_regenerate: bool = False
 
 
 class BagAdd(BaseModel):
@@ -1238,6 +1239,14 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
 
 
+    @router.get("/outfit-previews")
+    async def list_outfit_previews(user_id: str = Depends(current_user)):
+        rows = await db.customer_outfit_previews.find(
+            {"user_id": user_id}, {"_id": 0, "outfit_id": 1, "image": 1}
+        ).sort("created_at", -1).limit(100).to_list(length=100)
+        return {"previews": [{"outfit_id": r["outfit_id"], "image": r["image"]}
+                             for r in rows if r.get("outfit_id") and r.get("image")]}
+
     @router.post("/outfit-preview")
     async def generate_outfit_preview(payload: OutfitPreviewInput, user_id: str = Depends(current_user)):
         """Private on-demand styling concept, never supplier SKU imagery or personal try-on."""
@@ -1260,7 +1269,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         existing = await db.customer_outfit_previews.find_one(
             {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
         )
-        if existing:
+        if existing and not payload.force_regenerate:
             return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
         now = datetime.now(timezone.utc)
         day = now.strftime("%Y-%m-%d")
@@ -1310,8 +1319,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(502, "Outfit preview could not be generated. Please try later.")
         await db.customer_outfit_previews.update_one(
             {"user_id": user_id, "fingerprint": fingerprint},
-            {"$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint,
-                               "image": image, "created_at": now}},
+            {"$set": {"outfit_id": payload.outfit_id, "image": image, "created_at": now},
+             "$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint}},
             upsert=True,
         )
         return {"image": image, "cached": False, "label": "AI-generated styling concept · Not actual supplier products"}
