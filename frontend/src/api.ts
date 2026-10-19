@@ -598,8 +598,14 @@ export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<Checko
 /** Optional authenticated AI illustration; charged only on user action and cached per account/outfit. */
 export async function generateOutfitPreview(input: {
   outfit_id: string;
+  force_regenerate?: boolean;
   presentation: "woman" | "man";
   garments: Array<{name: string; colour: string}>;
 }): Promise<{image: string; cached: boolean; label: string}> {
   return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
+}
+
+/** Previously rendered images are account private; does not call the image model. */
+export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string}>}> {
+  return accountRequest("/outfit-previews");
 }
