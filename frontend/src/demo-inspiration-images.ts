@@ -9,8 +9,8 @@ export type DemoPhotoAsset = {
 export type DemoInspiration = DemoPhotoAsset & { colourAccurate: boolean; matchKind?: "exact" | "style-reference" };
 export const COLOUR_FAMILY_MAP: Record<string,string> = {
  white:"white",cream:"cream",beige:"beige",sand:"sand",ivory:"cream",ecru:"cream",
- "pearl grey":"grey",grey:"grey",navy:"navy",olive:"olive",
- camel:"camel",brown:"brown",tan:"tan",taupe:"taupe",coral:"coral",salmon:"coral","light blue":"blue"
+ "pearl grey":"grey",grey:"grey",gray:"grey",charcoal:"grey",anthracite:"grey",navy:"navy", "dark blue":"navy", "blue navy":"navy",blue:"blue", "cobalt blue":"blue", olive:"olive", "sage green":"olive","forest green":"olive",
+ camel:"camel",brown:"brown","dark brown":"brown",chocolate:"brown",tan:"tan",taupe:"taupe",coral:"coral",salmon:"coral","light blue":"blue",black:"black",burgundy:"burgundy",red:"red",terracotta:"coral",pink:"coral","blush pink":"coral",lilac:"lilac",mustard:"mustard"
 };
 export const DEMO_PHOTO_LIBRARY: DemoPhotoAsset[] = [
  ...(DEMO_AI_ASSETS["sand-shirt"] ? [{ id:"ai-sand-shirt", category:"shirt" as const, colourFamilies:["sand"], uri:DEMO_AI_ASSETS["sand-shirt"], page:"", author:"AI-generated", licence:"Synthetic AI-generated demo illustration", match:"AI-generated sand dress shirt; not actual product", attributionRequired:false, kind:"ai_generated_demo" as const }] : []),
@@ -101,7 +101,8 @@ export const WOMENS_DEMO_PHOTOS:DemoPhotoAsset[] = WOMEN_KEYS.flatMap(([key,subt
 }] : []);
 /** Default remains legacy for menswear; women's items cannot borrow male imagery. */
 export function demoInspiration(name:string, selectedColour:string, segment:"women"|"men"|"unisex"="men"):DemoInspiration|null {
- const colour=COLOUR_FAMILY_MAP[selectedColour.trim().toLowerCase()];
+ const key=selectedColour.trim().toLowerCase().replace(/[-_]+/g," ").replace(/\s+/g," ");
+ const colour=COLOUR_FAMILY_MAP[key] || (DEMO_PHOTO_LIBRARY.concat(WOMENS_DEMO_PHOTOS).some(p=>p.colourFamilies.includes(key)) ? key : undefined);
  if(!colour)return null;
  if(segment==="women") {
    const subtype=canonicalDemoSubtype(name);
@@ -117,6 +118,9 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
    const family = close[colour] || [];
    const related = WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype && p.colourFamilies.some(c=>family.includes(c)));
    if(related) return {...related,colourAccurate:false,matchKind:"style-reference",match:related.match+"; similar neutral shade only, not the selected "+selectedColour};
+   // Keep the silhouette correct even when the chosen colour has no photographed counterpart.
+   const silhouette=WOMENS_DEMO_PHOTOS.find(p=>p.subtype===subtype);
+   if(silhouette)return {...silhouette,colourAccurate:false,matchKind:"style-reference",match:silhouette.match+"; silhouette reference only, colour differs from "+selectedColour};
    return null;
  }
  // Prefer a garment-specific menswear image to the broad category matcher.
@@ -152,6 +156,8 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
  const familyMatch=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.segment!=="women" && p.kind==="ai_generated_demo" && p.colourFamilies.some(c=>family.includes(c)) && (p.subtype===undefined || p.subtype===subtype || subtypeAliases[subtype]?.includes(p.subtype))) : undefined;
  if(familyMatch)return {...familyMatch,colourAccurate:false,matchKind:"style-reference",match:familyMatch.match+"; neutral-colour reference only, not the selected "+selectedColour};
 
+ const silhouette=DEMO_PHOTO_LIBRARY.find(p=>p.kind==="ai_generated_demo" && p.segment!=="women" && (p.subtype===subtype || subtypeAliases[subtype]?.includes(p.subtype ?? "")));
+ if(silhouette)return {...silhouette,colourAccurate:false,matchKind:"style-reference",match:silhouette.match+"; silhouette reference only, colour differs from "+selectedColour};
  const category=demoCategory(name);
  if(!category)return null;
  const exact=DEMO_PHOTO_LIBRARY.find(p=>p.category===category&&p.colourFamilies.includes(colour));
