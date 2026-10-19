@@ -607,6 +607,6 @@ export async function generateOutfitPreview(input: {
 }
 
 /** Previously rendered images are account private; does not call the image model. */
-export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string}>}> {
+export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string;presentation?:"woman"|"man"|null;garments?:Array<{name:string;colour:string}>|null}>}> {
   return accountRequest("/outfit-previews");
 }
