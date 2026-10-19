@@ -110,6 +110,18 @@ export function demoInspiration(name:string, selectedColour:string, segment:"wom
    // Only accept a visibly correct cut. Nearby colours can mislead users, so retain selected-colour swatches instead.
    return null;
  }
+ // Prefer a garment-specific menswear image to the broad category matcher.
+ // Never use a photograph of a different subtype or an unverified colour as exact.
+ const subtype=canonicalDemoSubtype(name);
+ const subtypeCategory: Record<string, DemoPhotoAsset["category"]> = {
+   trousers_tailored:"tailored", trousers_chino:"trousers",
+   shorts_classic:"shorts", shorts_cargo:"shorts", shirt:"shirt",
+   polo:"polo", tshirt_basic:"tshirt", tshirt_vneck:"tshirt",
+   sneakers:"sneakers", sneakers_low:"sneakers", loafers:"loafers"
+ };
+ const expected=subtypeCategory[subtype];
+ const matching=expected ? DEMO_PHOTO_LIBRARY.find(p=>p.category===expected && p.colourFamilies.includes(colour) && p.kind==="ai_generated_demo") : undefined;
+ if(matching)return {...matching,colourAccurate:true,matchKind:"exact"};
  const category=demoCategory(name);
  if(!category)return null;
  const exact=DEMO_PHOTO_LIBRARY.find(p=>p.category===category&&p.colourFamilies.includes(colour));
