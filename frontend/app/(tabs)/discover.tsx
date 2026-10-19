@@ -488,6 +488,9 @@ export default function DiscoverScreen() {
                             force_regenerate:true,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            reference_images:outfit.garments.slice(0,3).map(g=>
+                              demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
+                            ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
                           setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image}));
                           setOutfitPreviewErrors(old=>({...old,[outfit.id]:""}));
@@ -509,6 +512,9 @@ export default function DiscoverScreen() {
                             outfit_id:outfit.id,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            reference_images:outfit.garments.slice(0,3).map(g=>
+                              demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
+                            ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
                           setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image}));
                         } catch(e) {
@@ -523,15 +529,15 @@ export default function DiscoverScreen() {
                   )}
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
                 </View>
-                {screenWidth < 760 ? <Text style={styles.note}>Swipe sideways to explore each garment →</Text> : null}
+                {screenWidth < 760 ? <Text style={styles.note}>Swipe to see the other garments →</Text> : null}
                 <ScrollView horizontal={screenWidth < 760} showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8}} style={{marginVertical:8}}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour, prefs?.shop_for === "womens" ? "women" : "men");
                     return (
-                      <View key={index} style={{ width: screenWidth >= 760 ? 225 : Math.min(screenWidth * 0.72,286), alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 210} />
+                      <View key={index} style={{ width: screenWidth >= 760 ? 225 : Math.max(250, Math.min(screenWidth * 0.78,310)), alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 230} />
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 10, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
