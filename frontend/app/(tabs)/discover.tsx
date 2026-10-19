@@ -523,14 +523,15 @@ export default function DiscoverScreen() {
                   )}
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
                 </View>
+                {screenWidth < 760 ? <Text style={styles.note}>Swipe sideways to explore each garment →</Text> : null}
                 <ScrollView horizontal={screenWidth < 760} showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8}} style={{marginVertical:8}}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
                     const inspiration = demoInspiration(garment.name, selectedColour, prefs?.shop_for === "womens" ? "women" : "men");
                     return (
-                      <View key={index} style={{ width: screenWidth >= 760 ? 225 : Math.min(screenWidth * 0.60,260), alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
-                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 164} />
+                      <View key={index} style={{ width: screenWidth >= 760 ? 225 : Math.min(screenWidth * 0.72,286), alignSelf: "flex-start", borderWidth: 1, borderColor: "rgba(128,128,128,0.16)", borderRadius: 8, padding: 10, gap: 3 }}>
+                        <DemoPhotoTile photo={inspiration} colour={selectedColour} height={screenWidth >= 760 ? 190 : 210} />
                         <View accessibilityLabel={`Illustrative colour: ${selectedColour}`} style={{ height: 10, borderRadius: 5, borderWidth: 1, borderColor: "rgba(128,128,128,0.22)", backgroundColor: colour || "#e7e7e7", alignItems: "center", justifyContent: "center" }}>
                           
                           {!colour ? <Text style={{ color: "#333", fontSize: 10 }}>Colour unverified</Text> : null}
