@@ -60,6 +60,7 @@ class OutfitPreviewInput(BaseModel):
     presentation: str = Field(pattern="^(woman|man)$")
     garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
     force_regenerate: bool = False
+    reference_images: list[str] = Field(default_factory=list, max_length=3)
 
 
 class BagAdd(BaseModel):
@@ -1296,14 +1297,36 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             + ". One person, no text, no brand logos, no additional garments changing the look. "
             "This is a generic styling interpretation, not a supplier product or customer's likeness."
         )
+        # Reference images must be synthetic garment demo assets, never personal photographs.
+        # The server validates compressed bytes rather than fetching arbitrary URLs.
+        references = []
+        for raw in payload.reference_images:
+            if not raw.startswith("data:image/jpeg;base64,") or len(raw) > 800000:
+                raise HTTPException(422, "Unsupported outfit reference format")
+            try:
+                data = base64.b64decode(raw.split(",", 1)[1], validate=True)
+            except Exception:
+                raise HTTPException(422, "Invalid outfit reference encoding")
+            if not (data.startswith(b"\\xff\\xd8\\xff") and len(data) < 600000):
+                raise HTTPException(422, "Invalid outfit reference photograph")
+            references.append(data)
         def render():
-            resp = requests.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={"Authorization": "Bearer " + key},
-                json={"model": os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini"),
-                      "prompt": prompt, "size": "1024x1536", "n": 1},
-                timeout=100,
-            )
+            model = os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini")
+            if references:
+                resp = requests.post(
+                    "https://api.openai.com/v1/images/edits",
+                    headers={"Authorization": "Bearer " + key},
+                    data={"model": model, "prompt": prompt + " Follow the attached garment references for fabric, shape and detail; retain the specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
+                    files=[("image[]", (f"garment_{i}.jpg", data, "image/jpeg")) for i, data in enumerate(references)],
+                    timeout=120,
+                )
+            else:
+                resp = requests.post(
+                    "https://api.openai.com/v1/images/generations",
+                    headers={"Authorization": "Bearer " + key},
+                    json={"model": model, "prompt": prompt, "size": "1024x1536", "n": 1},
+                    timeout=120,
+                )
             if resp.status_code != 200:
                 logger.warning("Outfit preview generation failed (%s)", resp.status_code)
                 raise ValueError("Image service unavailable")
