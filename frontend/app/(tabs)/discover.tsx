@@ -12,6 +12,10 @@ import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
 
+function previewGarmentKey(presentation:string, garments:Array<{name:string;colour:string}>):string {
+  return "garments:" + JSON.stringify([presentation,garments.map(g=>[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()])]);
+}
+
 export default function DiscoverScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -31,7 +35,7 @@ export default function DiscoverScreen() {
   useEffect(() => {
     let active=true;
     getSavedOutfitPreviews().then(({previews}) => {
-      if(active)setOutfitPreviewImages(old=>({...Object.fromEntries(previews.map(p=>[p.outfit_id,p.image])),...old}));
+      if(active)setOutfitPreviewImages(old=>({...Object.fromEntries(previews.flatMap(p=>[[p.outfit_id,p.image],...(p.presentation && p.garments ? [[previewGarmentKey(p.presentation,p.garments),p.image]] : [])])),...old}));
     }).catch(()=>{});
     return ()=>{active=false;};
   }, []);
@@ -476,9 +480,9 @@ export default function DiscoverScreen() {
                 </View>
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
-                  {outfitPreviewImages[outfit.id] ? (
+                  {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
                     <View>
-                      <Image source={{uri:outfitPreviewImages[outfit.id]}} resizeMode="contain" style={{width:"100%",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
+                      <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" style={{width:"100%",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
                       <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
                         setOutfitPreviewLoading(outfit.id);
