@@ -1243,9 +1243,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     @router.get("/outfit-previews")
     async def list_outfit_previews(user_id: str = Depends(current_user)):
         rows = await db.customer_outfit_previews.find(
-            {"user_id": user_id}, {"_id": 0, "outfit_id": 1, "image": 1}
-        ).sort("created_at", -1).limit(100).to_list(length=100)
-        return {"previews": [{"outfit_id": r["outfit_id"], "image": r["image"]}
+            {"user_id": user_id}, {"_id": 0, "outfit_id": 1, "image": 1, "presentation": 1, "garments": 1}
+        ).sort("created_at", -1).limit(200).to_list(length=200)
+        return {"previews": [{"outfit_id": r["outfit_id"], "image": r["image"], "presentation": r.get("presentation"), "garments": r.get("garments")}
                              for r in rows if r.get("outfit_id") and r.get("image")]}
 
     @router.post("/outfit-preview")
@@ -1343,7 +1343,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(502, "Outfit preview could not be generated. Please try later.")
         await db.customer_outfit_previews.update_one(
             {"user_id": user_id, "fingerprint": fingerprint},
-            {"$set": {"outfit_id": payload.outfit_id, "image": image, "created_at": now},
+            {"$set": {"outfit_id": payload.outfit_id, "presentation": payload.presentation, "garments": validated, "image": image, "created_at": now},
              "$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint}},
             upsert=True,
         )
