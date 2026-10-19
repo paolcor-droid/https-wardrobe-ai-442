@@ -1264,9 +1264,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
         now = datetime.now(timezone.utc)
         day = now.strftime("%Y-%m-%d")
+        daily_limit = max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "3"))))
         # Atomic daily quota reservation, including concurrent requests.
         quota = await db.customer_preview_quotas.find_one_and_update(
-            {"_id": f"{user_id}:{day}", "count": {"$lt": 3}},
+            {"_id": f"{user_id}:{day}", "count": {"$lt": daily_limit}},
             {"$inc": {"count": 1}},
             upsert=False,
         )
@@ -1275,7 +1276,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             try:
                 await db.customer_preview_quotas.insert_one({"_id": f"{user_id}:{day}", "count": 1, "created_at": now})
             except DuplicateKeyError:
-                raise HTTPException(429, "Daily outfit preview limit reached (3 per day)")
+                raise HTTPException(429, f"Daily outfit preview limit reached ({daily_limit} per day)")
         prompt = (
             "Fashion editorial studio photograph of one fully clothed adult "
             + ("woman" if payload.presentation == "woman" else "man")
