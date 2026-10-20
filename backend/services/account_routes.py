@@ -756,9 +756,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
     @router.get("/tryons")
     async def list_owned_tryons(user_id: str = Depends(current_user)):
-        return await db.customer_tryons.find(
+        records = await db.customer_tryons.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}
-        ).sort("created_at", -1).to_list(200)
+        ).to_list(200)
+        return sorted(records, key=lambda item: str(item.get("created_at") or ""), reverse=True)
 
     @router.delete("/tryons/{tryon_id}")
     async def delete_owned_tryon(tryon_id: str, user_id: str = Depends(current_user)):
