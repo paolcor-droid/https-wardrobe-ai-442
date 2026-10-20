@@ -56,7 +56,7 @@ export default function DiscoverScreen() {
       if (!active) return;
       const results: Record<string,string> = {};
       for (const record of records) {
-        const match = record.garment_prompt?.match(/\\[LUMIERE-DEMO:([^\\]]+)\\]/);
+        const match = record.garment_prompt?.match(/\[LUMIERE-DEMO:([^\]]+)\]/);
         if (match && !results[match[1]]) results[match[1]] = record.result_path;
       }
       setPersonalDemoResults(results);
