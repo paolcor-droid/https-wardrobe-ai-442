@@ -569,7 +569,7 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>Use a private full-body photo · AI demo simulation, not actual supplier items · Generation may incur a charge</Text>
                   </Pressable>
                   {personalDemoResults[outfit.id] ? <View style={{gap:5}}>
-                    <Image source={{uri:fileUrl(personalDemoResults[outfit.id])}} resizeMode="contain" style={{height:screenWidth>=760?420:320,width:"100%"}} />
+                    <Image source={{uri:fileUrl(personalDemoResults[outfit.id])}} resizeMode="contain" accessibilityLabel="Your private AI outfit simulation" style={{height:screenWidth>=760?440:350,width:"100%",maxWidth:390,alignSelf:"center",backgroundColor:"#f4f4f2",borderRadius:8}} />
                     <Text style={styles.note}>Saved personal outfit simulation · Private to your account · Fit and fabrics are illustrative</Text>
                   </View> : null}
                 </View>
