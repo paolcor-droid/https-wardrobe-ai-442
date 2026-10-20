@@ -56,11 +56,15 @@ export default function DiscoverScreen() {
       if (!active) return;
       const results: Record<string,string> = {};
       for (const record of records) {
-        const match = record.garment_prompt?.match(/\[LUMIERE-DEMO:([^\]]+)\]/);
+        // Only show results explicitly generated for a demo outfit.
+        const match = record.garment_prompt?.match(/^\[LUMIERE-DEMO:([^\]]+)\]/);
         if (match && !results[match[1]]) results[match[1]] = record.result_path;
       }
+      // Replace rather than merge: a deleted Try-On must disappear on return.
       setPersonalDemoResults(results);
-    }).catch(() => {});
+    }).catch(() => {
+      if (active) setPersonalDemoResults({});
+    });
     return () => { active = false; };
   }, []));
   const [outfitPreviewLoading, setOutfitPreviewLoading] = useState<string | null>(null);
