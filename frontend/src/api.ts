@@ -383,6 +383,10 @@ export async function createTryOn(body: {
   return presentPrivateTryOn(record);
 }
 
+export async function listPrivatePhotos(): Promise<Array<{id:string}>> {
+  return accountRequest<Array<{id:string}>>("/photos");
+}
+
 export async function listTryOns(): Promise<TryOn[]> {
   const records = await accountRequest<PrivateTryOnRecord[]>("/tryons");
   return records.map(presentPrivateTryOn);
