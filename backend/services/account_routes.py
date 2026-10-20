@@ -673,6 +673,23 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 raise HTTPException(404, "Second garment photograph not found")
         if garment is None and not (payload.garment_prompt or "").strip():
             raise HTTPException(422, "A garment photo or description is required")
+        # Reopen the same demo look on the same private photo without another paid call.
+        # Do not reuse results for ordinary Try-On or for altered garment descriptions.
+        is_demo = bool(payload.garment_prompt and
+                       payload.garment_prompt.startswith("[LUMIERE-DEMO:") and
+                       payload.garment_prompt.find("]") < 180 and
+                       payload.garment_photo_id is None and payload.second_garment_photo_id is None)
+        if is_demo:
+            cached = await db.customer_tryons.find_one({
+                "user_id": user_id, "person_photo_id": payload.person_photo_id,
+                "garment_prompt": payload.garment_prompt,
+                "garment_photo_id": None, "second_garment_photo_id": None,
+                "deleted_at": None,
+            }, {"_id": 0})
+            if cached and await db.customer_photos.find_one({
+                "id": cached.get("result_photo_id"), "user_id": user_id
+            }):
+                return cached
         if generate_tryon is None:
             raise HTTPException(503, "Private Try-On generation is unavailable")
         stage = "read_person"
@@ -741,7 +758,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def list_owned_tryons(user_id: str = Depends(current_user)):
         return await db.customer_tryons.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}
-        ).to_list(200)
+        ).sort("created_at", -1).to_list(200)
 
     @router.delete("/tryons/{tryon_id}")
     async def delete_owned_tryon(tryon_id: str, user_id: str = Depends(current_user)):
@@ -1108,7 +1125,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def list_owned_photos(user_id: str = Depends(current_user)):
         """Private photo picker: return metadata only, never underlying storage paths."""
         records = await db.customer_photos.find(
-            {"user_id": user_id}, {"_id": 0, "id": 1, "created_at": 1}
+            {"user_id": user_id, "generated": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1}
         ).sort("created_at", -1).limit(100).to_list(length=100)
         return [{"id": p["id"]} for p in records]
 
