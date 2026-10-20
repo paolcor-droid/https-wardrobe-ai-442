@@ -22,7 +22,7 @@ web_ready() {
   # A missing session returns 401 (or 200 if the browser is already signed in).
   # A 502 confirms that the Expo proxy cannot reach FastAPI.
   local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8081/api/account/me 2>/dev/null || true)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8081/api/account/me 2>/dev/null || true)"
   [[ "$code" == "401" || "$code" == "200" ]]
 }
 port_in_use() {
