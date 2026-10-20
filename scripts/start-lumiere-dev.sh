@@ -92,7 +92,7 @@ elif port_in_use 8000; then
 else
   (
     cd "$ROOT/backend"
-    nohup python -m uvicorn server:app --host 0.0.0.0 --port 8000 >"$LOGS/backend.log" 2>&1 </dev/null &
+    nohup python -m uvicorn server:app --host 0.0.0.0 --port 8000 9>&- >"$LOGS/backend.log" 2>&1 </dev/null &
     echo $! >"$LOGS/backend.pid"
   )
   wait_until "FastAPI readiness (see $LOGS/backend.log)" 45 api_ready || exit 1
@@ -115,7 +115,7 @@ else
   }
   (
     cd "$ROOT/frontend"
-    nohup ./node_modules/.bin/expo start --web --port 8081 --host localhost >"$LOGS/frontend.log" 2>&1 </dev/null &
+    nohup ./node_modules/.bin/expo start --web --port 8081 --host localhost 9>&- >"$LOGS/frontend.log" 2>&1 </dev/null &
     echo $! >"$LOGS/frontend.pid"
   )
   wait_until "Expo/API proxy (see $LOGS/frontend.log)" 60 web_ready || exit 1
