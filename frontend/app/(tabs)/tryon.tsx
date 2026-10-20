@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
 import { usesNativeTabs } from "@/src/navigation";
-import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, deleteTryOn, addShoppingBagItem, saveCatalogueOutfit, fileUrl, type TryOn } from "@/src/api";
+import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, listPrivatePhotos, deleteTryOn, addShoppingBagItem, saveCatalogueOutfit, fileUrl, type TryOn } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
 import type { PickResult } from "@/src/utils/media";
@@ -42,8 +42,12 @@ export default function TryOnScreen() {
     secondGarmentProductId?: string;
     secondGarmentSizes?: string;
     secondGarmentColours?: string;
+    demoOutfitId?: string;
+    demoOutfitPrompt?: string;
   }>();
 
+  const [showPrivatePhotoPicker, setShowPrivatePhotoPicker] = useState(false);
+  const {data: privatePhotos, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos});
   const [personPath, setPersonPath] = useState<string | null>(null);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPath, setGarmentPath] = useState<string | null>(null);
@@ -120,6 +124,16 @@ export default function TryOnScreen() {
     } finally { setBagSaving(false); }
   }
 
+
+  useEffect(() => {
+    if (!params.demoOutfitId || !params.demoOutfitPrompt) return;
+    // Do not automatically call any paid image endpoint.
+    const description = params.demoOutfitPrompt.slice(0, 700);
+    setGarmentPath(null);
+    setSecondGarmentPath(null);
+    setGarmentPrompt(`[LUMIERE-DEMO:${params.demoOutfitId}] An illustrative, fully clothed outfit containing exactly: ${description}. Keep the person's face, body and background as consistent as possible. This is a demo styling simulation, not real supplier inventory.`);
+    setResult(null);
+  }, [params.demoOutfitId,params.demoOutfitPrompt]);
 
   useEffect(() => {
     if (params.garmentPath) {
@@ -255,7 +269,7 @@ export default function TryOnScreen() {
     setError(null);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
-      if (which === "person") setPersonPath(path);
+      if (which === "person") { setPersonPath(path); refreshPrivatePhotos(); }
       else if (which === "secondGarment") setSecondGarmentPath(path);
       else setGarmentPath(path);
     } catch (e) {
@@ -360,6 +374,20 @@ export default function TryOnScreen() {
           <Slot which="person" preview={personPreview} label="Your photo" icon="user" />
           <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
         </View>
+        {params.demoOutfitId ? <View style={{gap:8,marginVertical:10}}>
+          <Text style={styles.secondHint}>Demo outfit from Discover · AI simulation only, not actual purchasable products.</Text>
+          <Pressable testID="choose-existing-photo" accessibilityRole="button" onPress={() => setShowPrivatePhotoPicker(v=>!v)} style={styles.shareBtn}>
+            <Text style={styles.shareBtnText}>{showPrivatePhotoPicker?"Close saved photos":"Choose existing private photo"}</Text>
+          </Pressable>
+          {showPrivatePhotoPicker ? <View style={{flexDirection:"row",flexWrap:"wrap",gap:10}}>
+            {(privatePhotos||[]).map(photo=><Pressable key={photo.id} testID={`photo-choice-${photo.id}`} accessibilityRole="button"
+              onPress={() => {setPersonPath(`private:${photo.id}`);setPersonPreview(`private:${photo.id}`);setConfirmed(false);setShowPrivatePhotoPicker(false);setResult(null);}}>
+              <AccountPhoto path={`private:${photo.id}`} style={{width:95,height:130,borderRadius:8}} contentFit="cover" />
+            </Pressable>)}
+            {!privatePhotos?.length ? <Text style={styles.secondHint}>No saved photos. Tap Your photo above to upload one.</Text> : null}
+          </View> : null}
+          <Text style={styles.secondHint}>Choose a full-body photo, or tap Your photo to upload a new one. Only generate after the free photo check.</Text>
+        </View> : null}
         {garmentPath ? (
           <Pressable testID="remove-first-garment" accessibilityRole="button" onPress={removeFirstGarment}>
             <Text style={styles.secondHint}>Remove first garment{secondGarmentPath ? " (keep second garment)" : ""}</Text>
