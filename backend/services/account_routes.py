@@ -1104,6 +1104,14 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         })
         return {"id": photo_id}
 
+    @router.get("/photos")
+    async def list_owned_photos(user_id: str = Depends(current_user)):
+        """Private photo picker: return metadata only, never underlying storage paths."""
+        records = await db.customer_photos.find(
+            {"user_id": user_id}, {"_id": 0, "id": 1, "created_at": 1}
+        ).sort("created_at", -1).limit(100).to_list(length=100)
+        return [{"id": p["id"]} for p in records]
+
     @router.get("/photos/{photo_id}")
     async def get_photo(photo_id: str, user_id: str = Depends(current_user)):
         photo = await db.customer_photos.find_one({"id": photo_id, "user_id": user_id})
