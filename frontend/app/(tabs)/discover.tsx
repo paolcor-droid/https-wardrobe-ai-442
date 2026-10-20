@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, fileUrl, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
@@ -49,6 +49,20 @@ export default function DiscoverScreen() {
     return () => { active = false; };
   }, []));
 
+  const [personalDemoResults, setPersonalDemoResults] = useState<Record<string,string>>({});
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    listTryOns().then(records => {
+      if (!active) return;
+      const results: Record<string,string> = {};
+      for (const record of records) {
+        const match = record.garment_prompt?.match(/\\[LUMIERE-DEMO:([^\\]]+)\\]/);
+        if (match && !results[match[1]]) results[match[1]] = record.result_path;
+      }
+      setPersonalDemoResults(results);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []));
   const [outfitPreviewLoading, setOutfitPreviewLoading] = useState<string | null>(null);
   const [outfitPreviewErrors, setOutfitPreviewErrors] = useState<Record<string,string>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
@@ -541,6 +555,19 @@ export default function DiscoverScreen() {
                     </Pressable>
                   )}
                   {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
+                  <Pressable accessibilityRole="button" testID={`demo-tryon-${outfit.id}`}
+                    onPress={() => router.push({pathname:"/(tabs)/tryon",params:{
+                      demoOutfitId:outfit.id,
+                      demoOutfitPrompt:outfit.garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ")
+                    }})}
+                    style={{padding:12,borderRadius:8,backgroundColor:"rgba(120,120,120,0.08)"}}>
+                    <Text style={styles.body}>See this outfit on me</Text>
+                    <Text style={styles.note}>Use a private full-body photo · AI demo simulation, not actual supplier items · Generation may incur a charge</Text>
+                  </Pressable>
+                  {personalDemoResults[outfit.id] ? <View style={{gap:5}}>
+                    <Image source={{uri:fileUrl(personalDemoResults[outfit.id])}} resizeMode="contain" style={{height:screenWidth>=760?420:320,width:"100%"}} />
+                    <Text style={styles.note}>Saved personal outfit simulation · Private to your account · Fit and fabrics are illustrative</Text>
+                  </View> : null}
                 </View>
                 {screenWidth < 760 ? <Text style={styles.note}>Swipe left for garment photos, colours and prices →</Text> : null}
                 <ScrollView horizontal={screenWidth < 760} nestedScrollEnabled showsHorizontalScrollIndicator={screenWidth < 760} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8,paddingRight:screenWidth<760?20:0}} style={{marginVertical:8,maxWidth:"100%"}}>
