@@ -1120,7 +1120,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         photo_id = str(uuid.uuid4())
         await db.customer_photos.insert_one({
             "id": photo_id, "user_id": user_id, "path": path,
-            "content_type": mime, "created_at": datetime.now(timezone.utc),
+            "content_type": mime, "purpose": purpose, "created_at": datetime.now(timezone.utc),
         })
         return {"id": photo_id}
 
