@@ -12,6 +12,10 @@ import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
 
+function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[]}>):string {
+  return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
+}
+
 function previewGarmentKey(presentation:string, garments:Array<{name:string;colour:string}>):string {
   return "garments:" + JSON.stringify([presentation,garments.map(g=>[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()])]);
 }
@@ -49,16 +53,18 @@ export default function DiscoverScreen() {
     return () => { active = false; };
   }, []));
 
-  const [personalDemoResults, setPersonalDemoResults] = useState<Record<string,string>>({});
+  const [personalDemoResults, setPersonalDemoResults] = useState<Record<string,{path:string;prompt:string}>>({});
   useFocusEffect(useCallback(() => {
     let active = true;
     listTryOns().then(records => {
       if (!active) return;
-      const results: Record<string,string> = {};
+      const results: Record<string,{path:string;prompt:string}> = {};
       for (const record of records) {
-        // Only show results explicitly generated for a demo outfit.
+        // Match both outfit identity and garment description: IDs can be reused by new recommendations.
         const match = record.garment_prompt?.match(/^\[LUMIERE-DEMO:([^\]]+)\]/);
-        if (match && !results[match[1]]) results[match[1]] = record.result_path;
+        if (match && record.garment_prompt && !results[match[1]]) {
+          results[match[1]] = {path:record.result_path,prompt:record.garment_prompt};
+        }
       }
       // Replace rather than merge: a deleted Try-On must disappear on return.
       setPersonalDemoResults(results);
@@ -562,14 +568,14 @@ export default function DiscoverScreen() {
                   <Pressable accessibilityRole="button" testID={`demo-tryon-${outfit.id}`}
                     onPress={() => router.push({pathname:"/(tabs)/tryon",params:{
                       demoOutfitId:outfit.id,
-                      demoOutfitPrompt:outfit.garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ")
+                      demoOutfitPrompt:demoOutfitDescription(outfit.garments)
                     }})}
                     style={{padding:12,borderRadius:8,backgroundColor:"rgba(120,120,120,0.08)"}}>
                     <Text style={styles.body}>See this outfit on me</Text>
                     <Text style={styles.note}>Use a private full-body photo · AI demo simulation, not actual supplier items · Generation may incur a charge</Text>
                   </Pressable>
-                  {personalDemoResults[outfit.id] ? <View style={{gap:5}}>
-                    <Image source={{uri:fileUrl(personalDemoResults[outfit.id])}} resizeMode="contain" accessibilityLabel="Your private AI outfit simulation" style={{height:screenWidth>=760?440:350,width:"100%",maxWidth:390,alignSelf:"center",backgroundColor:"#f4f4f2",borderRadius:8}} />
+                  {personalDemoResults[outfit.id]?.prompt.includes(`outfit containing exactly: ${demoOutfitDescription(outfit.garments)}.`) ? <View style={{gap:5}}>
+                    <Image source={{uri:fileUrl(personalDemoResults[outfit.id].path)}} resizeMode="contain" accessibilityLabel="Your private AI outfit simulation" style={{height:screenWidth>=760?440:350,width:"100%",maxWidth:390,alignSelf:"center",backgroundColor:"#f4f4f2",borderRadius:8}} />
                     <Text style={styles.note}>Saved personal outfit simulation · Private to your account · Fit and fabrics are illustrative</Text>
                   </View> : null}
                 </View>
