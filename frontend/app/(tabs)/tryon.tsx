@@ -392,7 +392,14 @@ export default function TryOnScreen() {
             {privatePhotosError ? <Text style={styles.secondHint}>Unable to load private photos. Close and reopen to retry, or upload a new photo.</Text> : null}
             {!privatePhotosLoading && !privatePhotosError && !privatePhotos?.length ? <Text style={styles.secondHint}>No saved photos. Tap Your photo above to upload one.</Text> : null}
           </View> : null}
-          <Text style={styles.secondHint}>Choose a full-body photo, or tap Your photo to upload a new one. Only generate after the free photo check.</Text>
+          {personPath ? (
+            <View accessibilityRole="text" testID="demo-photo-selected" style={{paddingVertical:6}}>
+              <Text style={styles.secondHint}>✓ Private photo selected. You can change it above before the free photo check.</Text>
+            </View>
+          ) : (
+            <Text style={styles.secondHint}>No person photo selected yet. Choose a saved photo or tap Your photo above to upload one.</Text>
+          )}
+          <Text style={styles.secondHint}>Use a well-lit, full-body standing photo. Generation starts only after you request the free photo check.</Text>
         </View> : null}
         {garmentPath ? (
           <Pressable testID="remove-first-garment" accessibilityRole="button" onPress={removeFirstGarment}>
