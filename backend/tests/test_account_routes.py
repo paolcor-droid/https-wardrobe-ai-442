@@ -1121,6 +1121,19 @@ def test_demo_tryon_private_photo_picker_cache_isolation_and_deletion():
                            files={"file": ("person.png", b"original", "image/png")}).json()["id"]
     assert [p["id"] for p in client.get("/api/account/photos", headers=a).json()] == [original]
     assert client.get("/api/account/photos", headers=b).json() == []
+    garment_photo = client.post("/api/account/photos", headers=a,
+        data={"purpose": "garment"},
+        files={"file": ("top.png", b"garment", "image/png")}).json()["id"]
+    another_person = client.post("/api/account/photos", headers=a,
+        data={"purpose": "person"},
+        files={"file": ("another-person.png", b"photo", "image/png")}).json()["id"]
+    listed = client.get("/api/account/photos", headers=a).json()
+    assert {item["id"] for item in listed} == {original, another_person}
+    assert garment_photo not in {item["id"] for item in listed}
+    invalid = client.post("/api/account/photos", headers=a,
+        data={"purpose": "generated"},
+        files={"file": ("invalid.png", b"invalid", "image/png")})
+    assert invalid.status_code == 422
 
     payload = {"person_photo_id": original,
                "garment_prompt": "[LUMIERE-DEMO:outfit-42] navy trousers; white sneakers"}
