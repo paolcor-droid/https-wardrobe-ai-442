@@ -1107,7 +1107,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return capsule_plan(items, occasion=occasion, climate=climate)
 
     @router.post("/photos", status_code=201)
-    async def upload_photo(file: UploadFile = File(...), user_id: str = Depends(current_user)):
+    async def upload_photo(file: UploadFile = File(...), purpose: str = Form("unspecified"), user_id: str = Depends(current_user)):
+        if purpose not in {"person", "garment", "unspecified"}:
+            raise HTTPException(422, "Invalid private photo purpose")
         raw = await file.read(8 * 1024 * 1024 + 1)
         ext, mime = validate_image(raw, file.content_type or "", file.filename or "")
         try:
