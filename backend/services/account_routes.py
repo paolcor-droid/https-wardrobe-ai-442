@@ -1126,9 +1126,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def list_owned_photos(user_id: str = Depends(current_user)):
         """Private photo picker: return metadata only, never underlying storage paths."""
         records = await db.customer_photos.find(
-            {"user_id": user_id, "generated": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1}
-        ).sort("created_at", -1).limit(100).to_list(length=100)
-        return [{"id": p["id"]} for p in records]
+            {"user_id": user_id}, {"_id": 0, "id": 1, "created_at": 1, "generated": 1}
+        ).to_list(1000)
+        # Never offer generated Try-On outputs as a person's original photograph.
+        originals = [p for p in records if p.get("generated") is not True]
+        originals.sort(key=lambda p: str(p.get("created_at") or ""), reverse=True)
+        return [{"id": p["id"]} for p in originals[:100]]
 
     @router.get("/photos/{photo_id}")
     async def get_photo(photo_id: str, user_id: str = Depends(current_user)):
