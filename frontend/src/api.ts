@@ -104,8 +104,9 @@ export async function deletePrivatePhoto(imagePath: string): Promise<void> {
   await accountRequest(`/photos/${encodeURIComponent(imagePath.slice(8))}`, { method: "DELETE" });
 }
 
-export async function uploadImage(uri: string, name: string, type: string): Promise<string> {
+export async function uploadImage(uri: string, name: string, type: string, purpose: "person" | "garment" | "unspecified" = "unspecified"): Promise<string> {
   const form = new FormData();
+  form.append("purpose", purpose);
   if (Platform.OS === "web") {
     const blob = await (await fetch(uri)).blob();
     form.append("file", blob, name);
