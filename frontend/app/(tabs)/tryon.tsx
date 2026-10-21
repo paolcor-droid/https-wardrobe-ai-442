@@ -268,7 +268,7 @@ export default function TryOnScreen() {
     setUploadingTarget(which);
     setError(null);
     try {
-      const path = await uploadImage(asset.uri, asset.name, asset.type);
+      const path = await uploadImage(asset.uri, asset.name, asset.type, which === "person" ? "person" : "garment");
       if (which === "person") { setPersonPath(path); refreshPrivatePhotos(); }
       else if (which === "secondGarment") setSecondGarmentPath(path);
       else setGarmentPath(path);
