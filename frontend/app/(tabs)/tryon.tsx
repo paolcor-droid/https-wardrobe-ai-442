@@ -372,7 +372,7 @@ export default function TryOnScreen() {
         </View>
         <View style={styles.slotRow}>
           <Slot which="person" preview={personPreview} label="Your photo" icon="user" />
-          <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" />
+          {!params.demoOutfitId ? <Slot which="garment" preview={garmentPreview} label="Garment" icon="shopping-bag" /> : null}
         </View>
         {params.demoOutfitId ? <View style={{gap:8,marginVertical:10}}>
           <Text style={styles.secondHint}>Demo outfit from Discover · AI simulation only, not actual purchasable products.</Text>
@@ -438,15 +438,25 @@ export default function TryOnScreen() {
         )}
 
         {params.garmentName && garmentPath ? <Text style={styles.catalogueItem}>Selected from Discover · {params.garmentName}</Text> : null}
-        <Text style={styles.orText}>or describe the item</Text>
-        <TextInput
-          testID="garment-prompt-input"
-          style={styles.input}
-          placeholder="e.g. a beige oversized trench coat"
-          placeholderTextColor={colors.muted}
-          value={garmentPrompt}
-          onChangeText={(value) => { setGarmentPrompt(value); setConfirmed(false); setWarning(null); }}
-        />
+        {params.demoOutfitId ? (
+          <View style={{marginVertical:10, gap:4}}>
+            <Text style={styles.secondTitle}>Outfit to visualise</Text>
+            <Text style={styles.secondHint}>{params.demoOutfitPrompt}</Text>
+            <Text style={styles.secondHint}>To change garments, return to Discover and choose a different outfit.</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.orText}>or describe the item</Text>
+            <TextInput
+              testID="garment-prompt-input"
+              style={styles.input}
+              placeholder="e.g. a beige oversized trench coat"
+              placeholderTextColor={colors.muted}
+              value={garmentPrompt}
+              onChangeText={(value) => { setGarmentPrompt(value); setConfirmed(false); setWarning(null); }}
+            />
+          </>
+        )}
 
         {warning && (
           <Text style={styles.preflightWarning} testID="tryon-preflight-warning">{warning}</Text>
