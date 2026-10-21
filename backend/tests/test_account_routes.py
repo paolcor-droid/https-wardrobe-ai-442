@@ -1143,7 +1143,7 @@ def test_demo_tryon_private_photo_picker_cache_isolation_and_deletion():
     assert again.status_code == 201, again.text
     assert again.json()["id"] == first.json()["id"]
     assert len(generated) == 1
-    assert client.get("/api/account/photos", headers=a).json() == [{"id": original}]
+    assert {p["id"] for p in client.get("/api/account/photos", headers=a).json()} == {original, another_person}
     assert client.get("/api/account/tryons", headers=b).json() == []
     assert client.post("/api/account/tryons", headers=b, json=payload).status_code == 404
 
