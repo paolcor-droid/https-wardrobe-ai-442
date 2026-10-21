@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Request, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form, Request, Query
 from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
