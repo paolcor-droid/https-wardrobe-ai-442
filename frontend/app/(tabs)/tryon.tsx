@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -20,7 +21,7 @@ import * as Haptics from "expo-haptics";
 
 import { makeStyles, useTheme, fonts } from "@/src/theme";
 import { usesNativeTabs } from "@/src/navigation";
-import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, listPrivatePhotos, deleteTryOn, addShoppingBagItem, saveCatalogueOutfit, fileUrl, type TryOn } from "@/src/api";
+import { uploadImage, createTryOn, checkTryOnPhoto, listTryOns, listPrivatePhotos, deletePrivatePhoto, deleteTryOn, addShoppingBagItem, saveCatalogueOutfit, fileUrl, type TryOn } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import { ShareLookModal } from "@/src/components/ShareLookModal";
 import type { PickResult } from "@/src/utils/media";
@@ -47,7 +48,36 @@ export default function TryOnScreen() {
   }>();
 
   const [showPrivatePhotoPicker, setShowPrivatePhotoPicker] = useState(false);
+  const [photoPendingDeletion, setPhotoPendingDeletion] = useState<string | null>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [photoManagementError, setPhotoManagementError] = useState("");
   const {data: privatePhotos, isLoading: privatePhotosLoading, isError: privatePhotosError, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos,enabled:!!params.demoOutfitId,staleTime:30000});
+  async function confirmDeletePrivatePhoto() {
+    if (!photoPendingDeletion || deletingPhoto) return;
+    const target = photoPendingDeletion;
+    setDeletingPhoto(true);
+    setPhotoManagementError("");
+    try {
+      await deletePrivatePhoto(`private:${target}`);
+      if (personPath === `private:${target}`) {
+        setPersonPath(null);
+        setPersonPreview(null);
+        setResult(null);
+        setConfirmed(false);
+        setWarning(null);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["private-photos"]}),
+        queryClient.invalidateQueries({queryKey:["tryons"]})
+      ]);
+      setPhotoPendingDeletion(null);
+    } catch (e) {
+      setPhotoManagementError(e instanceof Error ? e.message : "Photo deletion failed. Try again.");
+    } finally {
+      setDeletingPhoto(false);
+    }
+  }
+
   const [personPath, setPersonPath] = useState<string | null>(null);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPath, setGarmentPath] = useState<string | null>(null);
@@ -380,14 +410,22 @@ export default function TryOnScreen() {
             <Text style={styles.shareBtnText}>{showPrivatePhotoPicker?"Close saved photos":"Choose existing private photo"}</Text>
           </Pressable>
           {showPrivatePhotoPicker ? <View style={{flexDirection:"row",flexWrap:"wrap",gap:10}}>
-            {(privatePhotos||[]).map((photo,index)=><Pressable key={photo.id} testID={`photo-choice-${photo.id}`} accessibilityRole="button"
+            {(privatePhotos||[]).map((photo,index)=><View key={photo.id} style={{width:103}}>
+              <Pressable testID={`photo-choice-${photo.id}`} accessibilityRole="button"
               accessibilityLabel={`Select saved photo ${index+1}`}
               accessibilityState={{selected:personPath===`private:${photo.id}`}}
               onPress={() => {setPersonPath(`private:${photo.id}`);setPersonPreview(`private:${photo.id}`);setConfirmed(false);setWarning(null);setShowPrivatePhotoPicker(false);setResult(null);}}>
               <View style={{borderWidth:personPath===`private:${photo.id}`?3:1,borderColor:personPath===`private:${photo.id}`?colors.brandPrimary:"#999",borderRadius:9,padding:2}}>
                 <AccountPhoto path={`private:${photo.id}`} style={{width:95,height:130,borderRadius:7}} contentFit="cover" />
               </View>
-            </Pressable>)}
+              <Pressable testID={`delete-private-photo-${photo.id}`} accessibilityRole="button"
+                accessibilityLabel={`Delete saved photo ${index+1}`}
+                disabled={deletingPhoto} onPress={() => {setPhotoManagementError("");setPhotoPendingDeletion(photo.id);}}
+                style={{paddingVertical:7,alignItems:"center"}}>
+                <Text style={{color:colors.error,fontSize:12}}>Delete photo</Text>
+              </Pressable>
+            </View>)}
+            {photoManagementError ? <Text style={styles.error}>{photoManagementError}</Text> : null}
             {privatePhotosLoading ? <ActivityIndicator accessibilityLabel="Loading private photos" /> : null}
             {privatePhotosError ? <Text style={styles.secondHint}>Unable to load private photos. Close and reopen to retry, or upload a new photo.</Text> : null}
             {!privatePhotosLoading && !privatePhotosError && !privatePhotos?.length ? <Text style={styles.secondHint}>No saved photos. Tap Your photo above to upload one.</Text> : null}
@@ -601,6 +639,23 @@ export default function TryOnScreen() {
         )}
       </KeyboardAwareScrollView>
 
+      <Modal visible={photoPendingDeletion!==null} transparent animationType="fade" onRequestClose={() => {if(!deletingPhoto)setPhotoPendingDeletion(null);}}>
+        <View style={{flex:1,backgroundColor:"rgba(0,0,0,0.65)",justifyContent:"center",padding:24}}>
+          <View style={{backgroundColor:colors.surface,padding:20,borderRadius:14,gap:14}}>
+            <Text style={{color:colors.onSurface,fontSize:18,fontWeight:"700"}}>Delete this private photo?</Text>
+            <Text style={{color:colors.onSurface}}>This permanently removes the original photo. Any linked Try-On results may also be deleted. This action cannot be undone.</Text>
+            {photoManagementError ? <Text style={{color:colors.error}}>{photoManagementError}</Text> : null}
+            <Pressable accessibilityRole="button" testID="confirm-delete-private-photo" disabled={deletingPhoto}
+              onPress={confirmDeletePrivatePhoto} style={{padding:12,backgroundColor:colors.error,borderRadius:8,alignItems:"center"}}>
+              <Text style={{color:colors.onError,fontWeight:"700"}}>{deletingPhoto?"Deleting…":"Permanently delete photo"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" testID="cancel-delete-private-photo" disabled={deletingPhoto}
+              onPress={() => {setPhotoPendingDeletion(null);setPhotoManagementError("");}} style={{padding:12,alignItems:"center"}}>
+              <Text style={{color:colors.onSurface}}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <Modal visible={viewedTryOn !== null} transparent animationType="fade" onRequestClose={() => setViewedTryOn(null)}>
         <View style={styles.viewerBackdrop}>
           <View style={styles.viewerHeader}>
