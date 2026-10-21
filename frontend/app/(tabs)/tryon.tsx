@@ -419,7 +419,7 @@ export default function TryOnScreen() {
                 <AccountPhoto path={`private:${photo.id}`} style={{width:95,height:130,borderRadius:7}} contentFit="cover" />
               </View>
               </Pressable>
-              <Pressable testID={`delete-private-photo-${photo.id}` accessibilityRole="button"
+              <Pressable testID={`delete-private-photo-${photo.id}`} accessibilityRole="button"
                 accessibilityLabel={`Delete saved photo ${index+1}`}
                 disabled={deletingPhoto} onPress={() => {setPhotoManagementError("");setPhotoPendingDeletion(photo.id);}}
                 style={{paddingVertical:7,alignItems:"center"}}>
