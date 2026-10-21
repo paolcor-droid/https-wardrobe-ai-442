@@ -47,7 +47,7 @@ export default function TryOnScreen() {
   }>();
 
   const [showPrivatePhotoPicker, setShowPrivatePhotoPicker] = useState(false);
-  const {data: privatePhotos, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos});
+  const {data: privatePhotos, isLoading: privatePhotosLoading, isError: privatePhotosError, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos});
   const [personPath, setPersonPath] = useState<string | null>(null);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPath, setGarmentPath] = useState<string | null>(null);
@@ -376,15 +376,21 @@ export default function TryOnScreen() {
         </View>
         {params.demoOutfitId ? <View style={{gap:8,marginVertical:10}}>
           <Text style={styles.secondHint}>Demo outfit from Discover · AI simulation only, not actual purchasable products.</Text>
-          <Pressable testID="choose-existing-photo" accessibilityRole="button" onPress={() => setShowPrivatePhotoPicker(v=>!v)} style={styles.shareBtn}>
+          <Pressable testID="choose-existing-photo" accessibilityRole="button" onPress={() => { if (!showPrivatePhotoPicker) void refreshPrivatePhotos(); setShowPrivatePhotoPicker(v=>!v); }} style={styles.shareBtn}>
             <Text style={styles.shareBtnText}>{showPrivatePhotoPicker?"Close saved photos":"Choose existing private photo"}</Text>
           </Pressable>
           {showPrivatePhotoPicker ? <View style={{flexDirection:"row",flexWrap:"wrap",gap:10}}>
-            {(privatePhotos||[]).map(photo=><Pressable key={photo.id} testID={`photo-choice-${photo.id}`} accessibilityRole="button"
-              onPress={() => {setPersonPath(`private:${photo.id}`);setPersonPreview(`private:${photo.id}`);setConfirmed(false);setShowPrivatePhotoPicker(false);setResult(null);}}>
-              <AccountPhoto path={`private:${photo.id}`} style={{width:95,height:130,borderRadius:8}} contentFit="cover" />
+            {(privatePhotos||[]).map((photo,index)=><Pressable key={photo.id} testID={`photo-choice-${photo.id}`} accessibilityRole="button"
+              accessibilityLabel={`Select saved photo ${index+1}`}
+              accessibilityState={{selected:personPath===`private:${photo.id}`}}
+              onPress={() => {setPersonPath(`private:${photo.id}`);setPersonPreview(`private:${photo.id}`);setConfirmed(false);setWarning(null);setShowPrivatePhotoPicker(false);setResult(null);}}>
+              <View style={{borderWidth:personPath===`private:${photo.id}`?3:1,borderColor:personPath===`private:${photo.id}`?colors.brandPrimary:"#999",borderRadius:9,padding:2}}>
+                <AccountPhoto path={`private:${photo.id}`} style={{width:95,height:130,borderRadius:7}} contentFit="cover" />
+              </View>
             </Pressable>)}
-            {!privatePhotos?.length ? <Text style={styles.secondHint}>No saved photos. Tap Your photo above to upload one.</Text> : null}
+            {privatePhotosLoading ? <ActivityIndicator accessibilityLabel="Loading private photos" /> : null}
+            {privatePhotosError ? <Text style={styles.secondHint}>Unable to load private photos. Close and reopen to retry, or upload a new photo.</Text> : null}
+            {!privatePhotosLoading && !privatePhotosError && !privatePhotos?.length ? <Text style={styles.secondHint}>No saved photos. Tap Your photo above to upload one.</Text> : null}
           </View> : null}
           <Text style={styles.secondHint}>Choose a full-body photo, or tap Your photo to upload a new one. Only generate after the free photo check.</Text>
         </View> : null}
