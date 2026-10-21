@@ -47,7 +47,7 @@ export default function TryOnScreen() {
   }>();
 
   const [showPrivatePhotoPicker, setShowPrivatePhotoPicker] = useState(false);
-  const {data: privatePhotos, isLoading: privatePhotosLoading, isError: privatePhotosError, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos});
+  const {data: privatePhotos, isLoading: privatePhotosLoading, isError: privatePhotosError, refetch: refreshPrivatePhotos} = useQuery({queryKey:["private-photos"],queryFn:listPrivatePhotos,enabled:!!params.demoOutfitId,staleTime:30000});
   const [personPath, setPersonPath] = useState<string | null>(null);
   const [personPreview, setPersonPreview] = useState<string | null>(null);
   const [garmentPath, setGarmentPath] = useState<string | null>(null);
