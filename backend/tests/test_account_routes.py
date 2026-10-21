@@ -1087,3 +1087,56 @@ def test_saved_outfit_reopen_missing_source_returns_conflict_without_creating_ph
     assert response.status_code == 409
     assert db.customer_photos.docs == []
     assert len(db.customer_outfits.docs) == 1
+
+
+def test_demo_tryon_private_photo_picker_cache_isolation_and_deletion():
+    """No paid repeat generation; saved demos stay private and deletions invalidate cache."""
+    db = Database()
+    app = FastAPI()
+    generated = []
+
+    async def generate(person, garment, second, prompt):
+        generated.append(prompt)
+        return b"generated output", "image/png"
+
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png",
+        lambda path: (b"private image", "image/png"),
+        lambda path: None, None, None, generate,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("demo-one@example.com", "demo-two@example.com"):
+        assert client.post("/api/account/register", json={
+            "email": email, "password": "long secure password"
+        }).status_code == 201
+        login = client.post("/api/account/login", json={
+            "email": email, "password": "long secure password"
+        })
+        headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
+    a, b = headers
+    assert client.get("/api/account/photos").status_code == 401
+    original = client.post("/api/account/photos", headers=a,
+                           files={"file": ("person.png", b"original", "image/png")}).json()["id"]
+    assert [p["id"] for p in client.get("/api/account/photos", headers=a).json()] == [original]
+    assert client.get("/api/account/photos", headers=b).json() == []
+
+    payload = {"person_photo_id": original,
+               "garment_prompt": "[LUMIERE-DEMO:outfit-42] navy trousers; white sneakers"}
+    first = client.post("/api/account/tryons", headers=a, json=payload)
+    assert first.status_code == 201, first.text
+    again = client.post("/api/account/tryons", headers=a, json=payload)
+    assert again.status_code == 201, again.text
+    assert again.json()["id"] == first.json()["id"]
+    assert len(generated) == 1
+    assert client.get("/api/account/photos", headers=a).json() == [{"id": original}]
+    assert client.get("/api/account/tryons", headers=b).json() == []
+    assert client.post("/api/account/tryons", headers=b, json=payload).status_code == 404
+
+    changed = {**payload, "garment_prompt": "[LUMIERE-DEMO:outfit-42] grey trousers; white sneakers"}
+    assert client.post("/api/account/tryons", headers=a, json=changed).status_code == 201
+    assert len(generated) == 2
+    assert client.delete("/api/account/tryons/" + first.json()["id"], headers=a).status_code == 200
+    assert client.post("/api/account/tryons", headers=a, json=payload).status_code == 201
+    assert len(generated) == 3
