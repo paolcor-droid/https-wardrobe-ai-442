@@ -315,8 +315,12 @@ export default function TryOnScreen() {
   const canGenerate =
     !!personPath && (!!garmentPath || garmentPrompt.trim().length > 0) && !uploadingTarget && !gen.isPending && !checking;
 
+  const generationRequestInFlight = useRef(false);
   const handleGenerate = async () => {
-    if (!canGenerate) return;
+    // Prevent fast double taps while React state is waiting to update.
+    if (!canGenerate || generationRequestInFlight.current) return;
+    generationRequestInFlight.current = true;
+    try {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);
     setResult(null);
@@ -344,7 +348,10 @@ export default function TryOnScreen() {
     }
     setWarning(null);
     setConfirmed(false);
-    gen.mutate(request);
+    await gen.mutateAsync(request).catch(() => {});
+  } finally {
+    generationRequestInFlight.current = false;
+  }
   };
 
   const Slot = ({
