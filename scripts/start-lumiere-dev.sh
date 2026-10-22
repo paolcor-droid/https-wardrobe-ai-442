@@ -59,7 +59,12 @@ docker container inspect "$CONTAINER" >/dev/null 2>&1 || {
 }
 if [[ "$(docker inspect --format '{{.State.Running}}' "$CONTAINER")" != "true" ]]; then
   echo "Starting existing $CONTAINER (retaining its volumes)..."
-  docker start "$CONTAINER" || { echo "Docker could not start $CONTAINER; inspect its runtime state, do not delete its volumes." >&2; exit 1; }
+  docker start "$CONTAINER" || {
+    echo "Docker could not start $CONTAINER. Current runtime state:" >&2
+    docker inspect --format 'Status={{.State.Status}} Exit={{.State.ExitCode}} OOM={{.State.OOMKilled}}' "$CONTAINER" >&2 || true
+    echo "If OCI reports container ID already exists, stop and reopen the SAME Codespace. Do not delete the container, rebuild Codespaces or remove volumes." >&2
+    exit 1
+  }
 else
   echo "$CONTAINER is already running."
 fi
