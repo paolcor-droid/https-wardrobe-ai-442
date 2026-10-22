@@ -570,7 +570,7 @@ export default function DiscoverScreen() {
                       demoOutfitId:outfit.id,
                       demoOutfitPrompt:demoOutfitDescription(outfit.garments)
                     }})}
-                    style={{padding:12,borderRadius:8,backgroundColor:"rgba(120,120,120,0.08)"}}>
+                    style={{padding:screenWidth<760?16:12,minHeight:screenWidth<760?60:48,justifyContent:"center",borderRadius:10,backgroundColor:"rgba(120,120,120,0.08)"}}>
                     <Text style={styles.body}>See this outfit on me</Text>
                     <Text style={styles.note}>Use a private full-body photo · AI demo simulation, not actual supplier items · Generation may incur a charge</Text>
                   </Pressable>
@@ -580,7 +580,7 @@ export default function DiscoverScreen() {
                   </View> : null}
                 </View>
                 {screenWidth < 760 ? <Text style={styles.note}>Swipe left for garment photos, colours and prices →</Text> : null}
-                <ScrollView horizontal={screenWidth < 760} nestedScrollEnabled showsHorizontalScrollIndicator={screenWidth < 760} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8,paddingRight:screenWidth<760?20:0}} style={{marginVertical:8,maxWidth:"100%"}}>
+                <ScrollView horizontal={screenWidth < 760} nestedScrollEnabled showsHorizontalScrollIndicator={screenWidth < 760} contentContainerStyle={{flexDirection:"row",gap:8,paddingVertical:8,paddingRight:screenWidth<760?20:0}} accessibilityLabel="Swipe horizontally to explore garment photos, colours and prices" style={{marginVertical:8,maxWidth:"100%"}}>
                   {outfit.garments.map((garment, index) => {
                     const selectedColour = garment.colour_names?.[0] || "Colour not specified";
                     const colour = demoSwatch(selectedColour);
