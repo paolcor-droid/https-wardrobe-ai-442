@@ -1408,10 +1408,18 @@ async def generate_customer_tryon(person_bytes, garment_bytes, second_garment_by
         "This is an ordinary fashion retail virtual fitting preview. "
         "The first image is a customer photograph, and any following images "
         "show garments. Create a realistic, fully clothed image showing the "
-        "same person wearing " + outfit + ". Keep the customer's identity, "
-        "visible face, pose and background consistent. Preserve the garment's "
-        "visible design, fabric and colours. Only edit the outfit. "
-        "Do not modify the body or depict nudity, underwear or swimwear."
+        "same person wearing " + outfit + ". Treat the first photograph as "
+        "the immutable identity and body reference: preserve the face, eyes, "
+        "nose, mouth, skin tone, hair, apparent age, body shape, height, "
+        "proportions, stance, visible hands and background. Do not beautify, "
+        "slim, enlarge, reshape or substitute the person. For garments, "
+        "preserve the specified garment categories, exact stated colours, "
+        "sleeve and trouser lengths, silhouettes, design details and layering. "
+        "Where garment photos are supplied, use their visible fabric and cut "
+        "rather than inventing details. Change clothing only; retain natural "
+        "lighting and photorealistic anatomical proportions. Do not introduce "
+        "extra accessories, alter the body or depict nudity, underwear or swimwear. "
+        "This is a visual simulation and not a guarantee of fit or fabric accuracy."
     )
     # IMPORTANT: Never instantiate Emergent ImageContent or LlmChat before selecting
     # direct Gemini. Those wrappers can fail even when the direct API is configured.
