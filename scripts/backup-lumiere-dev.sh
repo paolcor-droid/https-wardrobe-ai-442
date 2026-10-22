@@ -32,7 +32,12 @@ trap 'rm -f "$temp"' EXIT
 echo "Backing up configured database to a private, Git-ignored directory."
 docker exec "$CONTAINER" mongodump --quiet --db "$DB_NAME" --archive --gzip > "$temp"
 [[ -s "$temp" ]] || { echo "Backup empty; refused" >&2; exit 1; }
-mv -n "$temp" "$target"
+# Verify stream integrity before publishing the backup; do not restore into the live DB.
+gzip -t "$temp" || { echo "Backup gzip stream failed integrity check" >&2; exit 1; }
+[[ ! -e "$target" ]] || { echo "Backup target already exists; refusing overwrite" >&2; exit 1; }
+mv "$temp" "$target"
+sha256sum "$target" > "$target.sha256"
+chmod 600 "$target" "$target.sha256"
 trap - EXIT
 echo "Backup created: $target"
 echo "This archive contains private customer records: keep it encrypted offsite and never commit or publicly share it."
