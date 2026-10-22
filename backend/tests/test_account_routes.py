@@ -86,6 +86,7 @@ class Database:
         self.customer_conversations = Collection()
         self.customer_messages = Collection()
         self.customer_tryons = Collection()
+        self.customer_tryon_locks = Collection()
         self.customer_saved = Collection()
         self.customer_bag = Collection()
         self.customer_outfits = Collection()
