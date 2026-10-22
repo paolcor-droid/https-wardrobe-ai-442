@@ -1154,3 +1154,68 @@ def test_demo_tryon_private_photo_picker_cache_isolation_and_deletion():
     assert client.delete("/api/account/tryons/" + first.json()["id"], headers=a).status_code == 200
     assert client.post("/api/account/tryons", headers=a, json=payload).status_code == 201
     assert len(generated) == 3
+
+
+def test_duplicate_paid_tryon_request_is_rejected_while_first_generates():
+    """Two browser tabs must not start two paid image calls for the same request."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from pymongo.errors import DuplicateKeyError
+
+    class ExclusiveLocks(Collection):
+        def __init__(self):
+            super().__init__()
+            self.mutex = threading.Lock()
+
+        async def insert_one(self, doc):
+            with self.mutex:
+                if any(d["_id"] == doc["_id"] for d in self.docs):
+                    raise DuplicateKeyError("duplicate lock")
+                self.docs.append(dict(doc))
+
+    db = Database()
+    db.customer_tryon_locks = ExclusiveLocks()
+    started = threading.Event()
+    release = threading.Event()
+    generated = []
+
+    async def generate(person, garment, second, prompt):
+        import asyncio
+        generated.append(prompt)
+        started.set()
+        await asyncio.to_thread(release.wait, 5)
+        return b"generated", "image/png"
+
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png",
+        lambda path: (b"private photo", "image/png"), lambda path: None,
+        generate_tryon=generate,
+    ))
+    client = TestClient(app)
+    try:
+        client.post("/api/account/register", json={
+            "email": "concurrent-demo@example.com", "password": "long secure password"
+        })
+        token = client.post("/api/account/login", json={
+            "email": "concurrent-demo@example.com", "password": "long secure password"
+        }).json()["access_token"]
+        auth = {"Authorization": "Bearer " + token}
+        person = client.post("/api/account/photos", headers=auth,
+                             files={"file": ("person.png", b"photo", "image/png")}).json()["id"]
+        payload = {"person_photo_id": person,
+                   "garment_prompt": "[LUMIERE-DEMO:repeat] navy trousers; white trainers"}
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(client.post, "/api/account/tryons", headers=auth, json=payload)
+            assert started.wait(5)
+            duplicate = client.post("/api/account/tryons", headers=auth, json=payload)
+            assert duplicate.status_code == 409, duplicate.text
+            release.set()
+            assert first.result(timeout=10).status_code == 201
+        assert len(generated) == 1
+        cached = client.post("/api/account/tryons", headers=auth, json=payload)
+        assert cached.status_code == 201 and len(generated) == 1
+        assert not db.customer_tryon_locks.docs
+    finally:
+        release.set()
