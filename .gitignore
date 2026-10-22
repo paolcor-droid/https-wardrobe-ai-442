@@ -92,6 +92,7 @@ credentials.json
 
 # Private development photographs and local service logs
 backend/.lumiere-private-images/
+.lumiere-backups/
 .lumiere-dev-logs/
 
 # Supplier XML feeds and locally imported catalogue data
