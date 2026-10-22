@@ -515,7 +515,7 @@ export default function DiscoverScreen() {
                   <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
                   {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
                     <View>
-                      <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" style={{width:"100%",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
+                      <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
                       <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
                         setOutfitPreviewLoading(outfit.id);
