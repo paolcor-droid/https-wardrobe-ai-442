@@ -10,6 +10,8 @@ import logging
 import hashlib
 import base64
 import requests
+from contextlib import asynccontextmanager
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
@@ -648,6 +650,36 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         except (OSError, ValueError) as exc:
             raise HTTPException(422, "Please upload a valid customer photograph") from exc
 
+    @asynccontextmanager
+    async def paid_tryon_guard(user_id, payload):
+        """Distributed single-flight reservation; never logs identifiers or image content.
+
+        The lock is owner-scoped and includes person, garments and the exact prompt.
+        An expired reservation may be reclaimed if its worker died.
+        """
+        identity = json.dumps([
+            user_id, payload.person_photo_id, payload.garment_photo_id,
+            payload.second_garment_photo_id, payload.garment_prompt,
+        ], separators=(",", ":"))
+        key = hashlib.sha256(identity.encode()).hexdigest()
+        token = secrets.token_hex(16)
+        now = datetime.now(timezone.utc)
+        lock = {"_id": key, "token": token,
+                "expires_at": now + timedelta(minutes=10)}
+        try:
+            await db.customer_tryon_locks.insert_one(lock)
+        except DuplicateKeyError:
+            result = await db.customer_tryon_locks.update_one(
+                {"_id": key, "expires_at": {"$lt": now}},
+                {"$set": {"token": token, "expires_at": lock["expires_at"]}},
+            )
+            if not result.matched_count:
+                raise HTTPException(409, "This Try-On is already generating. Reopen your saved result shortly.")
+        try:
+            yield
+        finally:
+            await db.customer_tryon_locks.delete_one({"_id": key, "token": token})
+
     @router.post("/tryons", status_code=201)
     async def owned_tryon(payload: PrivateTryOnInput, user_id: str = Depends(current_user)):
         person = await db.customer_photos.find_one({
@@ -679,80 +711,81 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                        payload.garment_prompt.startswith("[LUMIERE-DEMO:") and
                        payload.garment_prompt.find("]") < 180 and
                        payload.garment_photo_id is None and payload.second_garment_photo_id is None)
-        if is_demo:
-            cached = await db.customer_tryons.find_one({
-                "user_id": user_id, "person_photo_id": payload.person_photo_id,
+        async with paid_tryon_guard(user_id, payload):
+            if is_demo:
+                cached = await db.customer_tryons.find_one({
+                    "user_id": user_id, "person_photo_id": payload.person_photo_id,
+                    "garment_prompt": payload.garment_prompt,
+                    "garment_photo_id": None, "second_garment_photo_id": None,
+                    "deleted_at": None,
+                }, {"_id": 0})
+                if cached and await db.customer_photos.find_one({
+                    "id": cached.get("result_photo_id"), "user_id": user_id
+                }):
+                    return cached
+            if generate_tryon is None:
+                raise HTTPException(503, "Private Try-On generation is unavailable")
+            stage = "read_person"
+            try:
+                person_bytes, _ = await run_in_threadpool(read_image, person["path"])
+                stage = "read_garment"
+                garment_bytes = None
+                if garment:
+                    garment_bytes, _ = await run_in_threadpool(read_image, garment["path"])
+                stage = "read_second_garment"
+                second_bytes = None
+                if second_garment:
+                    second_bytes, _ = await run_in_threadpool(read_image, second_garment["path"])
+                stage = "generate"
+                result_bytes, mime = await generate_tryon(
+                    person_bytes, garment_bytes, second_bytes, payload.garment_prompt or ""
+                )
+                stage = "validate_result"
+                ext, verified_mime = validate_image(result_bytes, mime, "generated.png")
+                stage = "sanitize_result"
+                clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
+                stage = "save_result"
+                path = await run_in_threadpool(save_image, clean, ext, verified_mime)
+            except Exception as exc:
+                # Never log exception messages, tracebacks, input bytes or provider responses:
+                # those may contain credentials or customer photograph data.
+                category = ("configuration" if isinstance(exc, RuntimeError) and
+                            str(exc) == "Image generation provider not configured" else
+                            "provider_or_processing")
+                # Numeric status only; never serialize provider error bodies, URLs or headers.
+                status = getattr(exc, "status_code", None)
+                if not isinstance(status, int):
+                    response = getattr(exc, "response", None)
+                    status = getattr(response, "status_code", None)
+                safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
+                safe_provider = "direct_gemini" if type(exc).__name__ == "GeminiTryOnError" else "other"
+                safe_reason = getattr(exc, "category", "unspecified") if safe_provider == "direct_gemini" else "unspecified"
+                logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s stage=%s",
+                             category, type(exc).__name__, safe_status, safe_provider, safe_reason, stage)
+                if safe_provider == "direct_gemini" and safe_reason in {"generation_filtered", "prompt_blocked"}:
+                    raise HTTPException(
+                        422,
+                        "The image provider could not create this outfit preview. "
+                        "Try a different fully clothed photo or garment.",
+                    ) from exc
+                raise HTTPException(502, "Private Try-On failed") from exc
+            photo_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            await db.customer_photos.insert_one({
+                "id": photo_id, "user_id": user_id, "path": path,
+                "content_type": verified_mime, "created_at": now, "generated": True,
+            })
+            record = {
+                "id": str(uuid.uuid4()), "user_id": user_id,
+                "person_photo_id": payload.person_photo_id,
+                "garment_photo_id": payload.garment_photo_id,
+                "second_garment_photo_id": payload.second_garment_photo_id,
                 "garment_prompt": payload.garment_prompt,
-                "garment_photo_id": None, "second_garment_photo_id": None,
-                "deleted_at": None,
-            }, {"_id": 0})
-            if cached and await db.customer_photos.find_one({
-                "id": cached.get("result_photo_id"), "user_id": user_id
-            }):
-                return cached
-        if generate_tryon is None:
-            raise HTTPException(503, "Private Try-On generation is unavailable")
-        stage = "read_person"
-        try:
-            person_bytes, _ = await run_in_threadpool(read_image, person["path"])
-            stage = "read_garment"
-            garment_bytes = None
-            if garment:
-                garment_bytes, _ = await run_in_threadpool(read_image, garment["path"])
-            stage = "read_second_garment"
-            second_bytes = None
-            if second_garment:
-                second_bytes, _ = await run_in_threadpool(read_image, second_garment["path"])
-            stage = "generate"
-            result_bytes, mime = await generate_tryon(
-                person_bytes, garment_bytes, second_bytes, payload.garment_prompt or ""
-            )
-            stage = "validate_result"
-            ext, verified_mime = validate_image(result_bytes, mime, "generated.png")
-            stage = "sanitize_result"
-            clean = await run_in_threadpool(sanitize_image, result_bytes, ext)
-            stage = "save_result"
-            path = await run_in_threadpool(save_image, clean, ext, verified_mime)
-        except Exception as exc:
-            # Never log exception messages, tracebacks, input bytes or provider responses:
-            # those may contain credentials or customer photograph data.
-            category = ("configuration" if isinstance(exc, RuntimeError) and
-                        str(exc) == "Image generation provider not configured" else
-                        "provider_or_processing")
-            # Numeric status only; never serialize provider error bodies, URLs or headers.
-            status = getattr(exc, "status_code", None)
-            if not isinstance(status, int):
-                response = getattr(exc, "response", None)
-                status = getattr(response, "status_code", None)
-            safe_status = status if isinstance(status, int) and 400 <= status <= 599 else "unknown"
-            safe_provider = "direct_gemini" if type(exc).__name__ == "GeminiTryOnError" else "other"
-            safe_reason = getattr(exc, "category", "unspecified") if safe_provider == "direct_gemini" else "unspecified"
-            logger.error("Private Try-On failed: category=%s exception_type=%s upstream_http_status=%s provider=%s reason=%s stage=%s",
-                         category, type(exc).__name__, safe_status, safe_provider, safe_reason, stage)
-            if safe_provider == "direct_gemini" and safe_reason in {"generation_filtered", "prompt_blocked"}:
-                raise HTTPException(
-                    422,
-                    "The image provider could not create this outfit preview. "
-                    "Try a different fully clothed photo or garment.",
-                ) from exc
-            raise HTTPException(502, "Private Try-On failed") from exc
-        photo_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        await db.customer_photos.insert_one({
-            "id": photo_id, "user_id": user_id, "path": path,
-            "content_type": verified_mime, "created_at": now, "generated": True,
-        })
-        record = {
-            "id": str(uuid.uuid4()), "user_id": user_id,
-            "person_photo_id": payload.person_photo_id,
-            "garment_photo_id": payload.garment_photo_id,
-            "second_garment_photo_id": payload.second_garment_photo_id,
-            "garment_prompt": payload.garment_prompt,
-            "result_photo_id": photo_id, "created_at": now, "deleted_at": None,
-        }
-        await db.customer_tryons.insert_one(record)
-        record.pop("_id", None)
-        return record
+                "result_photo_id": photo_id, "created_at": now, "deleted_at": None,
+            }
+            await db.customer_tryons.insert_one(record)
+            record.pop("_id", None)
+            return record
 
     @router.get("/tryons")
     async def list_owned_tryons(user_id: str = Depends(current_user)):
