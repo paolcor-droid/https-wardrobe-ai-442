@@ -29,7 +29,7 @@ jobs:
       - name: Validate development maintenance scripts
         working-directory: .
         run: |
-          bash -n scripts/start-lumiere-dev.sh scripts/backup-lumiere-dev.sh scripts/diagnose-lumiere-docker.sh scripts/verify-lumiere-backup.sh scripts/backup-lumiere-photos.sh
+          bash -n scripts/start-lumiere-dev.sh scripts/backup-lumiere-dev.sh scripts/diagnose-lumiere-docker.sh scripts/verify-lumiere-backup.sh scripts/backup-lumiere-photos.sh scripts/check-lumiere-backups.sh
           test -f scripts/diagnose-lumiere-docker.sh
           grep -q "gzip -t" scripts/backup-lumiere-dev.sh
       - name: Run independent planner and catalogue tests
