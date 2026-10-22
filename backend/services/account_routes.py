@@ -10,6 +10,7 @@ import logging
 import hashlib
 import base64
 import requests
+import asyncio
 from contextlib import asynccontextmanager
 from pymongo.errors import DuplicateKeyError
 
@@ -675,9 +676,27 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             )
             if not result.matched_count:
                 raise HTTPException(409, "This Try-On is already generating. Reopen your saved result shortly.")
+        async def renew_lease():
+            # Renew only our own token; a reclaimed lock must never be overwritten.
+            while True:
+                await asyncio.sleep(60)
+                fresh = datetime.now(timezone.utc)
+                result = await db.customer_tryon_locks.update_one(
+                    {"_id": key, "token": token},
+                    {"$set": {"expires_at": fresh + timedelta(minutes=10)}},
+                )
+                if not result.matched_count:
+                    return
+
+        heartbeat = asyncio.create_task(renew_lease())
         try:
             yield
         finally:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
             await db.customer_tryon_locks.delete_one({"_id": key, "token": token})
 
     @router.post("/tryons", status_code=201)
