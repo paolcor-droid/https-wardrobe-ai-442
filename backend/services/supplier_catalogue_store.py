@@ -75,6 +75,21 @@ async def stage_catalogue(db, provider_id: str, products: list[dict], *,
         raise ValueError("Only wholesale providers supported")
     if len(products) > 5000:
         raise ValueError("Batch too large")
+    # Validate the entire batch before writing anything: a bad final row must
+    # not leave the first rows partially staged.
+    seen = set()
+    for row in products:
+        if not isinstance(row, dict) or row.get("provider_id") != provider_id or row.get("source_verified") is not True:
+            raise ValueError("Unverified or mismatched catalogue product")
+        identifier = row.get("external_id")
+        name = row.get("name")
+        if (not isinstance(identifier, str) or not identifier.strip() or
+                len(identifier) > 150 or not isinstance(name, str) or
+                not name.strip() or len(name) > 300):
+            raise ValueError("Invalid supplier product identity")
+        if identifier in seen:
+            raise ValueError("Duplicate supplier product in batch")
+        seen.add(identifier)
     await db[COLLECTION_NAME].create_index(
         [("provider_id", 1), ("external_id", 1)], unique=True)
     changed = 0
