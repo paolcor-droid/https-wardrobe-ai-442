@@ -1219,3 +1219,28 @@ def test_duplicate_paid_tryon_request_is_rejected_while_first_generates():
         assert not db.customer_tryon_locks.docs
     finally:
         release.set()
+
+
+def test_sensitive_account_actions_require_authentication_without_storage_access():
+    """Anonymous clients cannot export photos, reset a session, or delete accounts."""
+    db = Database()
+    touched = []
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/private.png",
+        lambda path: (touched.append(path) or b"synthetic", "image/png"),
+        lambda path: touched.append(path),
+    ))
+    client = TestClient(app)
+    for path in (
+        "/api/account/account/export",
+        "/api/account/account/export/photos",
+        "/api/account/account/export/complete",
+    ):
+        response = client.get(path)
+        assert response.status_code in (401, 404), (path, response.status_code)
+    assert client.post("/api/account/account/delete", json={
+        "password": "synthetic password", "confirmation": "DELETE MY LUMIERE ACCOUNT",
+    }).status_code == 401
+    assert touched == []
