@@ -41,3 +41,19 @@ def test_supplier_live_readiness_never_implies_live_stock():
         assert readiness["order_routing_enabled"] is False
     with pytest.raises(ValueError):
         live_supplier_readiness("zara")
+
+
+@pytest.mark.parametrize("untrusted_domain", [
+    "evil.myshopify.com.attacker.com", "test.myshopify.com/path",
+    "test.myshopify.com:443", "test.myshopify.com?token=abc",
+    "https://test.myshopify.com", "test.myshopify.com@evil.test",
+])
+def test_untrusted_shopify_domains_never_enable_checkout(monkeypatch, untrusted_domain):
+    monkeypatch.setenv("LUMIERE_SHOPIFY_TEST_MODE", "1")
+    monkeypatch.setenv("LUMIERE_SHOPIFY_TEST_STORE_DOMAIN", untrusted_domain)
+    state = shopify_test_readiness()
+    assert state["checkout_enabled"] is False
+    assert state["payment_enabled"] is False
+    assert state["order_submission_enabled"] is False
+    with pytest.raises(RuntimeError, match="disabled"):
+        create_checkout()
