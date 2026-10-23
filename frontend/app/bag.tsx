@@ -81,7 +81,7 @@ export default function ShoppingBagScreen() {
   }
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 80, gap: 18 }}>
+      contentContainerStyle={{ paddingHorizontal: compact ? 12 : 20, paddingTop: 20, paddingBottom: 80, gap: 18, width: "100%", maxWidth: 850, alignSelf: "center" }}>
       <Stack.Screen options={{ title: "Shopping bag", headerShown: true }} />
       <Text style={{ fontSize: 30, color: colors.onSurface, fontWeight: "600" }}>Your shopping bag</Text>
       <Text style={{ color: colors.muted }}>Save the garments you love. Orders and payments are not available yet.</Text>
