@@ -7,6 +7,8 @@ import { useTheme } from "@/src/theme";
 
 export default function ShoppingBagScreen() {
   const { colors } = useTheme();
+  const { width: viewportWidth } = useWindowDimensions();
+  const compact = viewportWidth < 420;
   const router = useRouter();
   const queryClient = useQueryClient();
   const [country, setCountry] = useState<"AU" | "MD">("AU");
