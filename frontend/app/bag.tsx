@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, Pressable, Image, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { getShoppingBag, removeShoppingBagItem, updateShoppingBagQuantity, getCheckoutReadiness, listCatalogueOutfits, removeCatalogueOutfit, prepareSavedOutfit } from "@/src/api";
