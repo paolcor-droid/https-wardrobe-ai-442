@@ -90,7 +90,7 @@ export default function ShoppingBagScreen() {
       {bag?.items.length === 0 && <Text style={{ color: colors.onSurface }}>Your bag is empty.</Text>}
       {bag?.items.map(item => (
         <View key={item.id} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 6, gap: 8 }}>
-          <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flexDirection: compact ? "column" : "row", gap: 12 }}>
             {item.image_url ? <Image source={{ uri: item.image_url }} style={{ width: 86, height: 108 }} /> : null}
             <View style={{ flex: 1, gap: 5 }}>
               <Text style={{ color: colors.onSurface, fontSize: 17, fontWeight: "600" }}>{item.name}</Text>
