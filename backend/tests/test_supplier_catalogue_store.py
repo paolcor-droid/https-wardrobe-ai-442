@@ -77,3 +77,34 @@ def test_provider_mismatch_rejected(monkeypatch):
             await store.stage_catalogue(DB(), "vaitto", [product(provider="matterhorn")])
     asyncio.run(run())
 
+
+
+@pytest.mark.parametrize("invalid", [
+    [product(), product()],
+    [product(), product(identifier="")],
+    [product(), product(provider="matterhorn", identifier="sku-2")],
+    [product(), {**product(identifier="sku-2"), "source_verified": "yes"}],
+    [product(), {**product(identifier="sku-2"), "name": " "}],
+])
+def test_invalid_batch_never_partially_writes(monkeypatch, invalid):
+    """Preflight every supplier row before the first database write."""
+    async def run():
+        monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
+        db = DB()
+        with pytest.raises(ValueError):
+            await store.stage_catalogue(db, "vaitto", invalid)
+        assert db.catalogue.rows == {}
+    asyncio.run(run())
+
+
+def test_valid_distinct_supplier_products_stage_without_activation(monkeypatch):
+    async def run():
+        monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
+        monkeypatch.setenv("LUMIERE_SUPPLIER_CATALOGUE_ENABLED", "1")
+        db = DB()
+        assert await store.stage_catalogue(db, "vaitto", [
+            product(identifier="sku-1"), product(identifier="sku-2"),
+        ]) == 2
+        assert len(db.catalogue.rows) == 2
+        assert await store.read_catalogue(db) == []
+    asyncio.run(run())
