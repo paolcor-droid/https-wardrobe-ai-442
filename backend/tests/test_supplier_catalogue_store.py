@@ -108,3 +108,20 @@ def test_valid_distinct_supplier_products_stage_without_activation(monkeypatch):
         assert len(db.catalogue.rows) == 2
         assert await store.read_catalogue(db) == []
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("field,value", [
+    ("price", -1), ("price", float("nan")), ("price", float("inf")),
+    ("price", True), ("currency", "aud"), ("currency", "EURO"),
+    ("sizes", ["M", ""]), ("colour_names", ["x" * 101]),
+    ("in_stock", "yes"),
+])
+def test_supplier_price_currency_variant_stock_preflight_is_atomic(monkeypatch, field, value):
+    async def run():
+        monkeypatch.setenv("LUMIERE_SUPPLIER_IMPORT_ENABLED", "1")
+        db = DB()
+        faulty = {**product(identifier="sku-2"), field: value}
+        with pytest.raises(ValueError):
+            await store.stage_catalogue(db, "vaitto", [product(), faulty])
+        assert not db.catalogue.rows
+    asyncio.run(run())
