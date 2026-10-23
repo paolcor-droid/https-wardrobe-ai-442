@@ -92,6 +92,21 @@ async def stage_catalogue(db, provider_id: str, products: list[dict], *,
         if identifier in seen:
             raise ValueError("Duplicate supplier product in batch")
         seen.add(identifier)
+        # Price, currency and availability in imported snapshots are not verified live.
+        currency = row.get("currency")
+        if currency is not None and (not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency)):
+            raise ValueError("Invalid supplier currency")
+        price = row.get("price")
+        if price is not None and (isinstance(price, bool) or not isinstance(price, (int, float)) or
+                                  not math.isfinite(price) or price < 0):
+            raise ValueError("Invalid supplier price")
+        for field in ("sizes", "colour_names"):
+            value = row.get(field)
+            if value is not None and (not isinstance(value, list) or len(value) > 100 or
+                any(not isinstance(v, str) or not v.strip() or len(v) > 100 for v in value)):
+                raise ValueError("Invalid supplier variant values")
+        if row.get("in_stock") is not None and not isinstance(row["in_stock"], bool):
+            raise ValueError("Invalid supplier availability")
     await db[COLLECTION_NAME].create_index(
         [("provider_id", 1), ("external_id", 1)], unique=True)
     changed = 0
