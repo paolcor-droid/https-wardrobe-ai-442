@@ -99,12 +99,12 @@ export default function ShoppingBagScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Text style={{ color: colors.onSurface }}>Quantity</Text>
                 <Pressable testID={`bag-decrease-${item.id}`} accessibilityRole="button" disabled={updating === item.id || item.quantity <= 1}
-                  onPress={() => changeQuantity(item.id, item.quantity - 1)} style={{ padding: 9, borderWidth: 1, borderColor: colors.border }}>
+                  onPress={() => changeQuantity(item.id, item.quantity - 1)} style={{ padding: 12, minWidth: 44, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
                   <Text style={{ color: colors.onSurface }}>−</Text>
                 </Pressable>
                 <Text style={{ color: colors.onSurface }}>{updating === item.id ? "…" : item.quantity}</Text>
-                <Pressable testID={`bag-increase-${item.id}`} accessibilityRole="button" disabled={updating === item.id || item.quantity >= 10}
-                  onPress={() => changeQuantity(item.id, item.quantity + 1)} style={{ padding: 9, borderWidth: 1, borderColor: colors.border }}>
+                <Pressable testID={`bag-increase-${item.id}`} accessibilityRole="button" accessibilityLabel={`Increase quantity of ${item.name}`} disabled={updating === item.id || item.quantity >= 10}
+                  onPress={() => changeQuantity(item.id, item.quantity + 1)} style={{ padding: 12, minWidth: 44, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
                   <Text style={{ color: colors.onSurface }}>+</Text>
                 </Pressable>
               </View>
