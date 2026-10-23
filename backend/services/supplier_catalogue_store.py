@@ -1,5 +1,7 @@
 """Isolated, opt-in supplier catalogue store. Never stores customer records."""
 import os
+import math
+import re
 from datetime import datetime, timezone
 
 from services.catalogue_providers import get_provider
