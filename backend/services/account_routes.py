@@ -78,7 +78,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None, recognize_garment=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -1103,6 +1103,29 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     async def wardrobe(user_id: str = Depends(current_user)):
         return await db.customer_wardrobe.find({"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
 
+    @router.post("/wardrobe/recognize")
+    async def recognize_owned_garment(payload: dict, user_id: str = Depends(current_user)):
+        """On-demand, owner-only preview. Never saves an AI classification."""
+        if recognize_garment is None:
+            raise HTTPException(503, "Garment photo recognition is not configured")
+        path = payload.get("image_path")
+        if not isinstance(path, str) or not path.startswith("private:") or len(path) > 100:
+            raise HTTPException(422, "Select a private garment photograph")
+        photo = await db.customer_photos.find_one({
+            "id": path.removeprefix("private:"), "user_id": user_id,
+        })
+        if not photo or photo.get("generated") is True or photo.get("purpose") == "person":
+            raise HTTPException(404, "Garment photograph not found")
+        # Never send a customer's image to a third party without an explicit
+        # button press. Authentication and ownership are checked above.
+        try:
+            data, mime = await run_in_threadpool(read_image, photo["path"])
+            result = await run_in_threadpool(recognize_garment, data, mime)
+        except Exception as exc:
+            logger.warning("Garment photo recognition unavailable: %s", type(exc).__name__)
+            raise HTTPException(503, "Could not analyse this garment. Enter details manually.") from exc
+        return result
+
     @router.post("/wardrobe", status_code=201)
     async def wardrobe_add(payload: dict, user_id: str = Depends(current_user)):
         name = payload.get("name")
@@ -1117,7 +1140,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 raise HTTPException(404, "Wardrobe photograph not found")
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
-                "colour": str(payload.get("colour", ""))[:80], "image_path": private_path,
+                "colour": str(payload.get("colour", ""))[:80],
+                "style": str(payload.get("style", ""))[:80], "image_path": private_path,
                 "notes": str(payload.get("notes", ""))[:500],
                 "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
