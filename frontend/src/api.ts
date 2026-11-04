@@ -501,16 +501,35 @@ export type WardrobeItem = {
   name: string;
   category: "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "other";
   colour: string;
+  style?: string;
   image_path: string;
   notes: string;
   created_at: string;
 };
 
+export type GarmentRecognition = {
+  name: string;
+  category: WardrobeItem["category"];
+  colour: string;
+  style: string;
+  requires_confirmation: true;
+  image_colour_verified: false;
+};
+
+export async function recognizeWardrobePhoto(imagePath: string): Promise<GarmentRecognition> {
+  if (!/^private:[a-f0-9-]{36}$/.test(imagePath)) throw new Error("Invalid private garment photo ID");
+  return accountRequest<GarmentRecognition>("/wardrobe/recognize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_path: imagePath }),
+  });
+}
+
 export async function listWardrobe(): Promise<WardrobeItem[]> {
   return accountRequest<WardrobeItem[]>("/wardrobe");
 }
 
-export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes">): Promise<WardrobeItem> {
+export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes"> & { style?: string }): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>("/wardrobe", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
