@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,7 +7,7 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -24,6 +24,10 @@ export default function WardrobeScreen() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [colour, setColour] = useState("");
+  const [style, setStyle] = useState("");
+  const [recognitionLoading, setRecognitionLoading] = useState(false);
+  const [recognitionMessage, setRecognitionMessage] = useState("");
+  const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +40,7 @@ export default function WardrobeScreen() {
     mutationFn: addWardrobeItem,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["wardrobe"] });
-      setPhotoPath(null); setPhotoPreview(null); setName(""); setColour(""); setError(null);
+      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setRecognitionMessage(""); setError(null);
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -49,9 +53,29 @@ export default function WardrobeScreen() {
     setSheetOpen(false); setBusy(true); setError(null);
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type);
+      uploadedPhotoRef.current = path;
       setPhotoPath(path); setPhotoPreview(asset.uri);
+      setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
     finally { setBusy(false); }
+  };
+  const recognizePhoto = async () => {
+    if (!photoPath || recognitionLoading) return;
+    const requestedPath = photoPath;
+    setRecognitionLoading(true); setRecognitionMessage("");
+    try {
+      const suggestion = await recognizeWardrobePhoto(requestedPath);
+      // Ignore an answer for a photograph that has since been replaced.
+      if (uploadedPhotoRef.current !== requestedPath) return;
+      if (suggestion.name) setName(suggestion.name);
+      if (suggestion.colour) setColour(suggestion.colour);
+      setCategory(suggestion.category);
+      if (suggestion.style && suggestion.style !== "other") setStyle(suggestion.style);
+      setRecognitionMessage("AI suggestions applied. Please verify the category, colour and style, then save only if correct.");
+    } catch (e) {
+      if (uploadedPhotoRef.current === requestedPath) setRecognitionMessage(
+        "Recognition unavailable. You can enter garment details manually. No details were saved.");
+    } finally { setRecognitionLoading(false); }
   };
   const toggleOutfit = (item: WardrobeItem) => {
     setOutfitSelection((current) => current.some((i) => i.id === item.id)
@@ -79,8 +103,18 @@ export default function WardrobeScreen() {
           <Pressable testID="wardrobe-add-photo" style={styles.photoButton} onPress={() => setSheetOpen(true)}>
             {photoPreview ? <Image source={{ uri: photoPreview }} style={styles.preview} contentFit="cover" /> : <Text style={styles.action}>+ Choose a garment photo</Text>}
           </Pressable>
+          <Pressable testID="wardrobe-analyse-photo" accessibilityRole="button"
+            disabled={!photoPath || busy || recognitionLoading || save.isPending}
+            style={[styles.button, (!photoPath || busy || recognitionLoading) && styles.disabled]}
+            onPress={recognizePhoto}>
+            <Text style={styles.buttonText}>{recognitionLoading ? "Recognising garment…" : "Analyse photo · suggest details"}</Text>
+          </Pressable>
+          <Text style={styles.note}>Optional AI image recognition sends this photograph to the configured provider and may incur a usage charge. Nothing is saved until you confirm and tap Save.</Text>
+          {recognitionMessage ? <Text accessibilityLiveRegion="polite" style={styles.note}>{recognitionMessage}</Text> : null}
           <TextInput testID="wardrobe-name" style={styles.input} value={name} onChangeText={setName} placeholder="Name, e.g. linen shirt" placeholderTextColor="#888" maxLength={120} />
           <TextInput testID="wardrobe-colour" style={styles.input} value={colour} onChangeText={setColour} placeholder="Colour (optional)" placeholderTextColor="#888" maxLength={80} />
+          <TextInput testID="wardrobe-style" style={styles.input} value={style} onChangeText={setStyle} placeholder="Style (e.g. casual, business, formal)" placeholderTextColor="#888" maxLength={80} />
+          <Text style={styles.note}>Review and correct each field before saving the garment.</Text>
           <View style={styles.chips}>{CATEGORIES.map((c) => (
             <Pressable key={c} style={[styles.chip, category === c && styles.active]} onPress={() => setCategory(c)}>
               <Text style={styles.chipText}>{c}</Text>
@@ -88,7 +122,7 @@ export default function WardrobeScreen() {
           ))}</View>
           <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || save.isPending) && styles.disabled]}
             disabled={!photoPath || !name.trim() || busy || save.isPending}
-            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), image_path: photoPath!, notes: "" })}>
+            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -139,7 +173,7 @@ export default function WardrobeScreen() {
           <View key={item.id} style={styles.item}>
             <AccountPhoto path={item.image_path} style={styles.itemPhoto} contentFit="cover" />
             <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}</Text>
+            <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}{item.style ? ` · ${item.style}` : ""}</Text>
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
             <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
               <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
