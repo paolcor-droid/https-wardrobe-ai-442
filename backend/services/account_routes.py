@@ -1189,6 +1189,46 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
                 avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))}
 
+    @router.get("/wardrobe/mixed-outfits")
+    async def owned_first_outfits(user_id: str = Depends(current_user)):
+        """Account-scoped owned-first looks with optional safe catalogue gap filling."""
+        from services.wardrobe_mixed_outfits import mixed_outfits
+        wardrobe = await db.customer_wardrobe.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        products = []
+        if recommend_catalogue is not None:
+            try:
+                found = await recommend_catalogue(user_id)
+                products = (found.get("recommendations") or [])[:200]
+            except Exception:
+                logger.warning("Optional catalogue unavailable in owned-first planner")
+        return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
+                             preferences=profile.get("preferences"))
+
+    @router.put("/wardrobe/outfit-feedback")
+    async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
+        """Owner-scoped preference signal, never a trusted price or item description."""
+        ids = payload.get("item_ids")
+        sentiment = payload.get("sentiment")
+        if (not isinstance(ids, list) or not 1 <= len(ids) <= 5
+                or any(not isinstance(x, str) or not 1 <= len(x) <= 100 for x in ids)
+                or len(set(ids)) != len(ids) or sentiment not in {"liked", "disliked", "saved"}):
+            raise HTTPException(422, "Invalid outfit feedback")
+        for item_id in ids:
+            item = await db.customer_wardrobe.find_one({
+                "id": item_id, "user_id": user_id, "deleted_at": None})
+            if not item:
+                raise HTTPException(404, "Wardrobe outfit item not found")
+        digest = hashlib.sha256(json.dumps(sorted(ids)).encode()).hexdigest()
+        await db.customer_feedback.update_one(
+            {"user_id": user_id, "product_id": "owned-outfit:" + digest},
+            {"$set": {"user_id": user_id, "product_id": "owned-outfit:" + digest,
+                      "wardrobe_item_ids": ids, "sentiment": sentiment,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True)
+        return {"success": True, "sentiment": sentiment}
+
     @router.post("/wardrobe/capsule")
     async def owned_capsule(payload: dict, user_id: str = Depends(current_user)):
         climate = payload.get("climate", "mild")
