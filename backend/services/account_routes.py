@@ -1255,7 +1255,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         if not current:
             raise HTTPException(404, "Listing not found")
         if not isinstance(payload, dict) or not payload or (
-                set(payload) - {"size", "condition", "price", "currency", "description", "delivery"}):
+                set(payload) - {"size", "condition", "price", "currency", "description", "delivery", "swap_accepted"}):
             raise HTTPException(422, "Invalid listing update")
         try:
             details = validate_listing({**current, **payload})
