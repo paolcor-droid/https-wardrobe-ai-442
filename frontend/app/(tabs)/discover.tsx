@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, fileUrl, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
@@ -27,6 +27,39 @@ export default function DiscoverScreen() {
   const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; stylistQuery?: string; }>();
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
+  const { data: ownedWardrobe = [], isLoading: wardrobeLoading, isError: wardrobeError } = useQuery({
+    queryKey: ["wardrobe"], queryFn: listWardrobe,
+  });
+  const [ownedOutfitError, setOwnedOutfitError] = useState("");
+  const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, refetch: refreshOwnedOutfits } = useQuery({
+    queryKey: ["wardrobe-outfits", ownedWardrobe.map(item => item.id).join("|"),
+      profile?.preferences?.occasion, profile?.preferences?.climate],
+    queryFn: () => getWardrobeOutfits(
+      profile?.preferences?.occasion || "casual",
+      (["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
+        ? profile!.preferences!.climate : "mild") as "hot" | "mild" | "cold",
+    ),
+    enabled: Boolean(profile) && ownedWardrobe.length > 0,
+  });
+  useFocusEffect(useCallback(() => {
+    // A garment may have been added or removed while Discover was unfocused.
+    queryClient.invalidateQueries({ queryKey: ["wardrobe"] });
+  }, [queryClient]));
+  const openOwnedOutfit = (itemIds: string[]) => {
+    const garments = itemIds.map(id => ownedWardrobe.find(item => item.id === id))
+      .filter((item): item is WardrobeItem => Boolean(item?.image_path));
+    if (!garments.length) {
+      setOwnedOutfitError("This outfit needs a saved garment photograph to try on.");
+      return;
+    }
+    const [first, second] = garments;
+    setOwnedOutfitError("");
+    router.push({ pathname: "/(tabs)/tryon", params: {
+      garmentPath: first.image_path,
+      garmentName: first.name,
+      ...(second ? { secondGarmentPath: second.image_path, secondGarmentName: second.name } : {}),
+    } });
+  };
   const [searchText, setSearchText] = useState("");
   const [demoMode, setDemoMode] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
@@ -374,6 +407,31 @@ export default function DiscoverScreen() {
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
+        <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
+        <View style={styles.card}>
+          <Text style={styles.body}>Style the clothes you already own. These combinations use your saved garment names and categories, not the shopping catalogue.</Text>
+          {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
+          {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
+          {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
+            <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
+          {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
+            <Text style={styles.note}>No complete combinations yet. Add a top and bottom, or a dress, to start creating outfits.</Text> : null}
+          {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
+          {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
+            <View key={outfit.item_ids.join("|") + index} style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 12, gap: 7 }}>
+              <Text style={styles.body}>{outfit.names.join(" + ")}</Text>
+              <Text style={styles.note}>From your wardrobe · Colours and fit are not image-verified</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
+                testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
+                style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
+                <Text style={styles.body}>Try my clothes on</Text>
+              </Pressable>
+            </View>
+          ))}
+          <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/wardrobe" as any)} style={{ paddingVertical: 12 }}>
+            <Text style={styles.body}>Manage my wardrobe</Text>
+          </Pressable>
+        </View>
         <Text style={styles.section}>CATALOGUE SOURCE</Text>
         <View style={styles.feedbackRow}>
           <Pressable accessibilityRole="button" onPress={() => { setDemoMode(false); setPage(1); }}
