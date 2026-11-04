@@ -1289,6 +1289,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 {"id": current["wardrobe_item_id"], "user_id": user_id, "deleted_at": None})
             if not garment:
                 raise HTTPException(409, "Garment is no longer in your wardrobe")
+            # Check the exact public view before making a listing visible.
+            from services.preloved_marketplace import public_listing
+            try:
+                public_listing(current, garment)
+            except ValueError as exc:
+                raise HTTPException(422, "Remove contact details from garment labels before publishing") from exc
         await db.customer_preloved.update_one(
             {"id": listing_id, "user_id": user_id},
             {"$set": {"status": desired, "updated_at": datetime.now(timezone.utc).isoformat()}})
@@ -1310,7 +1316,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             garment = await db.customer_wardrobe.find_one({
                 "id": row["wardrobe_item_id"], "user_id": row["user_id"], "deleted_at": None})
             if garment:
-                out.append(public_listing(row, garment))
+                try:
+                    out.append(public_listing(row, garment))
+                except ValueError:
+                    continue
         return {"listings": out, "transactions_enabled": False, "messaging_enabled": False}
 
     @router.get("/preloved/matches")
@@ -1334,7 +1343,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             garment = await db.customer_wardrobe.find_one({
                 "id": row["wardrobe_item_id"], "user_id": row["user_id"], "deleted_at": None})
             if garment:
-                public.append(public_listing(row, garment))
+                try:
+                    public.append(public_listing(row, garment))
+                except ValueError:
+                    continue
         return {"enabled": True, "matches": rank_pre_loved(public, profile, wardrobe),
                 "notice": "Private in-app matches only; no push or seller contact is sent."}
 
