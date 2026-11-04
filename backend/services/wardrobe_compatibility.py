@@ -82,6 +82,24 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         elif len(set(colours)) >= 3:
             score -= 5
             reasons.append("Several different labelled colours may need visual coordination.")
+    # Whole-look harmony matters independently of individual skin-swatch matches.
+    # Conservative named-colour families; do not infer colour from image pixels.
+    families = {
+        "navy": "blue", "navy blue": "blue", "soft navy": "blue",
+        "light blue": "blue", "blue": "blue", "cobalt": "blue",
+        "burgundy": "red", "red": "red", "rose": "pink", "soft rose": "pink",
+        "pink": "pink", "forest green": "green", "green": "green",
+        "olive": "green", "sage": "green", "orange": "orange",
+        "rust": "orange", "yellow": "yellow", "purple": "purple",
+        "lavender": "purple",
+    }
+    accent_families = {families.get(c, c) for c in colours if c not in NEUTRALS}
+    if len(accent_families) == 1 and len(colours) >= 2:
+        score += 8
+        reasons.append("The labelled colours form a coordinated neutral-and-accent palette.")
+    elif len(accent_families) >= 3:
+        score -= 12
+        reasons.append("The outfit combines several accent colour families; review harmony visually.")
     requested_style = norm(preferred_style)
     if requested_style and styles:
         matching = sum(style == requested_style for style in styles)
