@@ -7,7 +7,7 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, getPreLovedReadiness, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -46,6 +46,9 @@ export default function WardrobeScreen() {
   const [salePrice, setSalePrice] = useState("");
   const [saleCondition, setSaleCondition] = useState("good");
   const [saleDescription, setSaleDescription] = useState("");
+  const {data: preLovedReadiness} = useQuery({
+    queryKey:["preloved-readiness"], queryFn:getPreLovedReadiness,
+  });
   const {data: myListings = [], isLoading: listingsLoading} = useQuery({
     queryKey:["preloved-mine"], queryFn:getMyPreLovedListings,
   });
@@ -218,6 +221,7 @@ export default function WardrobeScreen() {
         </View>
         <Text style={styles.heading}>Pre-Loved · Optional</Text>
         <Text style={styles.note}>Your personal stylist remains the focus. You can prepare a sale listing from an item you own, but it stays private until you explicitly publish. No photographs, personal details, chat or payments are shared.</Text>
+        <Text style={styles.note}>{preLovedReadiness?.notice || "Public listings are gated until the Pre-Loved pilot is approved."}</Text>
         {selling ? <View style={styles.form}>
           <Text style={styles.heading}>Prepare a listing · {selling.name}</Text>
           <Text style={styles.note}>Your garment details are reused. Buyers see text details only, not your private photograph or account information.</Text>
@@ -257,7 +261,7 @@ export default function WardrobeScreen() {
             <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Size {listing.size}</Text>
             {listing.status!=="withdrawn" ? <View style={styles.chips}>
               {listing.status!=="published" ? <Pressable accessibilityRole="button"
-                disabled={changeSaleStatus.isPending}
+                disabled={changeSaleStatus.isPending || preLovedReadiness?.publishing_enabled !== true}
                 onPress={()=>changeSaleStatus.mutate({id:listing.id,status:"published"})}
                 style={styles.chip}><Text style={styles.chipText}>Publish listing</Text></Pressable> : null}
               {listing.status==="published" ? <Pressable accessibilityRole="button"
