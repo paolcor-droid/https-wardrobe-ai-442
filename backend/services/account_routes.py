@@ -1203,8 +1203,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 products = (found.get("recommendations") or [])[:200]
             except Exception:
                 logger.warning("Optional catalogue unavailable in owned-first planner")
+        feedback = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
         return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
-                             preferences=profile.get("preferences"))
+                             preferences=profile.get("preferences"), feedback=feedback)
 
     @router.put("/wardrobe/outfit-feedback")
     async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
