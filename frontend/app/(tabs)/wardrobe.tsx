@@ -45,6 +45,7 @@ export default function WardrobeScreen() {
   const [saleSize, setSaleSize] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [saleCondition, setSaleCondition] = useState("good");
+  const [swapAccepted, setSwapAccepted] = useState(false);
   const [saleDescription, setSaleDescription] = useState("");
   const {data: preLovedReadiness} = useQuery({
     queryKey:["preloved-readiness"], queryFn:getPreLovedReadiness,
@@ -56,7 +57,7 @@ export default function WardrobeScreen() {
     mutationFn: createPreLovedDraft,
     onSuccess:() => {
       client.invalidateQueries({queryKey:["preloved-mine"]});
-      setSelling(null); setSaleSize(""); setSalePrice(""); setSaleDescription(""); setError(null);
+      setSelling(null); setSaleSize(""); setSalePrice(""); setSaleDescription(""); setSwapAccepted(false); setError(null);
     },
     onError:(e:Error)=>setError(e.message),
   });
@@ -238,6 +239,10 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{value}</Text>
             </Pressable>
           ))}</View>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{checked:swapAccepted}}
+            onPress={()=>setSwapAccepted(value=>!value)} style={{minHeight:44,paddingVertical:12}}>
+            <Text style={styles.note}>{swapAccepted?"☑":"☐"} Also open to swapping this garment (no swaps can be arranged in the pilot yet)</Text>
+          </Pressable>
           <TextInput testID="preloved-description" accessibilityLabel="Garment description"
             style={styles.input} multiline maxLength={500}
             placeholder="Optional garment description. No contact details or links."
@@ -247,7 +252,7 @@ export default function WardrobeScreen() {
             disabled={!saleSize.trim()||!salePrice||draftSale.isPending}
             onPress={()=>draftSale.mutate({wardrobe_item_id:selling.id,size:saleSize.trim(),
               price:Number(salePrice),condition:saleCondition,currency:"AUD",
-              description:saleDescription,delivery:"arrange later"})}>
+              description:saleDescription,delivery:"arrange later",swap_accepted:swapAccepted})}>
             <Text style={styles.buttonText}>{draftSale.isPending?"Saving…":"Save private draft"}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={()=>setSelling(null)} style={{paddingVertical:12}}>
@@ -258,7 +263,7 @@ export default function WardrobeScreen() {
         {myListings.map(listing=>(
           <View key={listing.id} style={styles.form}>
             <Text style={styles.itemName}>{items.find(x=>x.id===listing.wardrobe_item_id)?.name || "Wardrobe garment"} · {listing.status}</Text>
-            <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Size {listing.size}</Text>
+            <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Size {listing.size}{listing.swap_accepted?" · Open to swapping":""}</Text>
             {listing.status!=="withdrawn" ? <View style={styles.chips}>
               {listing.status!=="published" ? <Pressable accessibilityRole="button"
                 disabled={changeSaleStatus.isPending || preLovedReadiness?.publishing_enabled !== true}
