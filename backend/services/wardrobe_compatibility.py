@@ -109,6 +109,26 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if len(styles) > 1 and len(set(styles)) == 1:
         score += 10
         reasons.append("The saved garment styles are consistent.")
+    # Occasion and seasonality use user-confirmed labels only.
+    formal_occasions = {"formal", "business", "office", "work", "evening"}
+    formal_styles = {"formal", "business", "smart casual", "classic"}
+    relaxed_styles = {"casual", "sporty", "streetwear", "bohemian"}
+    occasion_label = norm(occasion)
+    if occasion_label in formal_occasions:
+        aligned = sum(style in formal_styles for style in styles)
+        if aligned:
+            score += min(12, 6 * aligned)
+            reasons.append("Confirmed garment styles align with your formal or work occasion.")
+        if any(style in relaxed_styles for style in styles):
+            score -= 7
+    if climate in {"hot", "cold"}:
+        unsuitable = "cool weather" if climate == "hot" else "warm weather"
+        comfortable = "warm weather" if climate == "hot" else "cool weather"
+        if any(norm(g.get("season")) == unsuitable for g in garments):
+            score -= 12
+            reasons.append("A garment's confirmed season label may conflict with your climate preference.")
+        if any(norm(g.get("season")) == comfortable for g in garments):
+            score += 5
     if climate == "hot" and any(g.get("category") == "outerwear" for g in garments):
         score -= 20
     if climate == "cold" and any(g.get("category") == "outerwear" for g in garments):
