@@ -50,7 +50,7 @@ export default function DiscoverScreen() {
   };
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
   const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
-    queryKey: ["wardrobe-outfits", ownedWardrobe.map(item => item.id).join("|"),
+    queryKey: ["wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])),
       profile?.preferences?.occasion, profile?.preferences?.climate],
     queryFn: () => getWardrobeOutfits(
       profile?.preferences?.occasion || "casual",
