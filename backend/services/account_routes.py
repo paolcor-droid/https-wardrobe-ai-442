@@ -294,6 +294,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         sections = {
             "profile": db.customer_profiles,
             "wardrobe": db.customer_wardrobe,
+            "preloved": db.customer_preloved,
             "conversations": db.customer_conversations,
             "messages": db.customer_messages,
             "saved": db.customer_saved,
@@ -376,6 +377,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         sections = {
             "profile": db.customer_profiles,
             "wardrobe": db.customer_wardrobe,
+            "preloved": db.customer_preloved,
             "conversations": db.customer_conversations,
             "messages": db.customer_messages,
             "saved": db.customer_saved,
@@ -443,6 +445,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "messages": db.customer_messages,
             "saved_looks": db.customer_saved,
             "wardrobe_items": db.customer_wardrobe,
+            "preloved_listings": db.customer_preloved,
             "bag_items": db.customer_bag,
             "saved_outfits": db.customer_outfits,
         }
@@ -477,7 +480,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(503, "Photo deletion could not be verified; account retained") from exc
         for collection in (
             db.customer_photos, db.customer_tryons, db.customer_profiles,
-            db.customer_wardrobe, db.customer_conversations, db.customer_messages,
+            db.customer_wardrobe, db.customer_preloved, db.customer_conversations, db.customer_messages,
             db.customer_saved, db.customer_feedback, db.customer_bag, db.customer_outfits, db.customer_sessions,
             db.customer_recovery, db.customer_rate_limits,
         ):
@@ -1201,6 +1204,10 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         )
         if not result.matched_count:
             raise HTTPException(404, "Wardrobe item not found")
+        # Unpublishing is mandatory when an owned garment leaves the wardrobe.
+        await db.customer_preloved.update_many(
+            {"user_id": user_id, "wardrobe_item_id": item_id},
+            {"$set": {"status": "withdrawn"}})
         return {"success": True}
 
 
@@ -1504,6 +1511,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                     {"id": item["id"], "user_id": user_id},
                     {"$set": {"image_path": ""}},
                 )
+                await db.customer_preloved.update_many(
+                    {"user_id": user_id, "wardrobe_item_id": item["id"]},
+                    {"$set": {"status": "withdrawn"}})
         return {"success": True}
 
     @router.post("/saved", status_code=201)
