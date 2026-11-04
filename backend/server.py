@@ -1765,8 +1765,10 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
     return await run_in_threadpool(_direct_openai_stylist, messages)
 
 
+from services.garment_recognition import analyze_garment as recognize_private_garment
+
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, search_demo_catalogue=search_demo_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, search_demo_catalogue=search_demo_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer, recognize_garment=recognize_private_garment))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
