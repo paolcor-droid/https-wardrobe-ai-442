@@ -1205,6 +1205,132 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
 
 
+    @router.post("/preloved", status_code=201)
+    async def create_pre_loved_draft(payload: dict, user_id: str = Depends(current_user)):
+        """Create a private draft from one owned wardrobe garment; no auto-publication."""
+        from services.preloved_marketplace import validate_listing
+        item_id = payload.get("wardrobe_item_id") if isinstance(payload, dict) else None
+        if not isinstance(item_id, str):
+            raise HTTPException(422, "Select a wardrobe garment")
+        item = await db.customer_wardrobe.find_one(
+            {"id": item_id, "user_id": user_id, "deleted_at": None})
+        if not item:
+            raise HTTPException(404, "Owned wardrobe garment not found")
+        try:
+            details = validate_listing(payload)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        active = await db.customer_preloved.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(101)
+        if len(active) >= 100:
+            raise HTTPException(413, "Pre-Loved listing limit reached")
+        if any(x.get("wardrobe_item_id") == item_id and x.get("status") != "withdrawn"
+               for x in active):
+            raise HTTPException(409, "An active listing draft already exists for this garment")
+        record = {"id": str(uuid.uuid4()), "user_id": user_id,
+                  "wardrobe_item_id": item_id, **details,
+                  "status": "draft", "created_at": datetime.now(timezone.utc).isoformat(),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}
+        await db.customer_preloved.insert_one(record)
+        return {k: v for k, v in record.items() if k not in {"_id", "user_id"}}
+
+    @router.get("/preloved/mine")
+    async def my_pre_loved_listings(user_id: str = Depends(current_user)):
+        rows = await db.customer_preloved.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(100)
+        return [{k: v for k, v in row.items() if k != "user_id"} for row in rows]
+
+    @router.patch("/preloved/{listing_id}")
+    async def update_pre_loved_listing(listing_id: str, payload: dict,
+                                      user_id: str = Depends(current_user)):
+        from services.preloved_marketplace import validate_listing
+        current = await db.customer_preloved.find_one({"id": listing_id, "user_id": user_id})
+        if not current:
+            raise HTTPException(404, "Listing not found")
+        if not isinstance(payload, dict) or not payload or (
+                set(payload) - {"size", "condition", "price", "currency", "description", "delivery"}):
+            raise HTTPException(422, "Invalid listing update")
+        try:
+            details = validate_listing({**current, **payload})
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        # Editing a published listing returns it to private draft for deliberate re-publication.
+        new_status = "draft" if current.get("status") == "published" else current["status"]
+        if new_status == "withdrawn":
+            raise HTTPException(409, "Withdrawn listings cannot be edited")
+        await db.customer_preloved.update_one(
+            {"id": listing_id, "user_id": user_id},
+            {"$set": {**details, "status": new_status,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}})
+        return {"id": listing_id, "status": new_status}
+
+    @router.post("/preloved/{listing_id}/status")
+    async def change_pre_loved_status(listing_id: str, payload: dict,
+                                     user_id: str = Depends(current_user)):
+        current = await db.customer_preloved.find_one({"id": listing_id, "user_id": user_id})
+        if not current:
+            raise HTTPException(404, "Listing not found")
+        desired = payload.get("status") if isinstance(payload, dict) else None
+        if desired not in {"published", "paused", "withdrawn"}:
+            raise HTTPException(422, "Invalid listing status")
+        if current.get("status") == "withdrawn":
+            raise HTTPException(409, "Listing has already been withdrawn")
+        if desired == "published":
+            if payload.get("confirmation") != "PUBLISH PRELOVED LISTING":
+                raise HTTPException(422, "Explicit publication consent required")
+            garment = await db.customer_wardrobe.find_one(
+                {"id": current["wardrobe_item_id"], "user_id": user_id, "deleted_at": None})
+            if not garment:
+                raise HTTPException(409, "Garment is no longer in your wardrobe")
+        await db.customer_preloved.update_one(
+            {"id": listing_id, "user_id": user_id},
+            {"$set": {"status": desired, "updated_at": datetime.now(timezone.utc).isoformat()}})
+        return {"id": listing_id, "status": desired,
+                "notice": "Public listings show garment descriptions only, never private photos or seller identity."}
+
+    @router.get("/preloved")
+    async def browse_pre_loved(user_id: str = Depends(current_user)):
+        """Anonymised listing browse. No seller profile, messages or private images."""
+        from services.preloved_marketplace import public_listing
+        records = await db.customer_preloved.find(
+            {"status": "published"}, {"_id": 0}).to_list(201)
+        if len(records) > 200:
+            raise HTTPException(413, "Browse limit reached")
+        out = []
+        for row in records:
+            if row.get("user_id") == user_id:
+                continue
+            garment = await db.customer_wardrobe.find_one({
+                "id": row["wardrobe_item_id"], "user_id": row["user_id"], "deleted_at": None})
+            if garment:
+                out.append(public_listing(row, garment))
+        return {"listings": out, "transactions_enabled": False, "messaging_enabled": False}
+
+    @router.get("/preloved/matches")
+    async def personalised_pre_loved_matches(user_id: str = Depends(current_user)):
+        """Opt-in recipient-only matches; never send push messages or reveal scan data."""
+        from services.preloved_marketplace import public_listing, rank_pre_loved
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        preferences = profile.get("preferences") or {}
+        if preferences.get("preloved_alerts_opt_in") is not True:
+            return {"enabled": False, "matches": [], "notice": "Enable Pre-Loved suggestions in your preferences."}
+        wardrobe = await db.customer_wardrobe.find(
+            {"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
+        records = await db.customer_preloved.find(
+            {"status": "published"}, {"_id": 0}).to_list(201)
+        if len(records) > 200:
+            raise HTTPException(413, "Marketplace browse limit reached")
+        public = []
+        for row in records:
+            if row.get("user_id") == user_id:
+                continue
+            garment = await db.customer_wardrobe.find_one({
+                "id": row["wardrobe_item_id"], "user_id": row["user_id"], "deleted_at": None})
+            if garment:
+                public.append(public_listing(row, garment))
+        return {"enabled": True, "matches": rank_pre_loved(public, profile, wardrobe),
+                "notice": "Private in-app matches only; no push or seller contact is sent."}
+
     @router.post("/wardrobe/outfits")
     async def owned_outfits(payload: dict, user_id: str = Depends(current_user)):
         climate = payload.get("climate", "mild")
