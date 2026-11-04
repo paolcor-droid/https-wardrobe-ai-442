@@ -36,9 +36,9 @@ def test_rotates_shoes_instead_of_always_first():
         {"id": "shoes2", "name": "Shoes two", "category": "shoes"},
     ]
     outfits = plan_outfits(items)
-    assert len(outfits) == 2
-    assert outfits[0]["item_ids"][-1] == "shoes1"
-    assert outfits[1]["item_ids"][-1] == "shoes2"
+    assert len(outfits) == 4
+    assert {o["item_ids"][-1] for o in outfits} == {"shoes1", "shoes2"}
+    assert {o["item_ids"][1] for o in outfits} == {"bottom1", "bottom2"}
 
 
 def test_dresses_work_without_tops_and_bottoms():
@@ -100,3 +100,48 @@ def test_single_base_outfit_offers_alternative_owned_shoes():
     outfits = plan_outfits(items, climate="hot")
     assert [outfit["item_ids"][-1] for outfit in outfits] == ["trainers", "sandals"]
     assert len(plan_outfits(items, climate="hot", limit=1)) == 1
+
+
+def test_named_scan_and_confirmed_garment_styles_change_order():
+    items = [
+        {"id": "blue", "name": "Blue shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "orange", "name": "Orange shirt", "category": "top", "colour": "orange", "style": "streetwear"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom", "colour": "cream", "style": "classic"},
+    ]
+    scan = {"best_neutrals": [{"name": "Soft Navy"}, {"name": "Cream"}],
+            "caution_colours": [{"name": "Orange"}]}
+    ranked = plan_outfits(items, scan=scan, preferred_style="classic")
+    assert ranked[0]["item_ids"][0] == "blue"
+    assert ranked[0]["compatibility_score"] > ranked[1]["compatibility_score"]
+    assert ranked[0]["ranking_basis"] == "confirmed_wardrobe_labels_and_named_scan_swatches"
+    assert not ranked[0]["image_colour_verified"]
+
+
+def test_user_avoidance_can_change_outfit_ranking():
+    items = [
+        {"id": "red", "name": "Red top", "category": "top", "colour": "red"},
+        {"id": "green", "name": "Green top", "category": "top", "colour": "green"},
+        {"id": "bottom", "name": "Bottom", "category": "bottom"},
+    ]
+    assert plan_outfits(items, avoided_colours=["red"])[0]["item_ids"][0] == "green"
+    assert plan_outfits(items, avoided_colours=["green"])[0]["item_ids"][0] == "red"
+
+
+def test_unlabelled_garments_are_not_claimed_colour_verified():
+    outfits = plan_outfits([
+        {"id": "a", "name": "Top", "category": "top"},
+        {"id": "b", "name": "Bottom", "category": "bottom"},
+    ], scan={"best_accents": [{"name": "Rose"}]})
+    assert outfits[0]["image_colour_verified"] is False
+    assert "Add confirmed garment colours" in outfits[0]["reason"]
+
+
+def test_capsule_passes_skin_scan_and_style_to_outfit_ranking():
+    items = [
+        {"id": "a", "name": "Warm top", "category": "top", "colour": "rose", "style": "romantic"},
+        {"id": "b", "name": "Bottom", "category": "bottom", "colour": "cream"},
+    ]
+    capsule = capsule_plan(items, scan={"best_accents": [{"name": "Soft Rose"}]},
+                           preferred_style="romantic")
+    assert capsule["possible_outfits"][0]["compatibility_score"] > 50
+    assert "saved scan" in capsule["possible_outfits"][0]["reason"]
