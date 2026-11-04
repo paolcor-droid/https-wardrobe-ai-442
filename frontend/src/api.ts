@@ -502,6 +502,9 @@ export type WardrobeItem = {
   category: "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "other";
   colour: string;
   style?: string;
+  pattern?: string;
+  season?: string;
+  material?: string;
   image_path: string;
   notes: string;
   created_at: string;
@@ -512,6 +515,9 @@ export type GarmentRecognition = {
   category: WardrobeItem["category"];
   colour: string;
   style: string;
+  pattern: string;
+  season: string;
+  material: string;
   requires_confirmation: true;
   image_colour_verified: false;
 };
@@ -529,7 +535,7 @@ export async function listWardrobe(): Promise<WardrobeItem[]> {
   return accountRequest<WardrobeItem[]>("/wardrobe");
 }
 
-export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes"> & { style?: string }): Promise<WardrobeItem> {
+export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes"> & { style?: string; pattern?: string; season?: string; material?: string }): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>("/wardrobe", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
