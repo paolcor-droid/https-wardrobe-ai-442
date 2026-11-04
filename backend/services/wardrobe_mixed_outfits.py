@@ -9,7 +9,7 @@ from services.wardrobe_compatibility import score_owned_outfit, norm
 ROLES = ("top", "bottom", "dress", "shoes")
 
 
-def mixed_outfits(owned, products, *, scan=None, preferences=None, limit=8):
+def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None, limit=8):
     prefs = preferences or {}
     owned = [dict(g) for g in owned if g.get("id") and not g.get("deleted_at")]
     complete = plan_outfits(
@@ -27,6 +27,19 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, limit=8):
             "score": look["compatibility_score"], "reason": look["reason"],
             "type": "all_owned", "purchase_required": False,
         })
+    # Previous account-owned reactions tune the relative ranking.
+    from hashlib import sha256
+    import json
+    signals = {row.get("product_id"): row.get("sentiment")
+               for row in (feedback or []) if isinstance(row, dict)}
+    for look in results:
+        digest = sha256(json.dumps(sorted(look["owned_ids"])).encode()).hexdigest()
+        signal = signals.get("owned-outfit:" + digest)
+        delta = {"liked": 8, "saved": 12, "disliked": -25}.get(signal, 0)
+        look["score"] = max(0, min(100, look["score"] + delta))
+        if delta:
+            look["reason"] += " Your saved outfit feedback influenced this ranking."
+    results.sort(key=lambda x: -x["score"])
     # Fill an actual gap only; do not replace available owned pieces to sell more.
     tops = [g for g in owned if g.get("category") == "top"]
     bottoms = [g for g in owned if g.get("category") == "bottom"]
