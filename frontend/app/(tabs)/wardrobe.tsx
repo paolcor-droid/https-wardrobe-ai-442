@@ -52,7 +52,7 @@ export default function WardrobeScreen() {
   const onPicked = async (asset: PickResult) => {
     setSheetOpen(false); setBusy(true); setError(null);
     try {
-      const path = await uploadImage(asset.uri, asset.name, asset.type);
+      const path = await uploadImage(asset.uri, asset.name, asset.type, "garment");
       uploadedPhotoRef.current = path;
       setPhotoPath(path); setPhotoPreview(asset.uri);
       setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
