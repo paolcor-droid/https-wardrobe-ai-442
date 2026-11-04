@@ -7,7 +7,7 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -40,6 +40,7 @@ export default function WardrobeScreen() {
   const [climate, setClimate] = useState<"hot" | "mild" | "cold">("mild");
   const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
   const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
+  const [editing, setEditing] = useState<WardrobeItem | null>(null);
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
@@ -47,6 +48,19 @@ export default function WardrobeScreen() {
       setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setError(null);
     },
     onError: (e: Error) => setError(e.message),
+  });
+  const correction = useMutation({
+    mutationFn: (item: WardrobeItem) => correctWardrobeItem(item.id, {
+      name:item.name, category:item.category, colour:item.colour, style:item.style || "",
+      pattern:item.pattern || "", season:item.season || "", material:item.material || "",
+    }),
+    onSuccess: () => {
+      client.invalidateQueries({queryKey:["wardrobe"]});
+      client.invalidateQueries({queryKey:["wardrobe-outfits"]});
+      client.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]});
+      setEditing(null); setPlannedOutfits([]); setCapsule(null); setError(null);
+    },
+    onError:(e:Error) => setError(e.message),
   });
   const del = useMutation({
     mutationFn: deleteWardrobeItem,
@@ -177,6 +191,35 @@ export default function WardrobeScreen() {
           </View>}
         </View>
         <Text style={styles.heading}>Your pieces ({items.length})</Text>
+        {editing ? <View style={styles.form}>
+          <Text style={styles.heading}>Correct garment details</Text>
+          <Text style={styles.note}>Update the labels you confirmed earlier. Your original private photograph is retained.</Text>
+          {(["name","colour","style","pattern","season","material"] as const).map(key => (
+            <TextInput key={key} testID={`wardrobe-edit-${key}`}
+              accessibilityLabel={`Edit garment ${key}`} style={styles.input}
+              placeholder={key} placeholderTextColor="#888"
+              value={editing[key] || ""}
+              onChangeText={value => setEditing(current => current ? {...current,[key]:value} : current)}
+              maxLength={key === "name" ? 120 : 80} />
+          ))}
+          <View style={styles.chips}>{CATEGORIES.map(key => (
+            <Pressable key={key} accessibilityRole="button"
+              accessibilityState={{selected:editing.category===key}}
+              style={[styles.chip,editing.category===key && styles.active]}
+              onPress={() => setEditing(current=>current?{...current,category:key}:current)}>
+              <Text style={styles.chipText}>{key}</Text>
+            </Pressable>
+          ))}</View>
+          <Pressable accessibilityRole="button" testID="wardrobe-save-corrections"
+            disabled={!editing.name.trim() || correction.isPending}
+            onPress={() => correction.mutate(editing)}
+            style={[styles.button,(!editing.name.trim()||correction.isPending)&&styles.disabled]}>
+            <Text style={styles.buttonText}>{correction.isPending ? "Saving changes…" : "Save corrected details"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setEditing(null)} style={{paddingVertical:12}}>
+            <Text style={styles.action}>Cancel edits</Text>
+          </Pressable>
+        </View> : null}
         {outfitSelection.length > 0 && <View style={styles.form}>
           <Text style={styles.itemName}>{outfitSelection.length}/2 garments selected</Text>
           <Text style={styles.note}>{outfitSelection.map((item) => item.name).join(" + ")}</Text>
@@ -194,6 +237,10 @@ export default function WardrobeScreen() {
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
             <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
               <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" testID={`wardrobe-edit-${item.id}`}
+              onPress={() => { setEditing({...item}); setError(null); }}>
+              <Text style={styles.action}>Correct details</Text>
             </Pressable>
             <Pressable testID={`wardrobe-delete-${item.id}`} onPress={() => { setOutfitSelection((current) => current.filter((i) => i.id !== item.id)); del.mutate(item.id); }}><Text style={styles.note}>Remove from wardrobe</Text></Pressable>
           </View>
