@@ -78,3 +78,13 @@ def test_scan_named_colours_affect_complete_outfit_score():
     with_scan = mixed_outfits(wardrobe, [], scan=scan)["outfits"][0]["score"]
     without_scan = mixed_outfits(wardrobe, [])["outfits"][0]["score"]
     assert with_scan >= without_scan
+
+
+def test_confirmed_season_and_occasion_labels_affect_ranking():
+    from services.wardrobe_compatibility import score_owned_outfit
+    business = [own("shirt", "top", "cream", "business"),
+                {**own("trousers", "bottom", "navy", "classic"), "season": "cool weather"}]
+    formal_cold = score_owned_outfit(business, occasion="business", climate="cold")
+    casual_hot = score_owned_outfit(business, occasion="casual", climate="hot")
+    assert formal_cold["compatibility_score"] >= casual_hot["compatibility_score"]
+    assert formal_cold["image_colour_verified"] is False
