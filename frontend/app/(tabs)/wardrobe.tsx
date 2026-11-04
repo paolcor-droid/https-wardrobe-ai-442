@@ -25,6 +25,9 @@ export default function WardrobeScreen() {
   const [name, setName] = useState("");
   const [colour, setColour] = useState("");
   const [style, setStyle] = useState("");
+  const [pattern, setPattern] = useState("");
+  const [season, setSeason] = useState("");
+  const [material, setMaterial] = useState("");
   const [recognitionLoading, setRecognitionLoading] = useState(false);
   const [autoRecognize, setAutoRecognize] = useState(false);
   const [recognitionMessage, setRecognitionMessage] = useState("");
@@ -41,7 +44,7 @@ export default function WardrobeScreen() {
     mutationFn: addWardrobeItem,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["wardrobe"] });
-      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setRecognitionMessage(""); setError(null);
+      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setError(null);
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -73,6 +76,8 @@ export default function WardrobeScreen() {
       if (suggestion.colour) setColour(suggestion.colour);
       setCategory(suggestion.category);
       if (suggestion.style && suggestion.style !== "other") setStyle(suggestion.style);
+      if (suggestion.pattern && suggestion.pattern !== "other") setPattern(suggestion.pattern);
+      if (suggestion.season && suggestion.season !== "unknown") setSeason(suggestion.season);
       setRecognitionMessage("AI suggestions applied. Please verify the category, colour and style, then save only if correct.");
     } catch (e) {
       if (uploadedPhotoRef.current === requestedPath) setRecognitionMessage(
@@ -121,7 +126,10 @@ export default function WardrobeScreen() {
           <TextInput testID="wardrobe-name" style={styles.input} value={name} onChangeText={setName} placeholder="Name, e.g. linen shirt" placeholderTextColor="#888" maxLength={120} />
           <TextInput testID="wardrobe-colour" style={styles.input} value={colour} onChangeText={setColour} placeholder="Colour (optional)" placeholderTextColor="#888" maxLength={80} />
           <TextInput testID="wardrobe-style" style={styles.input} value={style} onChangeText={setStyle} placeholder="Style (e.g. casual, business, formal)" placeholderTextColor="#888" maxLength={80} />
-          <Text style={styles.note}>Review and correct each field before saving the garment.</Text>
+          <TextInput testID="wardrobe-pattern" style={styles.input} value={pattern} onChangeText={setPattern} placeholder="Pattern (e.g. solid, striped, floral)" placeholderTextColor="#888" maxLength={80} />
+          <TextInput testID="wardrobe-season" style={styles.input} value={season} onChangeText={setSeason} placeholder="Season (e.g. warm weather, all season)" placeholderTextColor="#888" maxLength={80} />
+          <TextInput testID="wardrobe-material" style={styles.input} value={material} onChangeText={setMaterial} placeholder="Fabric/material (optional; enter from the label)" placeholderTextColor="#888" maxLength={80} />
+          <Text style={styles.note}>Review each AI suggestion. Material is never inferred from the image; enter it from the clothing label if known.</Text>
           <View style={styles.chips}>{CATEGORIES.map((c) => (
             <Pressable key={c} style={[styles.chip, category === c && styles.active]} onPress={() => setCategory(c)}>
               <Text style={styles.chipText}>{c}</Text>
@@ -129,7 +137,7 @@ export default function WardrobeScreen() {
           ))}</View>
           <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || recognitionLoading || save.isPending) && styles.disabled]}
             disabled={!photoPath || !name.trim() || busy || recognitionLoading || save.isPending}
-            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), image_path: photoPath!, notes: "" })}>
+            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -182,7 +190,7 @@ export default function WardrobeScreen() {
           <View key={item.id} style={styles.item}>
             <AccountPhoto path={item.image_path} style={styles.itemPhoto} contentFit="cover" />
             <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}{item.style ? ` · ${item.style}` : ""}</Text>
+            <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}{item.style ? ` · ${item.style}` : ""}{item.pattern ? ` · ${item.pattern}` : ""}{item.season ? ` · ${item.season}` : ""}</Text>
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
             <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
               <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
