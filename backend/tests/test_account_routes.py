@@ -1244,3 +1244,50 @@ def test_sensitive_account_actions_require_authentication_without_storage_access
         "password": "synthetic password", "confirmation": "DELETE MY LUMIERE ACCOUNT",
     }).status_code == 401
     assert touched == []
+
+
+def test_garment_recognition_requires_owner_and_never_auto_saves():
+    """Synthetic photos only: never sends a real photograph to a provider."""
+    from services.garment_recognition import validate_recognition
+    db = Database()
+    calls = []
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/synthetic.png",
+        lambda path: (calls.append(("read", path)) or b"synthetic-image-bytes", "image/png"),
+        recognize_garment=lambda data, mime: (
+            calls.append(("model", mime)) or validate_recognition({
+                "name": "Blue shirt", "category": "top", "colour": "Blue", "style": "casual"
+            })
+        ),
+    ))
+    client = TestClient(app)
+    credentials = [
+        {"email": "recognition-one@example.test", "password": "synthetic long passphrase"},
+        {"email": "recognition-two@example.test", "password": "synthetic long passphrase"},
+    ]
+    headers = []
+    for c in credentials:
+        assert client.post("/api/account/register", json=c).status_code == 201
+        auth = client.post("/api/account/login", json=c)
+        assert auth.status_code == 200
+        headers.append({"Authorization": "Bearer " + auth.json()["access_token"]})
+    owner_id = client.get("/api/account/me", headers=headers[0]).json()["id"]
+    db.customer_photos.docs.append({
+        "id": "synthetic-owned-photo", "user_id": owner_id,
+        "path": "local/private-owned.png", "purpose": "garment",
+    })
+    url = "/api/account/wardrobe/recognize"
+    request = {"image_path": "private:synthetic-owned-photo"}
+    assert client.post(url, json=request).status_code == 401
+    assert client.post(url, headers=headers[1], json=request).status_code == 404
+    assert calls == []
+    recognized = client.post(url, headers=headers[0], json=request)
+    assert recognized.status_code == 200
+    assert recognized.json()["style"] == "casual"
+    assert recognized.json()["requires_confirmation"] is True
+    assert calls == [("read", "local/private-owned.png"), ("model", "image/png")]
+    assert db.customer_wardrobe.docs == []
+    # A second account cannot reuse recognition results or read the photo.
+    assert client.get("/api/account/photos/synthetic-owned-photo", headers=headers[1]).status_code == 404
