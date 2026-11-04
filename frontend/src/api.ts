@@ -554,6 +554,36 @@ export async function deleteWardrobeItem(id: string): Promise<void> {
   await accountRequest<{success: boolean}>(`/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export type PreLovedListing = {
+  id:string; name?:string; wardrobe_item_id?:string;
+  category?:string; colour?:string; style?:string; pattern?:string;
+  size:string; condition:string; price:number; currency:"AUD"; description:string;
+  status?:"draft"|"published"|"paused"|"withdrawn";
+  photo_available?:false; checkout_enabled?:false; messaging_enabled?:false;
+};
+export type PreLovedMatch = PreLovedListing & {match_score:number;match_reason:string};
+export async function createPreLovedDraft(details:{
+  wardrobe_item_id:string; size:string; condition:string; price:number;
+  currency:"AUD"; description:string; delivery:"arrange later";
+}):Promise<PreLovedListing>{
+  return accountRequest("/preloved", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(details)});
+}
+export async function getMyPreLovedListings():Promise<PreLovedListing[]> {
+  return accountRequest("/preloved/mine");
+}
+export async function setPreLovedStatus(id:string,status:"published"|"paused"|"withdrawn"):Promise<{status:string}>{
+  return accountRequest(`/preloved/${encodeURIComponent(id)}/status`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({status,...(status==="published"?{confirmation:"PUBLISH PRELOVED LISTING"}:{})}),
+  });
+}
+export async function browsePreLoved():Promise<{listings:PreLovedListing[];transactions_enabled:false;messaging_enabled:false}>{
+  return accountRequest("/preloved");
+}
+export async function getPreLovedMatches():Promise<{enabled:boolean;matches:PreLovedMatch[];notice:string}>{
+  return accountRequest("/preloved/matches");
+}
+
 export type MixedWardrobeOutfit = {
   id: string;
   owned_ids: string[];
