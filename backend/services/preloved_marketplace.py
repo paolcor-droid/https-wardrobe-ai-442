@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import math
+import re
 
 from services.wardrobe_compatibility import colour_match, norm, score_owned_outfit
 
@@ -35,6 +36,9 @@ def validate_listing(data: dict) -> dict:
         raise ValueError("Pre-Loved pilot supports AUD listings only")
     if not isinstance(description, str) or len(description) > 500:
         raise ValueError("Description is too long")
+    # No direct contact exchange until moderated messaging and safety controls exist.
+    if re.search(r"(?:https?://|www\\.|@|\\b(?:\\+?\\d[ -]?){8,}\\d\\b)", description, re.I):
+        raise ValueError("Do not include contact details or external links")
     if delivery != "arrange later":
         raise ValueError("Shipping and collection are not yet available")
     return {"size": size.strip(), "condition": condition, "price": round(price, 2),
