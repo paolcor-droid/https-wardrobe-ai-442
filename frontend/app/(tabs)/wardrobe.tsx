@@ -7,7 +7,7 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -41,6 +41,32 @@ export default function WardrobeScreen() {
   const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
   const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
   const [editing, setEditing] = useState<WardrobeItem | null>(null);
+  const [selling, setSelling] = useState<WardrobeItem | null>(null);
+  const [saleSize, setSaleSize] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [saleCondition, setSaleCondition] = useState("good");
+  const [saleDescription, setSaleDescription] = useState("");
+  const {data: myListings = [], isLoading: listingsLoading} = useQuery({
+    queryKey:["preloved-mine"], queryFn:getMyPreLovedListings,
+  });
+  const draftSale = useMutation({
+    mutationFn: createPreLovedDraft,
+    onSuccess:() => {
+      client.invalidateQueries({queryKey:["preloved-mine"]});
+      setSelling(null); setSaleSize(""); setSalePrice(""); setSaleDescription(""); setError(null);
+    },
+    onError:(e:Error)=>setError(e.message),
+  });
+  const changeSaleStatus = useMutation({
+    mutationFn: ({id,status}:{id:string;status:"published"|"paused"|"withdrawn"})=>
+      setPreLovedStatus(id,status),
+    onSuccess:()=> {
+      client.invalidateQueries({queryKey:["preloved-mine"]});
+      client.invalidateQueries({queryKey:["preloved-browse"]});
+      setError(null);
+    },
+    onError:(e:Error)=>setError(e.message),
+  });
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
@@ -190,6 +216,61 @@ export default function WardrobeScreen() {
             <Text style={styles.note}>{capsule.possible_outfits.length} possible combinations from these pieces (not fit-verified).</Text>
           </View>}
         </View>
+        <Text style={styles.heading}>Pre-Loved · Optional</Text>
+        <Text style={styles.note}>Your personal stylist remains the focus. You can prepare a sale listing from an item you own, but it stays private until you explicitly publish. No photographs, personal details, chat or payments are shared.</Text>
+        {selling ? <View style={styles.form}>
+          <Text style={styles.heading}>Prepare a listing · {selling.name}</Text>
+          <Text style={styles.note}>Your garment details are reused. Buyers see text details only, not your private photograph or account information.</Text>
+          <TextInput testID="preloved-size" accessibilityLabel="Garment size" style={styles.input}
+            placeholder="Size (required)" placeholderTextColor="#888" maxLength={30}
+            value={saleSize} onChangeText={setSaleSize} />
+          <TextInput testID="preloved-price" accessibilityLabel="Asking price in Australian dollars" style={styles.input}
+            placeholder="Asking price AUD" placeholderTextColor="#888" keyboardType="decimal-pad"
+            value={salePrice} onChangeText={setSalePrice} />
+          <Text style={styles.note}>Garment condition</Text>
+          <View style={styles.chips}>{(["new with tags","like new","good","fair"] as const).map(value=>(
+            <Pressable key={value} accessibilityRole="button" accessibilityState={{selected:saleCondition===value}}
+              onPress={()=>setSaleCondition(value)} style={[styles.chip,saleCondition===value&&styles.active]}>
+              <Text style={styles.chipText}>{value}</Text>
+            </Pressable>
+          ))}</View>
+          <TextInput testID="preloved-description" accessibilityLabel="Garment description"
+            style={styles.input} multiline maxLength={500}
+            placeholder="Optional garment description. No contact details or links."
+            placeholderTextColor="#888" value={saleDescription} onChangeText={setSaleDescription}/>
+          <Pressable accessibilityRole="button" testID="preloved-save-draft"
+            style={[styles.button,(!saleSize.trim()||!salePrice||draftSale.isPending)&&styles.disabled]}
+            disabled={!saleSize.trim()||!salePrice||draftSale.isPending}
+            onPress={()=>draftSale.mutate({wardrobe_item_id:selling.id,size:saleSize.trim(),
+              price:Number(salePrice),condition:saleCondition,currency:"AUD",
+              description:saleDescription,delivery:"arrange later"})}>
+            <Text style={styles.buttonText}>{draftSale.isPending?"Saving…":"Save private draft"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={()=>setSelling(null)} style={{paddingVertical:12}}>
+            <Text style={styles.action}>Cancel listing</Text>
+          </Pressable>
+        </View>:null}
+        {listingsLoading?<ActivityIndicator accessibilityLabel="Loading your listing drafts"/>:null}
+        {myListings.map(listing=>(
+          <View key={listing.id} style={styles.form}>
+            <Text style={styles.itemName}>{items.find(x=>x.id===listing.wardrobe_item_id)?.name || "Wardrobe garment"} · {listing.status}</Text>
+            <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Size {listing.size}</Text>
+            {listing.status!=="withdrawn" ? <View style={styles.chips}>
+              {listing.status!=="published" ? <Pressable accessibilityRole="button"
+                disabled={changeSaleStatus.isPending}
+                onPress={()=>changeSaleStatus.mutate({id:listing.id,status:"published"})}
+                style={styles.chip}><Text style={styles.chipText}>Publish listing</Text></Pressable> : null}
+              {listing.status==="published" ? <Pressable accessibilityRole="button"
+                disabled={changeSaleStatus.isPending}
+                onPress={()=>changeSaleStatus.mutate({id:listing.id,status:"paused"})}
+                style={styles.chip}><Text style={styles.chipText}>Pause</Text></Pressable> : null}
+              <Pressable accessibilityRole="button" disabled={changeSaleStatus.isPending}
+                onPress={()=>changeSaleStatus.mutate({id:listing.id,status:"withdrawn"})}
+                style={styles.chip}><Text style={styles.chipText}>Withdraw listing</Text></Pressable>
+            </View>:null}
+            {listing.status==="draft" ? <Text style={styles.note}>Publishing shares the garment description and asking price with other signed-in users. Your photo and identity stay private.</Text>:null}
+          </View>
+        ))}
         <Text style={styles.heading}>Your pieces ({items.length})</Text>
         {editing ? <View style={styles.form}>
           <Text style={styles.heading}>Correct garment details</Text>
@@ -237,6 +318,10 @@ export default function WardrobeScreen() {
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
             <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
               <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" testID={`wardrobe-sell-${item.id}`}
+              onPress={()=>{setSelling(item);setSalePrice("");setSaleSize("");setSaleDescription("");setError(null);}}>
+              <Text style={styles.action}>Sell as Pre-Loved (optional)</Text>
             </Pressable>
             <Pressable accessibilityRole="button" testID={`wardrobe-edit-${item.id}`}
               onPress={() => { setEditing({...item}); setError(null); }}>
