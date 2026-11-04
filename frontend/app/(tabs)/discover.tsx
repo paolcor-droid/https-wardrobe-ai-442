@@ -479,6 +479,13 @@ export default function DiscoverScreen() {
                 ))}
               </View>
               <Text style={styles.note}>{look.reason}</Text>
+              {!look.purchase_required && look.owned_ids.length ? (
+                <Pressable accessibilityRole="button" testID={`mixed-outfit-try-${look.id}`}
+                  onPress={() => openOwnedOutfit(look.owned_ids)}
+                  style={{minHeight:44,padding:12,borderRadius:8,backgroundColor:"rgba(120,120,120,0.12)"}}>
+                  <Text style={styles.body}>Open owned garments in Virtual Try-On (up to two garments)</Text>
+                </Pressable>
+              ) : null}
               {!look.purchase_required ? (
                 <View style={{flexDirection:"row",flexWrap:"wrap",gap:10}}>
                   {(["liked","disliked","saved"] as const).map(reaction => (
