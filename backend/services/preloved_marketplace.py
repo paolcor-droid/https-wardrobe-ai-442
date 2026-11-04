@@ -40,7 +40,7 @@ def validate_listing(data: dict) -> dict:
     if not isinstance(description, str) or len(description) > 500:
         raise ValueError("Description is too long")
     # No direct contact exchange until moderated messaging and safety controls exist.
-    if re.search(r"(?:https?://|www\\.|@|\\b(?:\\+?\\d[ -]?){8,}\\d\\b)", description, re.I):
+    if re.search(r"(?:https?://|www\.|@|\b(?:\+?\d[ -]?){8,}\d\b)", description, re.I):
         raise ValueError("Do not include contact details or external links")
     if delivery != "arrange later":
         raise ValueError("Shipping and collection are not yet available")
@@ -52,7 +52,7 @@ def validate_listing(data: dict) -> dict:
 def _safe_public_text(value: object, max_length: int) -> str:
     """Never publish embedded contact links from private wardrobe labels."""
     text = str(value or "").strip()[:max_length]
-    if re.search(r"(?:https?://|www\\.|@|\\b(?:\\+?\\d[ -]?){8,}\\d\\b)", text, re.I):
+    if re.search(r"(?:https?://|www\.|@|\b(?:\+?\d[ -]?){8,}\d\b)", text, re.I):
         raise ValueError("Private contact details are not permitted in listings")
     return text
 
