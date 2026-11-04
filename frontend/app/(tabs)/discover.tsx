@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
@@ -47,6 +47,26 @@ export default function DiscoverScreen() {
     } catch (error) {
       setMixedFeedbackError(error instanceof Error ? error.message : "Could not save outfit feedback.");
     } finally { setMixedFeedbackBusy(null); }
+  };
+  const [preLovedError, setPreLovedError] = useState("");
+  const [preLovedOptInBusy, setPreLovedOptInBusy] = useState(false);
+  const {data: preLovedBrowse, isLoading: preLovedLoading, isError: preLovedBrowseError} = useQuery({
+    queryKey:["preloved-browse"], queryFn:browsePreLoved, enabled:Boolean(profile),
+  });
+  const optedIntoPreLoved = profile?.preferences?.preloved_alerts_opt_in === true;
+  const {data: preLovedPersonal, isLoading: preLovedMatching} = useQuery({
+    queryKey:["preloved-matches", profile?.updated_at],
+    queryFn:getPreLovedMatches, enabled:Boolean(profile)&&optedIntoPreLoved,
+  });
+  const togglePreLovedMatches = async () => {
+    if (!profile || preLovedOptInBusy) return;
+    setPreLovedOptInBusy(true); setPreLovedError("");
+    try {
+      await updateProfile({preferences:{...profile.preferences,preloved_alerts_opt_in:!optedIntoPreLoved}});
+      await queryClient.invalidateQueries({queryKey:["profile"]});
+      await queryClient.invalidateQueries({queryKey:["preloved-matches"]});
+    } catch(e) { setPreLovedError(e instanceof Error?e.message:"Could not update your preferences."); }
+    finally {setPreLovedOptInBusy(false);}
   };
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
   const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
@@ -502,6 +522,49 @@ export default function DiscoverScreen() {
             </View>
           ))}
           <Text style={styles.note}>Preview tiles show real wardrobe photographs and catalogue image references together; they are not a generated photograph of someone wearing the outfit. Open an owned look in Try-On to test fit visually.</Text>
+        </View>
+        <Text style={styles.section}>PRE-LOVED · OPTIONAL</Text>
+        <View style={styles.card}>
+          <Text style={styles.body}>Your stylist prioritises clothes you own. You can also discover second-hand garments shared by other members. This is a listing-only pilot: no direct messages, delivery, orders or payments.</Text>
+          <Pressable accessibilityRole="switch"
+            accessibilityState={{checked:optedIntoPreLoved,disabled:preLovedOptInBusy}}
+            testID="preloved-matches-opt-in"
+            disabled={preLovedOptInBusy} onPress={togglePreLovedMatches}
+            style={{padding:12,minHeight:44,borderWidth:1,borderRadius:8,borderColor:"rgba(128,128,128,0.4)"}}>
+            <Text style={styles.body}>{optedIntoPreLoved?"✓":"○"} Personalise Pre-Loved matches using my colour assessment and wardrobe</Text>
+          </Pressable>
+          <Text style={styles.note}>Matching is private and opt-in. Sellers cannot see your skin scan, wardrobe or identity. Suggestions are displayed here only; no unsolicited messages or push notifications are sent.</Text>
+          {preLovedError?<Text style={styles.error}>{preLovedError}</Text>:null}
+          {preLovedLoading||preLovedMatching?<ActivityIndicator accessibilityLabel="Loading optional Pre-Loved listings"/>:null}
+          {preLovedBrowseError?<Text style={styles.error}>Pre-Loved listings are unavailable.</Text>:null}
+          {optedIntoPreLoved && (preLovedPersonal?.matches?.length||0)>0 ? (
+            <View style={{gap:8}}>
+              <Text style={styles.body}>Matches selected for you</Text>
+              {preLovedPersonal?.matches?.slice(0,8).map(listing=>(
+                <View key={listing.id} style={{padding:12,borderWidth:1,borderRadius:8,borderColor:"rgba(128,128,128,0.25)",gap:6}}>
+                  <Text style={styles.body}>{listing.name} · {listing.colour} · Size {listing.size}</Text>
+                  <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Style match {listing.match_score}/100</Text>
+                  <Text style={styles.note}>{listing.match_reason}</Text>
+                  <Text style={styles.note}>Listing only · Seller contact and checkout unavailable</Text>
+                </View>
+              ))}
+            </View>
+          ):null}
+          {!optedIntoPreLoved ? <Text style={styles.note}>Enable matching above to see personally selected garments. You can still browse listings without sharing your style preferences with sellers.</Text>:null}
+          <Text style={styles.body}>Browse member listings</Text>
+          {(preLovedBrowse?.listings||[]).length===0 && !preLovedLoading && !preLovedBrowseError ?
+            <Text style={styles.note}>No published Pre-Loved listings available yet.</Text>:null}
+          {(preLovedBrowse?.listings||[]).slice(0,12).map(listing=>(
+            <View key={listing.id} style={{gap:4,borderTopWidth:1,borderColor:"rgba(128,128,128,0.2)",paddingVertical:10}}>
+              <Text style={styles.body}>{listing.name} · {listing.category} · {listing.colour}</Text>
+              <Text style={styles.note}>{listing.style?listing.style+" · ":""}Size {listing.size} · {listing.condition} · AUD {listing.price.toFixed(2)}</Text>
+              {listing.description?<Text style={styles.note}>{listing.description}</Text>:null}
+            </View>
+          ))}
+          <Pressable accessibilityRole="button" onPress={()=>router.push("/(tabs)/wardrobe" as any)}
+            style={{paddingVertical:12,minHeight:44,justifyContent:"center"}}>
+            <Text style={styles.body}>List something from My Wardrobe</Text>
+          </Pressable>
         </View>
         <Text style={styles.section}>CATALOGUE SOURCE</Text>
         <View style={styles.feedbackRow}>
