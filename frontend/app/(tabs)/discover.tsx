@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
+import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
@@ -30,6 +31,23 @@ export default function DiscoverScreen() {
   const { data: ownedWardrobe = [], isLoading: wardrobeLoading, isError: wardrobeError } = useQuery({
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
+  const { data: mixedSuggestions, isLoading: mixedLoading, isError: mixedError } = useQuery({
+    queryKey: ["mixed-wardrobe-outfits", ownedWardrobe.map(item=>item.id).join("|"), profile?.updated_at],
+    queryFn: getMixedWardrobeOutfits,
+    enabled: Boolean(profile) && ownedWardrobe.length > 0,
+  });
+  const [mixedFeedbackBusy, setMixedFeedbackBusy] = useState<string|null>(null);
+  const [mixedFeedbackError, setMixedFeedbackError] = useState("");
+  const reactToOwnedLook = async (ids:string[], reaction:"liked"|"disliked"|"saved") => {
+    if (mixedFeedbackBusy) return;
+    setMixedFeedbackBusy(ids.join("|")); setMixedFeedbackError("");
+    try {
+      await saveWardrobeOutfitFeedback(ids, reaction);
+      await queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]});
+    } catch (error) {
+      setMixedFeedbackError(error instanceof Error ? error.message : "Could not save outfit feedback.");
+    } finally { setMixedFeedbackBusy(null); }
+  };
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
   const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
     queryKey: ["wardrobe-outfits", ownedWardrobe.map(item => item.id).join("|"),
@@ -434,6 +452,49 @@ export default function DiscoverScreen() {
           <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/wardrobe" as any)} style={{ paddingVertical: 12 }}>
             <Text style={styles.body}>Manage my wardrobe</Text>
           </Pressable>
+        </View>
+        <Text style={styles.section}>BUILD A LOOK FROM WHAT YOU OWN</Text>
+        <View style={styles.card}>
+          <Text style={styles.body}>Owned items come first. Only missing garment types may be suggested from the supplier snapshot; prices and stock are not verified.</Text>
+          {mixedLoading ? <ActivityIndicator accessibilityLabel="Preparing wardrobe-first outfits" /> : null}
+          {mixedError ? <Text style={styles.error}>Wardrobe-first suggestions are temporarily unavailable.</Text> : null}
+          {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
+          {(mixedSuggestions?.outfits || []).slice(0, 6).map(look => (
+            <View key={look.id} style={{ gap: 10, paddingVertical: 14, borderTopWidth: 1, borderColor: "rgba(128,128,128,0.25)" }}>
+              <Text style={styles.body}>{look.purchase_required ? "Your wardrobe + a suggested missing piece" : "Complete look from clothes you own"} · {look.score}/100</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {look.owned_ids.map(id => {
+                  const item = ownedWardrobe.find(garment => garment.id === id);
+                  return item ? <View key={id} style={{ width: 106, gap: 4 }}>
+                    {item.image_path ? <AccountPhoto path={item.image_path} style={{width:106,height:126,borderRadius:8}} contentFit="contain" /> : null}
+                    <Text style={styles.note} numberOfLines={2}>{item.name} · Owned</Text>
+                  </View> : null;
+                })}
+                {look.suggested_products.map(product => (
+                  <View key={product.product_id} style={{ width: 106, gap: 4 }}>
+                    {product.image_url ? <Image source={{uri:product.image_url}} style={{width:106,height:126,borderRadius:8}} resizeMode="contain" /> : null}
+                    <Text style={styles.note} numberOfLines={3}>{product.name} · Suggested, not owned</Text>
+                    <Text style={styles.note}>Price and stock unverified</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.note}>{look.reason}</Text>
+              {!look.purchase_required ? (
+                <View style={{flexDirection:"row",flexWrap:"wrap",gap:10}}>
+                  {(["liked","disliked","saved"] as const).map(reaction => (
+                    <Pressable key={reaction} accessibilityRole="button"
+                      disabled={mixedFeedbackBusy !== null}
+                      testID={`wardrobe-look-${reaction}-${look.id}`}
+                      onPress={() => reactToOwnedLook(look.owned_ids,reaction)}
+                      style={{padding:12,minHeight:44,borderWidth:1,borderColor:"rgba(128,128,128,0.4)",borderRadius:8}}>
+                      <Text style={styles.body}>{reaction === "liked" ? "Like" : reaction === "disliked" ? "Not for me" : "Save idea"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ))}
+          <Text style={styles.note}>Preview tiles show real wardrobe photographs and catalogue image references together; they are not a generated photograph of someone wearing the outfit. Open an owned look in Try-On to test fit visually.</Text>
         </View>
         <Text style={styles.section}>CATALOGUE SOURCE</Text>
         <View style={styles.feedbackRow}>
