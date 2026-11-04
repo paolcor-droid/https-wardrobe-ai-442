@@ -1377,7 +1377,8 @@ def test_confirmed_wardrobe_corrections_recalculate_rankings_for_owner_only():
     assert client.get(endpoint,headers=b).json()["outfits"] == []
 
 
-def test_preloved_private_draft_publication_and_opt_in_matching_are_isolated():
+def test_preloved_private_draft_publication_and_opt_in_matching_are_isolated(monkeypatch):
+    monkeypatch.setenv("LUMIERE_PRELOVED_PUBLISH_ENABLED", "1")
     """End-to-end synthetic private wardrobe -> explicit listing -> private match."""
     db = Database()
     app = FastAPI()
@@ -1451,7 +1452,8 @@ def test_preloved_private_draft_publication_and_opt_in_matching_are_isolated():
     assert client.get("/api/account/preloved", headers=buyer).json()["listings"] == []
 
 
-def test_preloved_invalid_listing_content_and_deleted_wardrobe_unpublishes():
+def test_preloved_invalid_listing_content_and_deleted_wardrobe_unpublishes(monkeypatch):
+    monkeypatch.setenv("LUMIERE_PRELOVED_PUBLISH_ENABLED", "1")
     db = Database()
     app = FastAPI()
     app.include_router(configure_account_router(
@@ -1481,3 +1483,31 @@ def test_preloved_invalid_listing_content_and_deleted_wardrobe_unpublishes():
     assert client.get("/api/account/preloved/mine", headers=auth).json()[0]["status"] == "withdrawn"
     assert client.post(f'/api/account/preloved/{created["id"]}/status', headers=auth,
                        json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"}).status_code == 409
+
+
+def test_preloved_publishing_disabled_by_default_and_anonymous_requests_blocked(monkeypatch):
+    monkeypatch.delenv("LUMIERE_PRELOVED_PUBLISH_ENABLED", raising=False)
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/synthetic.png",
+        lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    creds = {"email": "preloved-gated@example.test", "password": "synthetic secure password"}
+    client.post("/api/account/register", json=creds)
+    token = client.post("/api/account/login", json=creds).json()["access_token"]
+    auth = {"Authorization": "Bearer " + token}
+    item = client.post("/api/account/wardrobe", headers=auth,
+                       json={"name": "Cream jacket", "category": "outerwear"}).json()
+    draft = client.post("/api/account/preloved", headers=auth, json={
+        "wardrobe_item_id": item["id"], "size": "M", "condition": "good",
+        "price": 20, "currency": "AUD", "delivery": "arrange later",
+    }).json()
+    assert client.get("/api/account/preloved/readiness").status_code == 401
+    assert client.get("/api/account/preloved/readiness", headers=auth).json()["publishing_enabled"] is False
+    publish = client.post(f'/api/account/preloved/{draft["id"]}/status', headers=auth,
+        json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"})
+    assert publish.status_code == 503
+    assert client.get("/api/account/preloved/mine", headers=auth).json()[0]["status"] == "draft"
