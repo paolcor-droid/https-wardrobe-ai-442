@@ -90,6 +90,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         raise RuntimeError("Public account API requires distributed rate limiting")
     shared_login = MongoRateLimiter(db.customer_rate_limits, "login", 5, 300) if distributed else None
     shared_recovery = MongoRateLimiter(db.customer_rate_limits, "recovery", 3, 3600) if distributed else None
+    recognition_throttle = LoginThrottle(attempts=20, window=86400)
+    shared_recognition = MongoRateLimiter(db.customer_rate_limits, "garment_recognition", 20, 86400) if distributed else None
 
     def browser_session(response, token):
         # Host-only cookies, never shared with unrelated domains.
@@ -1116,6 +1118,18 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         })
         if not photo or photo.get("generated") is True or photo.get("purpose") == "person":
             raise HTTPException(404, "Garment photograph not found")
+        # No automatic billable calls on upload. Limit explicit requests per account.
+        if shared_recognition:
+            try:
+                allowed = await shared_recognition.check_and_count(user_id)
+            except Exception as exc:
+                raise HTTPException(503, "Recognition quota temporarily unavailable") from exc
+            if not allowed:
+                raise HTTPException(429, "Daily garment recognition limit reached")
+        else:
+            if recognition_throttle.is_blocked(user_id):
+                raise HTTPException(429, "Daily garment recognition limit reached")
+            recognition_throttle.fail(user_id)
         # Never send a customer's image to a third party without an explicit
         # button press. Authentication and ownership are checked above.
         try:
