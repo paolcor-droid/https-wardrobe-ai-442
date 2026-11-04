@@ -26,6 +26,7 @@ export default function WardrobeScreen() {
   const [colour, setColour] = useState("");
   const [style, setStyle] = useState("");
   const [recognitionLoading, setRecognitionLoading] = useState(false);
+  const [autoRecognize, setAutoRecognize] = useState(false);
   const [recognitionMessage, setRecognitionMessage] = useState("");
   const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
@@ -56,12 +57,13 @@ export default function WardrobeScreen() {
       uploadedPhotoRef.current = path;
       setPhotoPath(path); setPhotoPreview(asset.uri);
       setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
+      if (autoRecognize) await recognizePhoto(path);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
     finally { setBusy(false); }
   };
-  const recognizePhoto = async () => {
-    if (!photoPath || recognitionLoading) return;
-    const requestedPath = photoPath;
+  const recognizePhoto = async (pathOverride?: string) => {
+    const requestedPath = pathOverride || photoPath;
+    if (!requestedPath || recognitionLoading) return;
     setRecognitionLoading(true); setRecognitionMessage("");
     try {
       const suggestion = await recognizeWardrobePhoto(requestedPath);
@@ -100,13 +102,18 @@ export default function WardrobeScreen() {
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 60 }}>
         <View style={styles.form}>
           <Text style={styles.heading}>Add something you own</Text>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: autoRecognize }}
+            onPress={() => setAutoRecognize(value => !value)}
+            style={{ paddingVertical: 12, minHeight: 44 }}>
+            <Text style={styles.note}>{autoRecognize ? "☑" : "☐"} Automatically analyse each new photo (opt-in; may incur AI usage charges)</Text>
+          </Pressable>
           <Pressable testID="wardrobe-add-photo" style={styles.photoButton} onPress={() => setSheetOpen(true)}>
             {photoPreview ? <Image source={{ uri: photoPreview }} style={styles.preview} contentFit="cover" /> : <Text style={styles.action}>+ Choose a garment photo</Text>}
           </Pressable>
           <Pressable testID="wardrobe-analyse-photo" accessibilityRole="button"
             disabled={!photoPath || busy || recognitionLoading || save.isPending}
             style={[styles.button, (!photoPath || busy || recognitionLoading) && styles.disabled]}
-            onPress={recognizePhoto}>
+            onPress={() => recognizePhoto()}>
             <Text style={styles.buttonText}>{recognitionLoading ? "Recognising garment…" : "Analyse photo · suggest details"}</Text>
           </Pressable>
           <Text style={styles.note}>Optional AI image recognition sends this photograph to the configured provider and may incur a usage charge. Nothing is saved until you confirm and tap Save.</Text>
