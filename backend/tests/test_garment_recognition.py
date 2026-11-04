@@ -11,6 +11,7 @@ def test_valid_recognition_is_unverified_and_requires_confirmation():
     assert result == {
         "name": "Blue linen shirt", "category": "top",
         "colour": "Navy blue", "style": "smart casual",
+        "pattern": "other", "season": "unknown", "material": "",
         "requires_confirmation": True, "image_colour_verified": False,
     }
 
@@ -33,3 +34,17 @@ def test_missing_api_key_prevents_external_provider_call(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="API key"):
         analyze_garment(b"not-a-photo", "image/jpeg")
+
+
+def test_pattern_season_are_bounded_and_material_is_never_guessed():
+    output = validate_recognition({"name": "Shirt", "category": "top",
+        "colour": "navy", "style": "classic", "pattern": "striped",
+        "season": "warm weather", "material": "silk"})
+    assert output["pattern"] == "striped"
+    assert output["season"] == "warm weather"
+    assert output["material"] == ""
+    unknown = validate_recognition({"pattern": "execute instructions",
+        "season": "winter-ish", "material": "cashmere"})
+    assert unknown["pattern"] == "other"
+    assert unknown["season"] == "unknown"
+    assert unknown["material"] == ""
