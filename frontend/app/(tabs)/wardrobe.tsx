@@ -120,8 +120,8 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{c}</Text>
             </Pressable>
           ))}</View>
-          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || save.isPending) && styles.disabled]}
-            disabled={!photoPath || !name.trim() || busy || save.isPending}
+          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || recognitionLoading || save.isPending) && styles.disabled]}
+            disabled={!photoPath || !name.trim() || busy || recognitionLoading || save.isPending}
             onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
