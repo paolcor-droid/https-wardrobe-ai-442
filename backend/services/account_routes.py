@@ -1271,6 +1271,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                       "updated_at": datetime.now(timezone.utc).isoformat()}})
         return {"id": listing_id, "status": new_status}
 
+    @router.get("/preloved/readiness")
+    async def pre_loved_readiness(user_id: str = Depends(current_user)):
+        """No payment, messaging or unmoderated public launch by default."""
+        return {
+            "publishing_enabled": os.environ.get("LUMIERE_PRELOVED_PUBLISH_ENABLED", "0") == "1",
+            "checkout_enabled": False, "payments_enabled": False,
+            "messaging_enabled": False, "push_notifications_enabled": False,
+            "notice": "Private drafts are available. Publishing is limited to approved pilot environments until moderation and trust workflows are verified.",
+        }
+
     @router.post("/preloved/{listing_id}/status")
     async def change_pre_loved_status(listing_id: str, payload: dict,
                                      user_id: str = Depends(current_user)):
@@ -1283,6 +1293,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         if current.get("status") == "withdrawn":
             raise HTTPException(409, "Listing has already been withdrawn")
         if desired == "published":
+            if os.environ.get("LUMIERE_PRELOVED_PUBLISH_ENABLED", "0") != "1":
+                raise HTTPException(503, "Pre-Loved publishing requires an approved pilot environment")
             if payload.get("confirmation") != "PUBLISH PRELOVED LISTING":
                 raise HTTPException(422, "Explicit publication consent required")
             garment = await db.customer_wardrobe.find_one(
