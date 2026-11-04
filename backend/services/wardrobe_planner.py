@@ -12,9 +12,15 @@ def _items(items):
     return [dict(item) for item in items if item.get("id") and item.get("name") and not item.get("deleted_at")]
 
 
-def plan_outfits(items, occasion="casual", climate="mild", limit=12):
-    """Offer diverse combinations without claiming visual fit or weather verification."""
-    if not 1 <= limit <= 100:
+def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
+                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None):
+    """Rank owned combinations by labelled colour, style and saved-scan evidence.
+
+    Use a bounded candidate pool; do not read garment pixels or infer fabric/fit.
+    Preserve variety of owned shoes when there is just one base outfit.
+    """
+    from services.wardrobe_compatibility import score_owned_outfit
+    if not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
     items = _items(items)
     tops = [x for x in items if x.get("category") == "top"]
@@ -22,39 +28,40 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12):
     dresses = [x for x in items if x.get("category") == "dress"]
     shoes = [x for x in items if x.get("category") == "shoes"]
     outer = [x for x in items if x.get("category") == "outerwear"]
+    # Bound work and avoid a 200-item wardrobe producing millions of sets.
+    bases = ([[top, bottom] for top in tops for bottom in bottoms] +
+             [[dress] for dress in dresses])[:1200]
     outfits = []
     seen = set()
-    candidates = ([top, bottom] for top in tops for bottom in bottoms)
-    candidates = list(candidates) + [[dress] for dress in dresses]
-    # With just one base outfit, suggest alternative owned shoes rather than
-    # silently discarding them. Bound the expansion by the requested limit.
-    if len(candidates) == 1 and len(shoes) > 1:
-        candidates = candidates * min(len(shoes), limit)
-    for index, base in enumerate(candidates):
-        chosen = list(base)
-        if shoes:
-            chosen.append(shoes[index % len(shoes)])
-        if climate == "cold" and outer:
-            chosen.append(outer[index % len(outer)])
-        ids = tuple(x["id"] for x in chosen)
-        if ids in seen:
-            continue
-        seen.add(ids)
-        names = [x["name"] for x in chosen]
-        outfits.append({
-            "item_ids": list(ids),
-            "names": names,
-            "reason": (
-                f"Try {' with '.join(names[:2])} for a {occasion} occasion. "
-                f"The {climate} setting is your preference, not a live forecast. "
-                "Check colour coordination, weather and fit yourself."
-            ),
-            "image_colour_verified": False,
-        })
-        if len(outfits) >= limit:
-            break
-    return outfits
-
+    for index, base in enumerate(bases):
+        shoe_options = shoes[:min(4, len(shoes))] if shoes else [None]
+        # When there are many base outfits, rotate the first shoe so all
+        # tied combinations do not just use the same accessory.
+        if len(bases) > 1 and shoes:
+            rotated = index % len(shoe_options)
+            shoe_options = shoe_options[rotated:] + shoe_options[:rotated]
+        for shoe in shoe_options:
+            chosen = list(base)
+            if shoe:
+                chosen.append(shoe)
+            if climate == "cold" and outer:
+                chosen.append(outer[index % len(outer)])
+            ids = tuple(x["id"] for x in chosen)
+            if ids in seen:
+                continue
+            seen.add(ids)
+            names = [x["name"] for x in chosen]
+            evidence = score_owned_outfit(
+                chosen, scan=scan, preferred_colours=preferred_colours,
+                avoided_colours=avoided_colours, preferred_style=preferred_style,
+                occasion=occasion, climate=climate)
+            outfits.append({
+                "item_ids": list(ids), "names": names,
+                "reason": " ".join(evidence["compatibility_reasons"]),
+                **evidence,
+            })
+    # Stable ranking: identical scores retain wardrobe creation order.
+    return sorted(outfits, key=lambda row: -row["compatibility_score"])[:limit]
 
 def wardrobe_insights(items):
     """Explain potential wardrobe duplication using user-entered labels only.
@@ -85,7 +92,8 @@ def wardrobe_insights(items):
     }
 
 
-def capsule_plan(items, occasion="casual", climate="mild", max_items=12):
+def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
+                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None):
     if not isinstance(max_items, int) or not 1 <= max_items <= 50:
         raise ValueError("max_items must be between 1 and 50")
     items = _items(items)
@@ -122,7 +130,10 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12):
         missing.append("a layer for colder weather")
     return {
         "items": [{"id": x["id"], "name": x["name"], "category": x.get("category"), "colour": x.get("colour", "")} for x in chosen],
-        "possible_outfits": plan_outfits(chosen, occasion, climate, limit=20),
+        "possible_outfits": plan_outfits(chosen, occasion, climate, limit=20, scan=scan,
+                                        preferred_colours=preferred_colours,
+                                        avoided_colours=avoided_colours,
+                                        preferred_style=preferred_style),
         "missing_categories": missing,
         "wardrobe_insights": wardrobe_insights(items),
         "notice": "Planning suggestions based on manually entered wardrobe labels, not live weather, visual garment verification or stock.",
