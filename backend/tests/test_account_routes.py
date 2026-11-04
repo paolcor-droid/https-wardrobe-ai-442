@@ -1291,3 +1291,44 @@ def test_garment_recognition_requires_owner_and_never_auto_saves():
     assert db.customer_wardrobe.docs == []
     # A second account cannot reuse recognition results or read the photo.
     assert client.get("/api/account/photos/synthetic-owned-photo", headers=headers[1]).status_code == 404
+
+
+def test_mixed_wardrobe_suggestions_and_reactions_are_account_isolated():
+    """Private API integration using only synthetic in-memory customer accounts."""
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/synthetic.png",
+        lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("mix-one@example.test", "mix-two@example.test"):
+        credentials = {"email": email, "password": "synthetic long password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        login = client.post("/api/account/login", json=credentials)
+        headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
+    a, b = headers
+    for name, category, colour in [
+        ("Navy shirt", "top", "navy"),
+        ("Cream trousers", "bottom", "cream"),
+    ]:
+        assert client.post("/api/account/wardrobe", headers=a, json={
+            "name": name, "category": category, "colour": colour, "style": "classic",
+        }).status_code == 201
+    outfits_a = client.get("/api/account/wardrobe/mixed-outfits", headers=a)
+    outfits_b = client.get("/api/account/wardrobe/mixed-outfits", headers=b)
+    assert outfits_a.status_code == 200 and outfits_a.json()["outfits"]
+    assert outfits_b.status_code == 200 and not outfits_b.json()["outfits"]
+    assert client.get("/api/account/wardrobe/mixed-outfits").status_code == 401
+    ids = outfits_a.json()["outfits"][0]["owned_ids"]
+    assert client.put("/api/account/wardrobe/outfit-feedback", headers=b, json={
+        "item_ids": ids, "sentiment": "liked",
+    }).status_code == 404
+    assert client.put("/api/account/wardrobe/outfit-feedback", headers=a, json={
+        "item_ids": ids, "sentiment": "saved",
+    }).status_code == 200
+    followup = client.get("/api/account/wardrobe/mixed-outfits", headers=a).json()
+    assert "feedback" in followup["outfits"][0]["reason"]
+    assert db.customer_feedback.docs[0]["user_id"] == client.get("/api/account/me", headers=a).json()["id"]
