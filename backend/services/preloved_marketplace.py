@@ -26,6 +26,9 @@ def validate_listing(data: dict) -> dict:
     currency = data.get("currency", "AUD")
     description = data.get("description", "")
     delivery = data.get("delivery", "arrange later")
+    swap_accepted = data.get("swap_accepted", False)
+    if type(swap_accepted) is not bool:
+        raise ValueError("Invalid swap preference")
     if not isinstance(size, str) or not 1 <= len(size.strip()) <= 30:
         raise ValueError("Enter a garment size")
     if condition not in CONDITIONS:
@@ -42,7 +45,8 @@ def validate_listing(data: dict) -> dict:
     if delivery != "arrange later":
         raise ValueError("Shipping and collection are not yet available")
     return {"size": size.strip(), "condition": condition, "price": round(price, 2),
-            "currency": "AUD", "description": description.strip(), "delivery": delivery}
+            "currency": "AUD", "description": description.strip(), "delivery": delivery,
+            "swap_accepted": swap_accepted}
 
 
 def _safe_public_text(value: object, max_length: int) -> str:
@@ -65,6 +69,7 @@ def public_listing(record: dict, garment: dict) -> dict:
         "size": safe(record["size"], 30), "condition": record["condition"],
         "price": record["price"], "currency": record["currency"],
         "description": safe(record.get("description", ""), 500),
+        "swap_accepted": record.get("swap_accepted") is True,
         "photo_available": False,  # Needs separate reviewed/public-media consent.
         "checkout_enabled": False, "messaging_enabled": False,
     }
