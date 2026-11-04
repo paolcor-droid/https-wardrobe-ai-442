@@ -271,6 +271,7 @@ export type Preferences = {
   preferred_colours: string[];
   avoided_colours: string[];
   preferred_retailers: string[];
+  preloved_alerts_opt_in?: boolean;
   shop_for: "mens" | "womens" | "all";
 };
 
