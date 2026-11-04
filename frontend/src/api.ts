@@ -539,7 +539,7 @@ export async function deleteWardrobeItem(id: string): Promise<void> {
   await accountRequest<{success: boolean}>(`/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean };
+export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; compatibility_score?: number; compatibility_reasons?: string[]; ranking_basis?: string };
 export type CapsulePlan = {
   items: Array<{ id: string; name: string; category: string; colour: string }>;
   possible_outfits: OutfitPlan[];
