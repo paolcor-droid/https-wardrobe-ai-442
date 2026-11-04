@@ -1183,7 +1183,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         items = await db.customer_wardrobe.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}
         ).to_list(200)
-        return {"outfits": plan_outfits(items, occasion=occasion, climate=climate)}
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        prefs = profile.get("preferences") or {}
+        return {"outfits": plan_outfits(items, occasion=occasion, climate=climate,
+                scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
+                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))}
 
     @router.post("/wardrobe/capsule")
     async def owned_capsule(payload: dict, user_id: str = Depends(current_user)):
@@ -1194,7 +1198,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         items = await db.customer_wardrobe.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}
         ).to_list(200)
-        return capsule_plan(items, occasion=occasion, climate=climate)
+        profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+        prefs = profile.get("preferences") or {}
+        return capsule_plan(items, occasion=occasion, climate=climate,
+                scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
+                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))
 
     @router.post("/photos", status_code=201)
     async def upload_photo(file: UploadFile = File(...), purpose: str = Form("unspecified"), user_id: str = Depends(current_user)):
