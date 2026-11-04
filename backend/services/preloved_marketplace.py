@@ -45,17 +45,26 @@ def validate_listing(data: dict) -> dict:
             "currency": "AUD", "description": description.strip(), "delivery": delivery}
 
 
+def _safe_public_text(value: object, max_length: int) -> str:
+    """Never publish embedded contact links from private wardrobe labels."""
+    text = str(value or "").strip()[:max_length]
+    if re.search(r"(?:https?://|www\\.|@|\\b(?:\\+?\\d[ -]?){8,}\\d\\b)", text, re.I):
+        raise ValueError("Private contact details are not permitted in listings")
+    return text
+
+
 def public_listing(record: dict, garment: dict) -> dict:
     """Allowlisted anonymised fields only. Never include photo paths or seller IDs."""
+    safe = lambda value, limit: _safe_public_text(value, limit)
     return {
-        "id": record["id"], "name": str(garment.get("name") or "")[:120],
-        "category": str(garment.get("category") or "")[:40],
-        "colour": str(garment.get("colour") or "")[:80],
-        "style": str(garment.get("style") or "")[:80],
-        "pattern": str(garment.get("pattern") or "")[:80],
-        "size": record["size"], "condition": record["condition"],
+        "id": record["id"], "name": safe(garment.get("name"), 120),
+        "category": safe(garment.get("category"), 40),
+        "colour": safe(garment.get("colour"), 80),
+        "style": safe(garment.get("style"), 80),
+        "pattern": safe(garment.get("pattern"), 80),
+        "size": safe(record["size"], 30), "condition": record["condition"],
         "price": record["price"], "currency": record["currency"],
-        "description": record.get("description", ""),
+        "description": safe(record.get("description", ""), 500),
         "photo_available": False,  # Needs separate reviewed/public-media consent.
         "checkout_enabled": False, "messaging_enabled": False,
     }
