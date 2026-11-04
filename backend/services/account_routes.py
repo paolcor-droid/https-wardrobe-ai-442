@@ -1166,6 +1166,33 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         item.pop("_id", None)
         return item
 
+    @router.patch("/wardrobe/{item_id}")
+    async def wardrobe_correct(item_id: str, payload: dict, user_id: str = Depends(current_user)):
+        """Allow a customer to correct confirmed labels; never change photo ownership."""
+        allowed = {"name", "category", "colour", "style", "pattern", "season", "material"}
+        categories = {"top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"}
+        if not isinstance(payload, dict) or not payload or set(payload) - allowed:
+            raise HTTPException(422, "Only confirmed garment labels can be edited")
+        updated = {}
+        for field, value in payload.items():
+            if not isinstance(value, str) or len(value) > (120 if field == "name" else 80):
+                raise HTTPException(422, "Invalid garment label")
+            cleaned = value.strip()
+            if field == "name" and not cleaned:
+                raise HTTPException(422, "Garment name cannot be empty")
+            if field == "category" and cleaned not in categories:
+                raise HTTPException(422, "Invalid garment category")
+            updated[field] = cleaned
+        result = await db.customer_wardrobe.update_one(
+            {"id": item_id, "user_id": user_id, "deleted_at": None},
+            {"$set": updated})
+        if not result.matched_count:
+            raise HTTPException(404, "Wardrobe garment not found")
+        record = await db.customer_wardrobe.find_one({
+            "id": item_id, "user_id": user_id, "deleted_at": None},
+            {"_id": 0})
+        return {key: value for key, value in record.items() if key not in {"_id", "user_id"}}
+
     @router.delete("/wardrobe/{item_id}")
     async def wardrobe_delete(item_id: str, user_id: str = Depends(current_user)):
         result = await db.customer_wardrobe.update_one(
