@@ -60,8 +60,20 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 "reason": " ".join(evidence["compatibility_reasons"]),
                 **evidence,
             })
-    # Stable ranking: identical scores retain wardrobe creation order.
-    return sorted(outfits, key=lambda row: -row["compatibility_score"])[:limit]
+    # Diversify the ranked set so one high-scoring shirt cannot consume all slots.
+    # Always keep the highest-ranked look; use a small repetition penalty afterwards.
+    ranked = sorted(outfits, key=lambda row: -row["compatibility_score"])
+    selected = []
+    used = Counter()
+    while ranked and len(selected) < limit:
+        index = max(range(len(ranked)), key=lambda i: (
+            ranked[i]["compatibility_score"] -
+            sum(9 * used[item_id] for item_id in ranked[i]["item_ids"]),
+            -i))
+        choice = ranked.pop(index)
+        selected.append(choice)
+        used.update(choice["item_ids"])
+    return selected
 
 def wardrobe_insights(items):
     """Explain potential wardrobe duplication using user-entered labels only.
