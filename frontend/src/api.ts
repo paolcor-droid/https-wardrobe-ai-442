@@ -569,6 +569,12 @@ export async function createPreLovedDraft(details:{
 }):Promise<PreLovedListing>{
   return accountRequest("/preloved", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(details)});
 }
+export async function getPreLovedReadiness():Promise<{
+  publishing_enabled:boolean;checkout_enabled:false;payments_enabled:false;
+  messaging_enabled:false;push_notifications_enabled:false;notice:string;
+}> {
+  return accountRequest("/preloved/readiness");
+}
 export async function getMyPreLovedListings():Promise<PreLovedListing[]> {
   return accountRequest("/preloved/mine");
 }
