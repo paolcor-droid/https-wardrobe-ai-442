@@ -81,6 +81,7 @@ class Database:
         self.customer_recovery = Collection()
         self.customer_profiles = Collection()
         self.customer_wardrobe = Collection()
+        self.customer_preloved = Collection()
         self.customer_photos = Collection()
         self.customer_feedback = Collection()
         self.customer_conversations = Collection()
@@ -1374,3 +1375,109 @@ def test_confirmed_wardrobe_corrections_recalculate_rankings_for_owner_only():
     after=client.get(endpoint, headers=a).json()["outfits"]
     assert after[0]["owned_ids"][0] == second["id"]
     assert client.get(endpoint,headers=b).json()["outfits"] == []
+
+
+def test_preloved_private_draft_publication_and_opt_in_matching_are_isolated():
+    """End-to-end synthetic private wardrobe -> explicit listing -> private match."""
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/synthetic.png",
+        lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("seller-preloved@example.test", "buyer-preloved@example.test"):
+        credentials = {"email": email, "password": "synthetic secure password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        login = client.post("/api/account/login", json=credentials)
+        headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
+    seller, buyer = headers
+    garment = client.post("/api/account/wardrobe", headers=seller, json={
+        "name": "Navy blazer", "category": "outerwear",
+        "colour": "navy", "style": "classic",
+    }).json()
+    assert client.post("/api/account/preloved", headers=buyer, json={
+        "wardrobe_item_id": garment["id"], "size": "M", "condition": "good",
+        "price": 65, "currency": "AUD", "delivery": "arrange later",
+    }).status_code == 404
+    create = client.post("/api/account/preloved", headers=seller, json={
+        "wardrobe_item_id": garment["id"], "size": "M", "condition": "good",
+        "price": 65, "currency": "AUD", "delivery": "arrange later",
+        "description": "Clean navy blazer",
+    })
+    assert create.status_code == 201, create.text
+    listing = create.json()
+    assert listing["status"] == "draft"
+    assert client.get("/api/account/preloved", headers=buyer).json()["listings"] == []
+    assert client.get("/api/account/preloved/mine", headers=buyer).json() == []
+    assert client.post(
+        f'/api/account/preloved/{listing["id"]}/status', headers=buyer,
+        json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"},
+    ).status_code == 404
+    assert client.post(
+        f'/api/account/preloved/{listing["id"]}/status', headers=seller,
+        json={"status": "published"},
+    ).status_code == 422
+    publish = client.post(
+        f'/api/account/preloved/{listing["id"]}/status', headers=seller,
+        json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"},
+    )
+    assert publish.status_code == 200, publish.text
+    public = client.get("/api/account/preloved", headers=buyer).json()["listings"]
+    assert len(public) == 1
+    assert public[0]["name"] == "Navy blazer"
+    assert public[0]["photo_available"] is False
+    assert public[0]["checkout_enabled"] is False
+    for private_key in ("user_id", "wardrobe_item_id", "image_path", "seller_id", "path"):
+        assert private_key not in public[0]
+    assert client.get("/api/account/preloved", headers=seller).json()["listings"] == []
+    assert client.get("/api/account/preloved/matches", headers=buyer).json()["matches"] == []
+    prefs = {"style": "classic", "preloved_alerts_opt_in": True,
+             "preferred_colours": ["navy"]}
+    assert client.put("/api/account/profile", headers=buyer,
+                      json={"preferences": prefs}).status_code == 200
+    match = client.get("/api/account/preloved/matches", headers=buyer)
+    assert match.status_code == 200, match.text
+    assert match.json()["enabled"] is True
+    assert match.json()["matches"][0]["name"] == "Navy blazer"
+    assert match.json()["matches"][0]["match_score"] >= 55
+    assert client.get("/api/account/preloved/matches", headers=seller).json()["enabled"] is False
+    assert client.post(
+        f'/api/account/preloved/{listing["id"]}/status', headers=seller,
+        json={"status": "withdrawn"},
+    ).status_code == 200
+    assert client.get("/api/account/preloved", headers=buyer).json()["listings"] == []
+
+
+def test_preloved_invalid_listing_content_and_deleted_wardrobe_unpublishes():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/synthetic.png",
+        lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    creds = {"email": "seller-two@example.test", "password": "synthetic secure password"}
+    client.post("/api/account/register", json=creds)
+    token = client.post("/api/account/login", json=creds).json()["access_token"]
+    auth = {"Authorization": "Bearer " + token}
+    garment = client.post("/api/account/wardrobe", headers=auth,
+                          json={"name": "Blue shirt", "category": "top", "colour": "blue"}).json()
+    base = {"wardrobe_item_id": garment["id"], "size": "L", "condition": "good",
+            "price": 40, "currency": "AUD", "delivery": "arrange later"}
+    for bad in ({"description": "email me at private@example.com"},
+                {"price": -1}, {"price": True}, {"size": ""}, {"condition": "excellent"},
+                {"delivery": "meet at my house"}):
+        result = client.post("/api/account/preloved", headers=auth, json={**base, **bad})
+        assert result.status_code == 422, result.text
+    assert db.customer_preloved.docs == []
+    created = client.post("/api/account/preloved", headers=auth, json=base).json()
+    assert client.post(f'/api/account/preloved/{created["id"]}/status', headers=auth,
+                       json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"}).status_code == 200
+    assert client.delete("/api/account/wardrobe/" + garment["id"], headers=auth).status_code == 200
+    assert client.get("/api/account/preloved/mine", headers=auth).json()[0]["status"] == "withdrawn"
+    assert client.post(f'/api/account/preloved/{created["id"]}/status', headers=auth,
+                       json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"}).status_code == 409
