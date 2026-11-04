@@ -1155,7 +1155,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
                 "colour": str(payload.get("colour", ""))[:80],
-                "style": str(payload.get("style", ""))[:80], "image_path": private_path,
+                "style": str(payload.get("style", ""))[:80],
+                "pattern": str(payload.get("pattern", ""))[:80],
+                "season": str(payload.get("season", ""))[:80],
+                "material": str(payload.get("material", ""))[:80],
+                "image_path": private_path,
                 "notes": str(payload.get("notes", ""))[:500],
                 "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
