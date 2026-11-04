@@ -543,7 +543,7 @@ export default function DiscoverScreen() {
               {preLovedPersonal?.matches?.slice(0,8).map(listing=>(
                 <View key={listing.id} style={{padding:12,borderWidth:1,borderRadius:8,borderColor:"rgba(128,128,128,0.25)",gap:6}}>
                   <Text style={styles.body}>{listing.name} · {listing.colour} · Size {listing.size}</Text>
-                  <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Style match {listing.match_score}/100</Text>
+                  <Text style={styles.note}>AUD {listing.price.toFixed(2)} · {listing.condition} · Style match {listing.match_score}/100{listing.swap_accepted?" · Open to swaps":""}</Text>
                   <Text style={styles.note}>{listing.match_reason}</Text>
                   <Text style={styles.note}>Listing only · Seller contact and checkout unavailable</Text>
                 </View>
@@ -557,7 +557,7 @@ export default function DiscoverScreen() {
           {(preLovedBrowse?.listings||[]).slice(0,12).map(listing=>(
             <View key={listing.id} style={{gap:4,borderTopWidth:1,borderColor:"rgba(128,128,128,0.2)",paddingVertical:10}}>
               <Text style={styles.body}>{listing.name} · {listing.category} · {listing.colour}</Text>
-              <Text style={styles.note}>{listing.style?listing.style+" · ":""}Size {listing.size} · {listing.condition} · AUD {listing.price.toFixed(2)}</Text>
+              <Text style={styles.note}>{listing.style?listing.style+" · ":""}Size {listing.size} · {listing.condition} · AUD {listing.price.toFixed(2)}{listing.swap_accepted?" · Open to swaps":""}</Text>
               {listing.description?<Text style={styles.note}>{listing.description}</Text>:null}
             </View>
           ))}
