@@ -541,6 +541,15 @@ export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "categor
   });
 }
 
+export async function correctWardrobeItem(
+  id: string, fields: Partial<Pick<WardrobeItem, "name"|"category"|"colour"|"style"|"pattern"|"season"|"material">>
+): Promise<WardrobeItem> {
+  return accountRequest<WardrobeItem>(`/wardrobe/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(fields),
+  });
+}
+
 export async function deleteWardrobeItem(id: string): Promise<void> {
   await accountRequest<{success: boolean}>(`/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
