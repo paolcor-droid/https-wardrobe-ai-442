@@ -559,13 +559,14 @@ export type PreLovedListing = {
   id:string; name?:string; wardrobe_item_id?:string;
   category?:string; colour?:string; style?:string; pattern?:string;
   size:string; condition:string; price:number; currency:"AUD"; description:string;
+  swap_accepted?:boolean;
   status?:"draft"|"published"|"paused"|"withdrawn";
   photo_available?:false; checkout_enabled?:false; messaging_enabled?:false;
 };
 export type PreLovedMatch = PreLovedListing & {match_score:number;match_reason:string};
 export async function createPreLovedDraft(details:{
   wardrobe_item_id:string; size:string; condition:string; price:number;
-  currency:"AUD"; description:string; delivery:"arrange later";
+  currency:"AUD"; description:string; delivery:"arrange later"; swap_accepted?:boolean;
 }):Promise<PreLovedListing>{
   return accountRequest("/preloved", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(details)});
 }
