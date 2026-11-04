@@ -539,6 +539,25 @@ export async function deleteWardrobeItem(id: string): Promise<void> {
   await accountRequest<{success: boolean}>(`/wardrobe/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export type MixedWardrobeOutfit = {
+  id: string;
+  owned_ids: string[];
+  suggested_products: Array<{product_id:string; name:string; category:string; image_url?:string|null; price?:number|null; currency?:string|null; price_verified:false; stock_verified:false}>;
+  score: number;
+  reason: string;
+  type: "all_owned" | "wardrobe_plus_catalogue";
+  purchase_required: boolean;
+};
+export async function getMixedWardrobeOutfits(): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
+  return accountRequest("/wardrobe/mixed-outfits");
+}
+export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"liked"|"disliked"|"saved"):Promise<{success:boolean}> {
+  return accountRequest("/wardrobe/outfit-feedback", {
+    method:"PUT", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({item_ids, sentiment}),
+  });
+}
+
 export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; compatibility_score?: number; compatibility_reasons?: string[]; ranking_basis?: string };
 export type CapsulePlan = {
   items: Array<{ id: string; name: string; category: string; colour: string }>;
