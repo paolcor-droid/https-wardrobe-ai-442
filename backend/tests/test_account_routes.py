@@ -1332,3 +1332,45 @@ def test_mixed_wardrobe_suggestions_and_reactions_are_account_isolated():
     followup = client.get("/api/account/wardrobe/mixed-outfits", headers=a).json()
     assert "feedback" in followup["outfits"][0]["reason"]
     assert db.customer_feedback.docs[0]["user_id"] == client.get("/api/account/me", headers=a).json()["id"]
+
+
+def test_confirmed_wardrobe_corrections_recalculate_rankings_for_owner_only():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"), lambda data, ext: data,
+        lambda *args: "local/synthetic.png",
+        lambda path: (b"synthetic", "image/png"),
+    ))
+    client = TestClient(app)
+    headers = []
+    for address in ("edit-one@example.test", "edit-two@example.test"):
+        credentials = {"email":address, "password":"long synthetic password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        headers.append({"Authorization":"Bearer " + token})
+    a, b = headers
+    first = client.post("/api/account/wardrobe", headers=a, json={
+        "name":"First shirt", "category":"top", "colour":"navy", "style":"classic",
+    }).json()
+    second = client.post("/api/account/wardrobe", headers=a, json={
+        "name":"Second shirt", "category":"top", "colour":"orange", "style":"casual",
+    }).json()
+    client.post("/api/account/wardrobe", headers=a, json={
+        "name":"Trousers", "category":"bottom", "colour":"cream", "style":"classic",
+    })
+    assert client.put("/api/account/profile", headers=a, json={
+        "preferences":{"style":"classic","avoided_colours":["orange"]},
+    }).status_code == 200
+    endpoint="/api/account/wardrobe/mixed-outfits"
+    before=client.get(endpoint, headers=a).json()["outfits"]
+    assert before[0]["owned_ids"][0] == first["id"]
+    url="/api/account/wardrobe/" + first["id"]
+    assert client.patch(url, headers=b, json={"colour":"orange"}).status_code == 404
+    assert client.patch(url, headers=a, json={"image_path":"private:other"}).status_code == 422
+    assert client.patch(url, headers=a, json={"colour":"orange", "style":"casual"}).status_code == 200
+    assert client.patch("/api/account/wardrobe/"+second["id"], headers=a,
+                        json={"colour":"navy","style":"classic"}).status_code == 200
+    after=client.get(endpoint, headers=a).json()["outfits"]
+    assert after[0]["owned_ids"][0] == second["id"]
+    assert client.get(endpoint,headers=b).json()["outfits"] == []
