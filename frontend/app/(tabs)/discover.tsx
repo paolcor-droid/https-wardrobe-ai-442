@@ -409,7 +409,7 @@ export default function DiscoverScreen() {
 
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
-          <Text style={styles.body}>Style the clothes you already own. These combinations use your saved garment names and categories, not the shopping catalogue.</Text>
+          <Text style={styles.body}>Style the clothes you already own. These combinations rank clothes you own using confirmed colour and style labels, your saved colour scan and your preferences—not the shopping catalogue.</Text>
           {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
           {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
@@ -421,7 +421,9 @@ export default function DiscoverScreen() {
           {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
             <View key={outfit.item_ids.join("|") + index} style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 12, gap: 7 }}>
               <Text style={styles.body}>{outfit.names.join(" + ")}</Text>
-              <Text style={styles.note}>From your wardrobe · Colours and fit are not image-verified</Text>
+              {typeof outfit.compatibility_score === "number" ? <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Relative style estimate</Text> : null}
+              <Text style={styles.note}>{outfit.reason}</Text>
+              <Text style={styles.note}>From your wardrobe · Actual colours and fit are not image-verified</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
                 testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
                 style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
