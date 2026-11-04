@@ -31,7 +31,7 @@ export default function DiscoverScreen() {
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
-  const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, refetch: refreshOwnedOutfits } = useQuery({
+  const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
     queryKey: ["wardrobe-outfits", ownedWardrobe.map(item => item.id).join("|"),
       profile?.preferences?.occasion, profile?.preferences?.climate],
     queryFn: () => getWardrobeOutfits(
@@ -416,6 +416,7 @@ export default function DiscoverScreen() {
             <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
           {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
             <Text style={styles.note}>No complete combinations yet. Add a top and bottom, or a dress, to start creating outfits.</Text> : null}
+          {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
           {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
             <View key={outfit.item_ids.join("|") + index} style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 12, gap: 7 }}>
