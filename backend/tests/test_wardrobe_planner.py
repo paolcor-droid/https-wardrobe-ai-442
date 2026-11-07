@@ -145,3 +145,70 @@ def test_capsule_passes_skin_scan_and_style_to_outfit_ranking():
                            preferred_style="romantic")
     assert capsule["possible_outfits"][0]["compatibility_score"] > 50
     assert "saved scan" in capsule["possible_outfits"][0]["reason"]
+
+
+def test_capsule_prefers_colour_compatible_top_over_alphabetical_first():
+    items = [
+        {"id": "orange", "name": "A orange shirt", "category": "top",
+         "colour": "orange", "style": "streetwear"},
+        {"id": "blue", "name": "Z navy shirt", "category": "top",
+         "colour": "navy", "style": "classic"},
+        {"id": "bottom", "name": "Cream trousers", "category": "bottom",
+         "colour": "cream", "style": "classic"},
+    ]
+    capsule = capsule_plan(
+        items, max_items=2,
+        scan={"best_neutrals": [{"name": "Navy"}, {"name": "Cream"}],
+              "caution_colours": [{"name": "Orange"}]},
+        preferred_style="classic",
+    )
+    assert {item["id"] for item in capsule["items"]} == {"blue", "bottom"}
+    assert capsule["possible_outfits"]
+    assert capsule["possible_outfits"][0]["item_ids"] == ["blue", "bottom"]
+
+
+def test_capsule_explains_missing_shoes_and_weather_layer():
+    items = [{"id": "top", "name": "Sweater", "category": "top", "season": "cool weather"},
+             {"id": "bottom", "name": "Trousers", "category": "bottom"}]
+    capsule = capsule_plan(items, climate="cold")
+    assert "shoes suited to your occasion" in capsule["missing_categories"]
+    assert "a layer for colder weather" in capsule["missing_categories"]
+    assert capsule["possible_outfits"]
+
+
+def test_owned_accessory_is_included_in_recommended_outfit():
+    items = [
+        {"id": "shirt", "name": "Shirt", "category": "top"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom"},
+        {"id": "shoes", "name": "Shoes", "category": "shoes"},
+        {"id": "belt", "name": "Belt", "category": "accessory"},
+    ]
+    outfits = plan_outfits(items, climate="mild")
+    assert len(outfits) == 1
+    assert outfits[0]["item_ids"] == ["shirt", "trousers", "shoes", "belt"]
+
+
+def test_cold_weather_outfit_includes_owned_layer_and_accessory():
+    items = [
+        {"id": "shirt", "name": "Shirt", "category": "top"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom"},
+        {"id": "coat", "name": "Coat", "category": "outerwear"},
+        {"id": "scarf", "name": "Scarf", "category": "accessory"},
+    ]
+    outfits = plan_outfits(items, climate="cold")
+    assert {"shirt", "trousers", "coat", "scarf"} == set(outfits[0]["item_ids"])
+    hot_outfits = plan_outfits(items, climate="hot")
+    assert "coat" not in hot_outfits[0]["item_ids"]
+
+
+def test_visually_duplicate_uploads_do_not_repeat_identical_looks():
+    items = [
+        {"id": "shirt1", "name": "Button-up shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "shirt2", "name": " Button-up  shirt ", "category": "top", "colour": "Navy", "style": "classic"},
+        {"id": "shirt3", "name": "Button-up shirt", "category": "top", "colour": "light blue", "style": "classic"},
+        {"id": "pants", "name": "Trousers", "category": "bottom", "colour": "grey"},
+    ]
+    outfits = plan_outfits(items)
+    assert len(outfits) == 2
+    assert {row["item_ids"][0] for row in outfits} <= {"shirt1", "shirt2", "shirt3"}
+    assert any(row["item_ids"][0] == "shirt3" for row in outfits)

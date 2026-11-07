@@ -49,7 +49,12 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
     elif bottoms and not tops and not dresses:
         missing, anchors = "top", bottoms
     elif (tops and bottoms or dresses) and not any(g.get("category") == "shoes" for g in owned):
-        missing, anchors = "shoes", (tops[:3] + bottoms[:3]) if tops and bottoms else dresses[:3]
+        missing = "shoes"
+        # Anchor shopping suggestions to an actual top+bottom or dress outfit.
+        # The previous list of tops followed by bottoms could select two tops.
+        by_id = {g["id"]: g for g in owned}
+        anchors = ([by_id[i] for i in complete[0]["item_ids"] if i in by_id]
+                   if complete else ([tops[0], bottoms[0]] if tops and bottoms else dresses[:1]))
     else:
         missing, anchors = None, []
     if missing:
@@ -85,8 +90,14 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
                 "score": score, "reason": " ".join(evidence["compatibility_reasons"]),
                 "type": "wardrobe_plus_catalogue", "purchase_required": True,
             })
-    # Keep owned-first suggestions at the front; do not promote shopping unnecessarily.
-    return {"outfits": results[:limit], "notice": (
-        "Owned garments are prioritised. Catalogue suggestions are snapshot-based; "
-        "availability, price and colour are unverified. No orders or payments."
+    # Reserve a small number of slots for missing-piece options when available.
+    # Otherwise 8 owned combinations can hide every suggestion for missing shoes.
+    # Owned looks always appear first and remain the majority.
+    owned_results = [row for row in results if not row["purchase_required"]]
+    gap_results = [row for row in results if row["purchase_required"]]
+    gap_count = min(len(gap_results), 2, max(0, limit - 1)) if owned_results else min(len(gap_results), limit)
+    shown = owned_results[:limit - gap_count] + gap_results[:gap_count]
+    return {"outfits": shown, "notice": (
+        "Owned garments are prioritised. Up to two optional matching pieces fill actual gaps. "
+        "Catalogue availability, price and colours are unverified. No orders or payments."
     )}

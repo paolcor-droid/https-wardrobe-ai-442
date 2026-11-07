@@ -275,7 +275,10 @@ export type Preferences = {
   shop_for: "mens" | "womens" | "all";
 };
 
+export type StylistWeatherSelection = { climate: "hot" | "mild" | "cold"; source: "local" | "manual"; observed_at: string };
+
 export type Profile = {
+  stylist_weather?: StylistWeatherSelection | null;
   id: string;
   favorite_colors: string[];
   styles: string[];
@@ -309,6 +312,15 @@ export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | 
     body: JSON.stringify(body),
   });
   return res;
+}
+
+export async function saveStylistWeather(
+  climate: "hot" | "mild" | "cold", source: "local" | "manual",
+): Promise<StylistWeatherSelection> {
+  return accountRequest("/stylist-weather", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({climate, source}),
+  });
 }
 
 export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
@@ -601,8 +613,13 @@ export type MixedWardrobeOutfit = {
   type: "all_owned" | "wardrobe_plus_catalogue";
   purchase_required: boolean;
 };
-export async function getMixedWardrobeOutfits(): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
-  return accountRequest("/wardrobe/mixed-outfits");
+export async function getMixedWardrobeOutfits(
+  climate?: "hot" | "mild" | "cold", occasion?: string,
+): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
+  const params = new URLSearchParams();
+  if (climate) params.set("climate", climate);
+  if (occasion) params.set("occasion", occasion);
+  return accountRequest("/wardrobe/mixed-outfits" + (params.toString() ? "?" + params.toString() : ""));
 }
 export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"liked"|"disliked"|"saved"):Promise<{success:boolean}> {
   return accountRequest("/wardrobe/outfit-feedback", {
@@ -689,6 +706,10 @@ export type CheckoutReadiness = {
 };
 export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<CheckoutReadiness> {
   return accountRequest<CheckoutReadiness>(`/checkout/readiness?country=${country}`);
+}
+
+export async function getOutfitPreviewStatus(): Promise<{enabled:boolean;daily_limit:number;notice:string}> {
+  return accountRequest("/outfit-preview-status");
 }
 
 /** Optional authenticated AI illustration; charged only on user action and cached per account/outfit. */

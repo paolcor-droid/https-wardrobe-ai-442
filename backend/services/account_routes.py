@@ -1104,6 +1104,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         await db.customer_profiles.update_one({"user_id": user_id}, {"$set": allowed}, upsert=True)
         return await get_profile(user_id)
 
+    @router.put("/stylist-weather")
+    async def save_stylist_weather(payload: dict, user_id: str = Depends(current_user)):
+        """Persist only the climate choice, never device coordinates or city."""
+        climate = payload.get("climate")
+        source = payload.get("source")
+        if climate not in {"hot", "mild", "cold"} or source not in {"local", "manual"}:
+            raise HTTPException(422, "Invalid styling weather selection")
+        selection = {
+            "climate": climate, "source": source,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.customer_profiles.update_one(
+            {"user_id": user_id}, {"$set": {"stylist_weather": selection}}, upsert=True)
+        return selection
+
     @router.get("/wardrobe")
     async def wardrobe(user_id: str = Depends(current_user)):
         return await db.customer_wardrobe.find({"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
@@ -1378,8 +1393,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))}
 
     @router.get("/wardrobe/mixed-outfits")
-    async def owned_first_outfits(user_id: str = Depends(current_user)):
-        """Account-scoped owned-first looks with optional safe catalogue gap filling."""
+    async def owned_first_outfits(
+        user_id: str = Depends(current_user),
+        climate: str | None = Query(default=None),
+        occasion: str | None = Query(default=None),
+    ):
+        """Account-scoped owned-first looks, optionally using active styling choices."""
+        if climate is not None and climate not in {"hot", "mild", "cold"}:
+            raise HTTPException(422, "Invalid climate")
+        if occasion is not None and (len(occasion) > 80 or not occasion.strip()):
+            raise HTTPException(422, "Invalid occasion")
         from services.wardrobe_mixed_outfits import mixed_outfits
         wardrobe = await db.customer_wardrobe.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
@@ -1392,8 +1415,13 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             except Exception:
                 logger.warning("Optional catalogue unavailable in owned-first planner")
         feedback = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        preferences = dict(profile.get("preferences") or {})
+        if climate is not None:
+            preferences["climate"] = climate
+        if occasion is not None:
+            preferences["occasion"] = occasion.strip()
         return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
-                             preferences=profile.get("preferences"), feedback=feedback)
+                             preferences=preferences, feedback=feedback)
 
     @router.put("/wardrobe/outfit-feedback")
     async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
@@ -1601,6 +1629,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         records = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(500)
         return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
 
+
+    @router.get("/outfit-preview-status")
+    async def outfit_preview_status(user_id: str = Depends(current_user)):
+        """Capability only; never expose credentials or consume generation quota."""
+        enabled = bool(os.environ.get("OPENAI_API_KEY")) and (
+            os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") == "1")
+        return {"enabled": enabled,
+                "daily_limit": max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20")))),
+                "notice": ("Model illustrations are optional AI-generated styling concepts."
+                           if enabled else "AI illustrations are unavailable on this server. Saved wardrobe photos remain usable.")}
 
     @router.get("/outfit-previews")
     async def list_outfit_previews(user_id: str = Depends(current_user)):

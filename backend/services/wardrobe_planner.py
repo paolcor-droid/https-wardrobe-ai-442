@@ -28,6 +28,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     dresses = [x for x in items if x.get("category") == "dress"]
     shoes = [x for x in items if x.get("category") == "shoes"]
     outer = [x for x in items if x.get("category") == "outerwear"]
+    accessories = [x for x in items if x.get("category") == "accessory"]
     # Bound work and avoid a 200-item wardrobe producing millions of sets.
     bases = ([[top, bottom] for top in tops for bottom in bottoms] +
              [[dress] for dress in dresses])[:1200]
@@ -46,6 +47,10 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 chosen.append(shoe)
             if climate == "cold" and outer:
                 chosen.append(outer[index % len(outer)])
+            # Accessorise owned looks when possible, but keep a single optional
+            # accessory to avoid expensive combinations or unnecessary layers.
+            if accessories:
+                chosen.append(accessories[index % len(accessories)])
             ids = tuple(x["id"] for x in chosen)
             if ids in seen:
                 continue
@@ -65,12 +70,26 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     ranked = sorted(outfits, key=lambda row: -row["compatibility_score"])
     selected = []
     used = Counter()
+    visible_combinations = set()
     while ranked and len(selected) < limit:
         index = max(range(len(ranked)), key=lambda i: (
             ranked[i]["compatibility_score"] -
             sum(9 * used[item_id] for item_id in ranked[i]["item_ids"]),
             -i))
         choice = ranked.pop(index)
+        # Different uploads with the same garment labels can otherwise make
+        # indistinguishable recommendations. Preserve distinct colours/styles.
+        by_id = {item["id"]: item for item in items}
+        signature = tuple(
+            (str(by_id[item_id].get("category") or "").casefold(),
+             " ".join(str(by_id[item_id].get("name") or "").casefold().split()),
+             " ".join(str(by_id[item_id].get("colour") or "").casefold().split()),
+             " ".join(str(by_id[item_id].get("style") or "").casefold().split()))
+            for item_id in choice["item_ids"]
+        )
+        if signature in visible_combinations:
+            continue
+        visible_combinations.add(signature)
         selected.append(choice)
         used.update(choice["item_ids"])
     return selected
@@ -110,8 +129,21 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
         raise ValueError("max_items must be between 1 and 50")
     items = _items(items)
     priority = {"top": 0, "bottom": 1, "dress": 2, "shoes": 3, "outerwear": 4, "accessory": 5, "other": 6}
+    # Select useful owned garments rather than alphabetical names. Full-outfit
+    # compatibility is ranked using the same confirmed labels, scan and style
+    # preferences as Discover, then balanced across garment categories.
+    ranked_looks = plan_outfits(
+        items, occasion, climate, limit=20, scan=scan,
+        preferred_colours=preferred_colours,
+        avoided_colours=avoided_colours,
+        preferred_style=preferred_style)
+    usefulness = Counter()
+    for rank, look in enumerate(ranked_looks):
+        for garment_id in look["item_ids"]:
+            usefulness[garment_id] += max(1, 20 - rank)
     groups = {}
-    for item in sorted(items, key=lambda x: (str(x.get("name") or "").casefold(), str(x["id"]))):
+    for item in sorted(items, key=lambda x: (
+            -usefulness[x["id"]], str(x.get("name") or "").casefold(), str(x["id"]))):
         groups.setdefault(item.get("category") or "other", []).append(item)
     # Take one from each relevant category first. The previous alphabetical
     # truncation could fill the entire capsule with tops, yielding no outfits.
@@ -148,5 +180,5 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
                                         preferred_style=preferred_style),
         "missing_categories": missing,
         "wardrobe_insights": wardrobe_insights(items),
-        "notice": "Planning suggestions based on manually entered wardrobe labels, not live weather, visual garment verification or stock.",
+        "notice": "Capsule selection favours pieces used in your highest-ranked compatible owned outfits, then balances garment types. Rankings use confirmed garment details, not verified fit, stock or fabric.",
     }

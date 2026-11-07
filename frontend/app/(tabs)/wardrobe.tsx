@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,18 +7,31 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, getPreLovedReadiness, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { getProfile, saveStylistWeather, uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, getPreLovedReadiness, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
 const CATEGORIES: WardrobeItem["category"][] = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
+// Stable empty value: an inline [] would trigger the planning effect on every render.
+const EMPTY_WARDROBE: WardrobeItem[] = [];
 
 export default function WardrobeScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const client = useQueryClient();
-  const { data: items = [], isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
+  const { data: wardrobeItems, isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
+  const items = wardrobeItems ?? EMPTY_WARDROBE;
+  const {data: profile} = useQuery({queryKey:["profile"], queryFn:getProfile});
+  const ownsTop = items.some(item => item.category === "top");
+  const ownsBottom = items.some(item => item.category === "bottom");
+  const ownsDress = items.some(item => item.category === "dress");
+  const ownsShoes = items.some(item => item.category === "shoes");
+  const canBuildOutfit = ownsDress || (ownsTop && ownsBottom);
+  const suggestedNextPiece = !items.length ? "your first garment"
+    : !ownsTop && !ownsDress ? "a top or dress"
+    : ownsTop && !ownsBottom && !ownsDress ? "a bottom to pair with your tops"
+    : !ownsShoes ? "shoes to complete your outfits" : "another piece you love";
   const [sheetOpen, setSheetOpen] = useState(false);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -31,6 +44,8 @@ export default function WardrobeScreen() {
   const [recognitionLoading, setRecognitionLoading] = useState(false);
   const [autoRecognize, setAutoRecognize] = useState(false);
   const [recognitionMessage, setRecognitionMessage] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
+  const [recognitionNeedsReview, setRecognitionNeedsReview] = useState(false);
   const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
   const [busy, setBusy] = useState(false);
@@ -38,6 +53,124 @@ export default function WardrobeScreen() {
   const [outfitSelection, setOutfitSelection] = useState<WardrobeItem[]>([]);
   const [occasion, setOccasion] = useState("casual");
   const [climate, setClimate] = useState<"hot" | "mild" | "cold">("mild");
+  const [weatherCity, setWeatherCity] = useState("");
+  const [weatherNote, setWeatherNote] = useState("Select weather manually or use local weather (optional).");
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const [weatherAuto, setWeatherAuto] = useState(false);
+  const [planningBusy, setPlanningBusy] = useState(false);
+  const planningRevision = useRef(0);
+  useEffect(() => {
+    const saved = profile?.stylist_weather;
+    if (!saved || client.getQueryData(["stylist-weather-selection"])) return;
+    if (!["hot", "mild", "cold"].includes(saved.climate)) return;
+    setClimate(saved.climate);
+    setWeatherAuto(saved.source === "local");
+    setWeatherNote("Restored saved " + saved.climate + " weather choice. Use my location to refresh current conditions.");
+    client.setQueryData(["stylist-weather-selection"], saved);
+  }, [profile?.stylist_weather?.observed_at, client]);
+  const persistWeather = async (selected: "hot" | "mild" | "cold", source: "local" | "manual") => {
+    try {
+      const saved = await saveStylistWeather(selected, source);
+      client.setQueryData(["stylist-weather-selection"], saved);
+      client.invalidateQueries({queryKey:["profile"]});
+    } catch {
+      setWeatherNote("Weather applied for this session, but could not save your choice. Try again later.");
+    }
+  };
+  const applyWeather = async (latitude: number, longitude: number, label: string) => {
+    // Reduce location precision before sending coordinates to the weather provider.
+    const lat = Math.round(latitude * 100) / 100;
+    const lon = Math.round(longitude * 100) / 100;
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+      "&longitude=" + lon +
+      "&current=apparent_temperature,temperature_2m,precipitation,wind_speed_10m&timezone=auto";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Weather service unavailable");
+    const current = (await response.json()).current;
+    if (!current || !Number.isFinite(current.apparent_temperature))
+      throw new Error("Current weather unavailable");
+    const feels = Number(current.apparent_temperature);
+    const selectedClimate = feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild";
+    setClimate(selectedClimate);
+    client.setQueryData(["stylist-weather-selection"], {climate: selectedClimate, source: "local", observed_at: new Date().toISOString()});
+    void persistWeather(selectedClimate, "local");
+    setWeatherAuto(true);
+    setWeatherNote(label + ": feels like " + Math.round(feels) + "°C; " +
+      (current.precipitation > 0 ? "rain reported" : "no rain reported") +
+      ". Recommendations will use these conditions.");
+  };
+  const updateCityWeather = async () => {
+    const city = weatherCity.trim();
+    if (city.length < 2 || city.length > 100) {
+      setWeatherNote("Enter a city name first, or choose Use my location.");
+      return;
+    }
+    setWeatherBusy(true);
+    try {
+      const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" +
+        encodeURIComponent(city) + "&count=1");
+      if (!response.ok) throw new Error("City search unavailable");
+      const place = (await response.json()).results?.[0];
+      if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude))
+        throw new Error("City not found");
+      await applyWeather(place.latitude, place.longitude, place.name);
+    } catch (error) {
+      setWeatherAuto(false);
+      setWeatherNote((error instanceof Error ? error.message : "Weather unavailable") +
+        ". You can still choose hot, mild or cold.");
+    } finally {
+      setWeatherBusy(false);
+    }
+  };
+  const updateDeviceWeather = async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setWeatherNote("Device location is not supported here. Enter a city instead.");
+      return;
+    }
+    setWeatherBusy(true);
+    setWeatherNote("Requesting location permission…");
+    try {
+      // Browsers require a secure context and user permission. No location is
+      // obtained on initial render or stored with the user's account.
+      const coords = await new Promise<{latitude: number; longitude: number}>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          position => resolve(position.coords),
+          reject,
+          {enableHighAccuracy: false, timeout: 12000, maximumAge: 600000},
+        );
+      });
+      await applyWeather(coords.latitude, coords.longitude, "Your area");
+    } catch (error) {
+      setWeatherAuto(false);
+      setWeatherNote("Location unavailable or permission denied. Enter a city or select weather manually.");
+    } finally {
+      setWeatherBusy(false);
+    }
+  };
+  // A primitive fingerprint avoids treating an unchanged query array as new data.
+  // In particular, no state updates should occur in effects while the wardrobe is empty.
+  const wardrobeFingerprint = JSON.stringify(items.map(item => [
+    item.id, item.category, item.colour, item.style, item.pattern, item.season, item.name
+  ]));
+  useEffect(() => {
+    if (!items.length) return;
+    const revision = ++planningRevision.current;
+    setPlanningBusy(true);
+    Promise.all([getWardrobeOutfits(occasion, climate), getCapsulePlan(occasion, climate)])
+      .then(([looks, cap]) => {
+        if (planningRevision.current !== revision) return;
+        setPlannedOutfits(looks.outfits);
+        setCapsule(cap);
+        setError(null);
+      })
+      .catch(error => {
+        if (planningRevision.current === revision)
+          setError(error instanceof Error ? error.message : "Could not refresh outfits");
+      })
+      .finally(() => { if (planningRevision.current === revision) setPlanningBusy(false); });
+    return () => { planningRevision.current++; };
+    // Depend only on stable primitive inputs, not query result array identity.
+  }, [occasion, climate, wardrobeFingerprint]);
   const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
   const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
   const [editing, setEditing] = useState<WardrobeItem | null>(null);
@@ -74,8 +207,11 @@ export default function WardrobeScreen() {
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
+      setSaveNotice("Saved " + name.trim() + " to your private wardrobe. Discover can now consider this garment in its recommendations.");
       client.invalidateQueries({ queryKey: ["wardrobe"] });
-      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setError(null);
+      client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
+      client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
+      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setRecognitionNeedsReview(false); setError(null);
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -94,15 +230,23 @@ export default function WardrobeScreen() {
   });
   const del = useMutation({
     mutationFn: deleteWardrobeItem,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["wardrobe"] }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["wardrobe"] });
+      client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
+      client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
+      setPlannedOutfits([]);
+      setCapsule(null);
+    },
     onError: (e: Error) => setError(e.message),
   });
   const onPicked = async (asset: PickResult) => {
-    setSheetOpen(false); setBusy(true); setError(null);
+    setSheetOpen(false); setBusy(true); setError(null); setSaveNotice("");
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type, "garment");
       uploadedPhotoRef.current = path;
-      setPhotoPath(path); setPhotoPreview(asset.uri);
+      setPhotoPath(path); setPhotoPreview(asset.uri); setRecognitionNeedsReview(false);
+      // Never carry recognised labels from a previous photo onto a new garment.
+      setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setCategory("top");
       setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
       if (autoRecognize) await recognizePhoto(path);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
@@ -122,7 +266,8 @@ export default function WardrobeScreen() {
       if (suggestion.style && suggestion.style !== "other") setStyle(suggestion.style);
       if (suggestion.pattern && suggestion.pattern !== "other") setPattern(suggestion.pattern);
       if (suggestion.season && suggestion.season !== "unknown") setSeason(suggestion.season);
-      setRecognitionMessage("AI suggestions applied. Please verify the category, colour and style, then save only if correct.");
+      setRecognitionNeedsReview(true);
+      setRecognitionMessage("AI suggestions are ready. Review each field and confirm before saving.");
     } catch (e) {
       if (uploadedPhotoRef.current === requestedPath) setRecognitionMessage(
         "Recognition unavailable. You can enter garment details manually. No details were saved.");
@@ -151,6 +296,7 @@ export default function WardrobeScreen() {
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 60 }}>
         <View style={styles.form}>
           <Text style={styles.heading}>Add something you own</Text>
+          <Text style={styles.note}>1. Choose a garment photo. 2. Analyse it (optional) or enter its details. 3. Confirm any AI suggestions and save. LUMIÈRE then uses the saved garment for styling.</Text>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: autoRecognize }}
             onPress={() => setAutoRecognize(value => !value)}
             style={{ paddingVertical: 12, minHeight: 44 }}>
@@ -167,6 +313,10 @@ export default function WardrobeScreen() {
           </Pressable>
           <Text style={styles.note}>Optional AI image recognition sends this photograph to the configured provider and may incur a usage charge. Nothing is saved until you confirm and tap Save.</Text>
           {recognitionMessage ? <Text accessibilityLiveRegion="polite" style={styles.note}>{recognitionMessage}</Text> : null}
+          {recognitionNeedsReview ? <Pressable accessibilityRole="button" testID="wardrobe-confirm-recognition"
+            style={styles.button} onPress={() => { setRecognitionNeedsReview(false); setRecognitionMessage("Garment details confirmed. You can save this garment."); }}>
+            <Text style={styles.buttonText}>Confirm category, colour and style</Text>
+          </Pressable> : null}
           <TextInput testID="wardrobe-name" style={styles.input} value={name} onChangeText={setName} placeholder="Name, e.g. linen shirt" placeholderTextColor="#888" maxLength={120} />
           <TextInput testID="wardrobe-colour" style={styles.input} value={colour} onChangeText={setColour} placeholder="Colour (optional)" placeholderTextColor="#888" maxLength={80} />
           <TextInput testID="wardrobe-style" style={styles.input} value={style} onChangeText={setStyle} placeholder="Style (e.g. casual, business, formal)" placeholderTextColor="#888" maxLength={80} />
@@ -179,11 +329,19 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{c}</Text>
             </Pressable>
           ))}</View>
-          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || recognitionLoading || save.isPending) && styles.disabled]}
-            disabled={!photoPath || !name.trim() || busy || recognitionLoading || save.isPending}
+          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending) && styles.disabled]}
+            disabled={!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending}
             onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
+          {saveNotice ? <View style={styles.planned}>
+            <Text accessibilityLiveRegion="polite" style={styles.itemName}>{saveNotice}</Text>
+            <Text style={styles.note}>Suggested next addition: {suggestedNextPiece}.</Text>
+            <Pressable accessibilityRole="button" testID="wardrobe-open-discover-after-save"
+              style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+              <Text style={styles.buttonText}>See outfit suggestions in Discover</Text>
+            </Pressable>
+          </View> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Text style={styles.note}>Removing an item hides its wardrobe record; uploaded photos are not yet permanently erased from storage.</Text>
         </View>
@@ -191,9 +349,25 @@ export default function WardrobeScreen() {
           <Text style={styles.heading}>Plan what to wear</Text>
           <TextInput style={styles.input} value={occasion} onChangeText={setOccasion} placeholder="Occasion (e.g. work, weekend)" placeholderTextColor="#888" maxLength={80} />
           <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
-            <Pressable key={value} onPress={() => setClimate(value)} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
+            <Pressable key={value} onPress={() => { setClimate(value); client.setQueryData(["stylist-weather-selection"], {climate: value, source: "manual", observed_at: new Date().toISOString()}); void persistWeather(value, "manual"); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
           ))}</View>
-          <Text style={styles.note}>Choose a climate preference. Live weather is not connected.</Text>
+          <Pressable accessibilityRole="button" testID="wardrobe-use-device-weather"
+            disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
+            onPress={updateDeviceWeather}>
+            <Text style={styles.buttonText}>{weatherBusy ? "Checking local weather…" : "Use my location automatically"}</Text>
+          </Pressable>
+          <Text style={styles.note}>Optional. Your browser will ask permission. Approximate coordinates are sent to Open-Meteo only after you tap the button. LUMIÈRE does not save your GPS coordinates.</Text>
+          <TextInput accessibilityLabel="City for weather-based outfits" style={styles.input}
+            value={weatherCity} onChangeText={setWeatherCity} placeholder="City (optional, e.g. Brisbane)"
+            placeholderTextColor="#888" maxLength={100} />
+          <Pressable accessibilityRole="button" testID="wardrobe-check-weather"
+            disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
+            onPress={updateCityWeather}>
+            <Text style={styles.buttonText}>{weatherBusy ? "Checking weather…" : "Find weather for this city"}</Text>
+          </Pressable>
+          <Text accessibilityLiveRegion="polite" style={styles.note}>{weatherNote}</Text>
+          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from last local weather check)" : " (manual)"}. Saved choices persist across reloads; refresh your location for current weather. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
+          {planningBusy ? <ActivityIndicator accessibilityLabel="Updating wardrobe recommendations" /> : null}
           <Pressable testID="wardrobe-plan-outfits" style={styles.button} onPress={async () => {
             try { const result = await getWardrobeOutfits(occasion, climate); setPlannedOutfits(result.outfits); setError(null); }
             catch (e) { setError(e instanceof Error ? e.message : "Planning failed"); }
@@ -202,6 +376,22 @@ export default function WardrobeScreen() {
             try { setCapsule(await getCapsulePlan(occasion, climate)); setError(null); }
             catch (e) { setError(e instanceof Error ? e.message : "Capsule planning failed"); }
           }}><Text style={styles.buttonText}>Build capsule wardrobe</Text></Pressable>
+          {items.length === 0 ? <Text style={styles.note}>Your wardrobe is empty. Upload your first garment above to start personalised styling.</Text> : null}
+          {items.length > 0 && !canBuildOutfit ?
+            <View style={styles.planned}>
+              <Text style={styles.itemName}>Complete your first outfit</Text>
+              <Text style={styles.note}>You have {items.length} saved piece{items.length === 1 ? "" : "s"}. Add {suggestedNextPiece} to build an owned outfit, or open Discover to explore suggestions for missing garments.</Text>
+              <Pressable accessibilityRole="button" testID="wardrobe-discover-missing-piece"
+                style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+                <Text style={styles.buttonText}>Explore matching pieces in Discover</Text>
+              </Pressable>
+            </View> : null}
+          {items.length > 0 && canBuildOutfit && plannedOutfits.length === 0 && !planningBusy ?
+            <Text style={styles.note}>No outfit combinations were returned. Check your confirmed garment categories, then try Suggest outfits again.</Text> : null}
+          {plannedOutfits.length > 0 ? <Pressable accessibilityRole="button" testID="wardrobe-view-discover-outfits"
+            style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+            <Text style={styles.buttonText}>View ranked looks in Discover</Text>
+          </Pressable> : null}
           {plannedOutfits.map((outfit, index) => <View key={index} style={styles.planned}>
             <Text style={styles.itemName}>{outfit.names.join(" + ")}</Text>
             {typeof outfit.compatibility_score === "number" ?
@@ -217,6 +407,7 @@ export default function WardrobeScreen() {
             <Text style={styles.note}>{capsule.items.map((item) => item.name).join(" · ") || "Add wardrobe items to begin."}</Text>
             <Text style={styles.itemName}>Pieces to consider</Text>
             <Text style={styles.note}>{capsule.missing_categories.join(" · ") || "No basic category gaps identified."}</Text>
+            <Text style={styles.note}>These gaps are suggestions, not an instruction to purchase. Existing clothes come first.</Text>
             <Text style={styles.note}>{capsule.possible_outfits.length} possible combinations from these pieces (not fit-verified).</Text>
           </View>}
         </View>
