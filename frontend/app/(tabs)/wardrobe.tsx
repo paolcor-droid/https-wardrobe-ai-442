@@ -31,6 +31,7 @@ export default function WardrobeScreen() {
   const [recognitionLoading, setRecognitionLoading] = useState(false);
   const [autoRecognize, setAutoRecognize] = useState(false);
   const [recognitionMessage, setRecognitionMessage] = useState("");
+  const [recognitionNeedsReview, setRecognitionNeedsReview] = useState(false);
   const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
   const [busy, setBusy] = useState(false);
@@ -128,7 +129,7 @@ export default function WardrobeScreen() {
       client.invalidateQueries({ queryKey: ["wardrobe"] });
       client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
       client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
-      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setError(null);
+      setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setRecognitionNeedsReview(false); setError(null);
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -159,7 +160,7 @@ export default function WardrobeScreen() {
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type, "garment");
       uploadedPhotoRef.current = path;
-      setPhotoPath(path); setPhotoPreview(asset.uri);
+      setPhotoPath(path); setPhotoPreview(asset.uri); setRecognitionNeedsReview(false);
       setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
       if (autoRecognize) await recognizePhoto(path);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
@@ -179,7 +180,8 @@ export default function WardrobeScreen() {
       if (suggestion.style && suggestion.style !== "other") setStyle(suggestion.style);
       if (suggestion.pattern && suggestion.pattern !== "other") setPattern(suggestion.pattern);
       if (suggestion.season && suggestion.season !== "unknown") setSeason(suggestion.season);
-      setRecognitionMessage("AI suggestions applied. Please verify the category, colour and style, then save only if correct.");
+      setRecognitionNeedsReview(true);
+      setRecognitionMessage("AI suggestions are ready. Review each field and confirm before saving.");
     } catch (e) {
       if (uploadedPhotoRef.current === requestedPath) setRecognitionMessage(
         "Recognition unavailable. You can enter garment details manually. No details were saved.");
@@ -224,6 +226,10 @@ export default function WardrobeScreen() {
           </Pressable>
           <Text style={styles.note}>Optional AI image recognition sends this photograph to the configured provider and may incur a usage charge. Nothing is saved until you confirm and tap Save.</Text>
           {recognitionMessage ? <Text accessibilityLiveRegion="polite" style={styles.note}>{recognitionMessage}</Text> : null}
+          {recognitionNeedsReview ? <Pressable accessibilityRole="button" testID="wardrobe-confirm-recognition"
+            style={styles.button} onPress={() => { setRecognitionNeedsReview(false); setRecognitionMessage("Garment details confirmed. You can save this garment."); }}>
+            <Text style={styles.buttonText}>Confirm category, colour and style</Text>
+          </Pressable> : null}
           <TextInput testID="wardrobe-name" style={styles.input} value={name} onChangeText={setName} placeholder="Name, e.g. linen shirt" placeholderTextColor="#888" maxLength={120} />
           <TextInput testID="wardrobe-colour" style={styles.input} value={colour} onChangeText={setColour} placeholder="Colour (optional)" placeholderTextColor="#888" maxLength={80} />
           <TextInput testID="wardrobe-style" style={styles.input} value={style} onChangeText={setStyle} placeholder="Style (e.g. casual, business, formal)" placeholderTextColor="#888" maxLength={80} />
@@ -236,8 +242,8 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{c}</Text>
             </Pressable>
           ))}</View>
-          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || busy || recognitionLoading || save.isPending) && styles.disabled]}
-            disabled={!photoPath || !name.trim() || busy || recognitionLoading || save.isPending}
+          <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending) && styles.disabled]}
+            disabled={!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending}
             onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
