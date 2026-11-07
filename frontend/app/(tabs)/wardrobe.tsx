@@ -43,38 +43,77 @@ export default function WardrobeScreen() {
   const [occasion, setOccasion] = useState("casual");
   const [climate, setClimate] = useState<"hot" | "mild" | "cold">("mild");
   const [weatherCity, setWeatherCity] = useState("");
-  const [weatherNote, setWeatherNote] = useState("Select weather manually, or look up a city (optional).");
+  const [weatherNote, setWeatherNote] = useState("Select weather manually or use local weather (optional).");
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [weatherAuto, setWeatherAuto] = useState(false);
   const [planningBusy, setPlanningBusy] = useState(false);
   const planningRevision = useRef(0);
+  const applyWeather = async (latitude: number, longitude: number, label: string) => {
+    // Reduce location precision before sending coordinates to the weather provider.
+    const lat = Math.round(latitude * 100) / 100;
+    const lon = Math.round(longitude * 100) / 100;
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+      "&longitude=" + lon +
+      "&current=apparent_temperature,temperature_2m,precipitation,wind_speed_10m&timezone=auto";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Weather service unavailable");
+    const current = (await response.json()).current;
+    if (!current || !Number.isFinite(current.apparent_temperature))
+      throw new Error("Current weather unavailable");
+    const feels = Number(current.apparent_temperature);
+    setClimate(feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild");
+    setWeatherAuto(true);
+    setWeatherNote(label + ": feels like " + Math.round(feels) + "°C; " +
+      (current.precipitation > 0 ? "rain reported" : "no rain reported") +
+      ". Recommendations will use these conditions.");
+  };
   const updateCityWeather = async () => {
     const city = weatherCity.trim();
-    if (city.length < 2 || city.length > 100) { setWeatherNote("Enter a city name first."); return; }
+    if (city.length < 2 || city.length > 100) {
+      setWeatherNote("Enter a city name first, or choose Use my location.");
+      return;
+    }
     setWeatherBusy(true);
     try {
-      // Weather lookups are explicit, so no precise device location is transmitted.
-      const search = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(city) + "&count=1");
-      if (!search.ok) throw new Error("City search unavailable");
-      const place = (await search.json()).results?.[0];
-      if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) throw new Error("City not found");
-      const url = "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude +
-        "&longitude=" + place.longitude +
-        "&current=apparent_temperature,temperature_2m,precipitation,wind_speed_10m&timezone=auto";
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Forecast unavailable");
-      const data = (await response.json()).current;
-      if (!data || !Number.isFinite(data.apparent_temperature)) throw new Error("No current weather returned");
-      const feels = Number(data.apparent_temperature);
-      setClimate(feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild");
-      setWeatherAuto(true);
-      setWeatherNote(place.name + ": feels like " + Math.round(feels) + "°C, " +
-        (data.precipitation > 0 ? "rain reported" : "no rain reported") +
-        ". Weather-derived outfits will update below.");
+      const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" +
+        encodeURIComponent(city) + "&count=1");
+      if (!response.ok) throw new Error("City search unavailable");
+      const place = (await response.json()).results?.[0];
+      if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude))
+        throw new Error("City not found");
+      await applyWeather(place.latitude, place.longitude, place.name);
     } catch (error) {
       setWeatherAuto(false);
-      setWeatherNote((error instanceof Error ? error.message : "Weather unavailable") + ". Use the manual weather buttons.");
-    } finally { setWeatherBusy(false); }
+      setWeatherNote((error instanceof Error ? error.message : "Weather unavailable") +
+        ". You can still choose hot, mild or cold.");
+    } finally {
+      setWeatherBusy(false);
+    }
+  };
+  const updateDeviceWeather = async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setWeatherNote("Device location is not supported here. Enter a city instead.");
+      return;
+    }
+    setWeatherBusy(true);
+    setWeatherNote("Requesting location permission…");
+    try {
+      // Browsers require a secure context and user permission. No location is
+      // obtained on initial render or stored with the user's account.
+      const coords = await new Promise<{latitude: number; longitude: number}>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          position => resolve(position.coords),
+          reject,
+          {enableHighAccuracy: false, timeout: 12000, maximumAge: 600000},
+        );
+      });
+      await applyWeather(coords.latitude, coords.longitude, "Your area");
+    } catch (error) {
+      setWeatherAuto(false);
+      setWeatherNote("Location unavailable or permission denied. Enter a city or select weather manually.");
+    } finally {
+      setWeatherBusy(false);
+    }
   };
   // A primitive fingerprint avoids treating an unchanged query array as new data.
   // In particular, no state updates should occur in effects while the wardrobe is empty.
@@ -268,16 +307,22 @@ export default function WardrobeScreen() {
           <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
             <Pressable key={value} onPress={() => { setClimate(value); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
           ))}</View>
+          <Pressable accessibilityRole="button" testID="wardrobe-use-device-weather"
+            disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
+            onPress={updateDeviceWeather}>
+            <Text style={styles.buttonText}>{weatherBusy ? "Checking local weather…" : "Use my location automatically"}</Text>
+          </Pressable>
+          <Text style={styles.note}>Optional. Your browser will ask permission. Approximate coordinates are sent to Open-Meteo only after you tap the button. LUMIÈRE does not save your GPS coordinates.</Text>
           <TextInput accessibilityLabel="City for weather-based outfits" style={styles.input}
             value={weatherCity} onChangeText={setWeatherCity} placeholder="City (optional, e.g. Brisbane)"
             placeholderTextColor="#888" maxLength={100} />
           <Pressable accessibilityRole="button" testID="wardrobe-check-weather"
             disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
             onPress={updateCityWeather}>
-            <Text style={styles.buttonText}>{weatherBusy ? "Checking weather…" : "Use current city weather"}</Text>
+            <Text style={styles.buttonText}>{weatherBusy ? "Checking weather…" : "Find weather for this city"}</Text>
           </Pressable>
           <Text accessibilityLiveRegion="polite" style={styles.note}>{weatherNote}</Text>
-          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from city weather)" : " (manual)"}. Change it at any time. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
+          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from local weather)" : " (manual)"}. Change it at any time. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
           {planningBusy ? <ActivityIndicator accessibilityLabel="Updating wardrobe recommendations" /> : null}
           <Pressable testID="wardrobe-plan-outfits" style={styles.button} onPress={async () => {
             try { const result = await getWardrobeOutfits(occasion, climate); setPlannedOutfits(result.outfits); setError(null); }
