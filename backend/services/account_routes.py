@@ -1378,8 +1378,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))}
 
     @router.get("/wardrobe/mixed-outfits")
-    async def owned_first_outfits(user_id: str = Depends(current_user)):
-        """Account-scoped owned-first looks with optional safe catalogue gap filling."""
+    async def owned_first_outfits(
+        user_id: str = Depends(current_user),
+        climate: str | None = Query(default=None),
+        occasion: str | None = Query(default=None),
+    ):
+        """Account-scoped owned-first looks, optionally using active styling choices."""
+        if climate is not None and climate not in {"hot", "mild", "cold"}:
+            raise HTTPException(422, "Invalid climate")
+        if occasion is not None and (len(occasion) > 80 or not occasion.strip()):
+            raise HTTPException(422, "Invalid occasion")
         from services.wardrobe_mixed_outfits import mixed_outfits
         wardrobe = await db.customer_wardrobe.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
@@ -1392,8 +1400,13 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             except Exception:
                 logger.warning("Optional catalogue unavailable in owned-first planner")
         feedback = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        preferences = dict(profile.get("preferences") or {})
+        if climate is not None:
+            preferences["climate"] = climate
+        if occasion is not None:
+            preferences["occasion"] = occasion.strip()
         return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
-                             preferences=profile.get("preferences"), feedback=feedback)
+                             preferences=preferences, feedback=feedback)
 
     @router.put("/wardrobe/outfit-feedback")
     async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
