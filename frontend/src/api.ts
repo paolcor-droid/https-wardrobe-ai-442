@@ -601,8 +601,13 @@ export type MixedWardrobeOutfit = {
   type: "all_owned" | "wardrobe_plus_catalogue";
   purchase_required: boolean;
 };
-export async function getMixedWardrobeOutfits(): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
-  return accountRequest("/wardrobe/mixed-outfits");
+export async function getMixedWardrobeOutfits(
+  climate?: "hot" | "mild" | "cold", occasion?: string,
+): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
+  const params = new URLSearchParams();
+  if (climate) params.set("climate", climate);
+  if (occasion) params.set("occasion", occasion);
+  return accountRequest("/wardrobe/mixed-outfits" + (params.toString() ? "?" + params.toString() : ""));
 }
 export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"liked"|"disliked"|"saved"):Promise<{success:boolean}> {
   return accountRequest("/wardrobe/outfit-feedback", {
