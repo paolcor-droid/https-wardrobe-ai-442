@@ -174,3 +174,28 @@ def test_capsule_explains_missing_shoes_and_weather_layer():
     assert "shoes suited to your occasion" in capsule["missing_categories"]
     assert "a layer for colder weather" in capsule["missing_categories"]
     assert capsule["possible_outfits"]
+
+
+def test_owned_accessory_is_included_in_recommended_outfit():
+    items = [
+        {"id": "shirt", "name": "Shirt", "category": "top"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom"},
+        {"id": "shoes", "name": "Shoes", "category": "shoes"},
+        {"id": "belt", "name": "Belt", "category": "accessory"},
+    ]
+    outfits = plan_outfits(items, climate="mild")
+    assert len(outfits) == 1
+    assert outfits[0]["item_ids"] == ["shirt", "trousers", "shoes", "belt"]
+
+
+def test_cold_weather_outfit_includes_owned_layer_and_accessory():
+    items = [
+        {"id": "shirt", "name": "Shirt", "category": "top"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom"},
+        {"id": "coat", "name": "Coat", "category": "outerwear"},
+        {"id": "scarf", "name": "Scarf", "category": "accessory"},
+    ]
+    outfits = plan_outfits(items, climate="cold")
+    assert {"shirt", "trousers", "coat", "scarf"} == set(outfits[0]["item_ids"])
+    hot_outfits = plan_outfits(items, climate="hot")
+    assert "coat" not in hot_outfits[0]["item_ids"]
