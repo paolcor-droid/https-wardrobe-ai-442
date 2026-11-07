@@ -1104,6 +1104,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         await db.customer_profiles.update_one({"user_id": user_id}, {"$set": allowed}, upsert=True)
         return await get_profile(user_id)
 
+    @router.put("/stylist-weather")
+    async def save_stylist_weather(payload: dict, user_id: str = Depends(current_user)):
+        """Persist only the climate choice, never device coordinates or city."""
+        climate = payload.get("climate")
+        source = payload.get("source")
+        if climate not in {"hot", "mild", "cold"} or source not in {"local", "manual"}:
+            raise HTTPException(422, "Invalid styling weather selection")
+        selection = {
+            "climate": climate, "source": source,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.customer_profiles.update_one(
+            {"user_id": user_id}, {"$set": {"stylist_weather": selection}}, upsert=True)
+        return selection
+
     @router.get("/wardrobe")
     async def wardrobe(user_id: str = Depends(current_user)):
         return await db.customer_wardrobe.find({"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
