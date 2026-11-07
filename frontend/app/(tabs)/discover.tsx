@@ -477,18 +477,7 @@ export default function DiscoverScreen() {
               style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 14, gap: 10 }}>
               <Text style={styles.body}>Look {index + 1} · {garments.map(g => [g.colour, g.name].filter(Boolean).join(" ")).join(" + ")}</Text>
               <Text style={styles.note}>Relative style score: {outfit.compatibility_score ?? "—"}/100 (capped estimate; not a perfect-fit guarantee)</Text>
-              <View style={{flexDirection:"row", flexWrap:"wrap", gap:10}}>
-                {garments.map(garment => (
-                  <View key={garment.id} style={{width:108, gap:4}}>
-                    {garment.image_path ?
-                      <AccountPhoto path={garment.image_path} style={{width:108,height:135,borderRadius:8}} contentFit="contain" />
-                      : <View style={{width:108,height:135,backgroundColor:"rgba(120,120,120,0.12)",borderRadius:8,justifyContent:"center",padding:8}}><Text style={styles.note}>No garment photo</Text></View>}
-                    <Text style={styles.note} numberOfLines={3}>{garment.name} · {garment.colour || "Colour not labelled"}</Text>
-                    <Text style={styles.note}>{garment.category} · Owned</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.note}>Your actual saved garments are shown above. The optional generated model illustration below uses confirmed garment descriptions and may not reproduce the exact garments.</Text>
+              <Text style={styles.note}>Optional model illustration, followed by the actual uploaded garment photographs below. The illustration uses confirmed descriptions and may not reproduce exact garments.</Text>
               {(() => {
                 const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
                 const descriptions = garments.slice(0, 5).map(g => ({name: g.name.slice(0,100), colour: (g.colour || "neutral").slice(0,40)}));
@@ -531,6 +520,17 @@ export default function DiscoverScreen() {
                   {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
                 </View>;
               })()}
+              <View style={{flexDirection:"row", flexWrap:"wrap", gap:10}}>
+                {garments.map(garment => (
+                  <View key={garment.id} style={{width:108, gap:4}}>
+                    {garment.image_path ?
+                      <AccountPhoto path={garment.image_path} style={{width:108,height:135,borderRadius:8}} contentFit="contain" />
+                      : <View style={{width:108,height:135,backgroundColor:"rgba(120,120,120,0.12)",borderRadius:8,justifyContent:"center",padding:8}}><Text style={styles.note}>No garment photo</Text></View>}
+                    <Text style={styles.note} numberOfLines={3}>{garment.name} · {garment.colour || "Colour not labelled"}</Text>
+                    <Text style={styles.note}>{garment.category} · Owned</Text>
+                  </View>
+                ))}
+              </View>
               {!hasShoes ? <Text style={styles.note}>Complete this look: add shoes in Wardrobe or review compatible suggestions below.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>An accessory can optionally finish the look.</Text> : null}
