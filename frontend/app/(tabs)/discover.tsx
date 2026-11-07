@@ -573,9 +573,11 @@ export default function DiscoverScreen() {
           {mixedLoading ? <ActivityIndicator accessibilityLabel="Preparing wardrobe-first outfits" /> : null}
           {mixedError ? <Text style={styles.error}>Wardrobe-first suggestions are temporarily unavailable.</Text> : null}
           {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
-          {(mixedSuggestions?.outfits || []).slice(0, 6).map(look => (
+          {(mixedSuggestions?.outfits || []).slice(0, 8).map(look => (
             <View key={look.id} style={{ gap: 10, paddingVertical: 14, borderTopWidth: 1, borderColor: "rgba(128,128,128,0.25)" }}>
-              <Text style={styles.body}>{look.purchase_required ? "Your wardrobe + a suggested missing piece" : "Complete look from clothes you own"}</Text>
+              <Text style={styles.body}>{look.purchase_required
+                ? "Optional matching piece to complete your outfit"
+                : "Complete look from your wardrobe"}</Text>
               <Text style={styles.note}>Relative styling score: {look.score}/100 · capped estimate, not a fit guarantee</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {look.owned_ids.map(id => {
