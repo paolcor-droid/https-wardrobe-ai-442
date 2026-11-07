@@ -7,7 +7,7 @@ import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 import { makeStyles, fonts } from "@/src/theme";
-import { uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, getPreLovedReadiness, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
+import { getProfile, saveStylistWeather, uploadImage, fileUrl, listWardrobe, addWardrobeItem, recognizeWardrobePhoto, correctWardrobeItem, deleteWardrobeItem, createPreLovedDraft, getMyPreLovedListings, getPreLovedReadiness, setPreLovedStatus, getWardrobeOutfits, getCapsulePlan, type OutfitPlan, type CapsulePlan, type WardrobeItem } from "@/src/api";
 import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
@@ -22,6 +22,7 @@ export default function WardrobeScreen() {
   const client = useQueryClient();
   const { data: wardrobeItems, isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
   const items = wardrobeItems ?? EMPTY_WARDROBE;
+  const {data: profile} = useQuery({queryKey:["profile"], queryFn:getProfile});
   const ownsTop = items.some(item => item.category === "top");
   const ownsBottom = items.some(item => item.category === "bottom");
   const ownsDress = items.some(item => item.category === "dress");
@@ -58,6 +59,24 @@ export default function WardrobeScreen() {
   const [weatherAuto, setWeatherAuto] = useState(false);
   const [planningBusy, setPlanningBusy] = useState(false);
   const planningRevision = useRef(0);
+  useEffect(() => {
+    const saved = profile?.stylist_weather;
+    if (!saved || client.getQueryData(["stylist-weather-selection"])) return;
+    if (!["hot", "mild", "cold"].includes(saved.climate)) return;
+    setClimate(saved.climate);
+    setWeatherAuto(saved.source === "local");
+    setWeatherNote("Restored saved " + saved.climate + " weather choice. Use my location to refresh current conditions.");
+    client.setQueryData(["stylist-weather-selection"], saved);
+  }, [profile?.stylist_weather?.observed_at, client]);
+  const persistWeather = async (selected: "hot" | "mild" | "cold", source: "local" | "manual") => {
+    try {
+      const saved = await saveStylistWeather(selected, source);
+      client.setQueryData(["stylist-weather-selection"], saved);
+      client.invalidateQueries({queryKey:["profile"]});
+    } catch {
+      setWeatherNote("Weather applied for this session, but could not save your choice. Try again later.");
+    }
+  };
   const applyWeather = async (latitude: number, longitude: number, label: string) => {
     // Reduce location precision before sending coordinates to the weather provider.
     const lat = Math.round(latitude * 100) / 100;
@@ -73,7 +92,8 @@ export default function WardrobeScreen() {
     const feels = Number(current.apparent_temperature);
     const selectedClimate = feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild";
     setClimate(selectedClimate);
-    client.setQueryData(["stylist-weather-selection"], {climate: selectedClimate, source: "local", observed_at: Date.now()});
+    client.setQueryData(["stylist-weather-selection"], {climate: selectedClimate, source: "local", observed_at: new Date().toISOString()});
+    void persistWeather(selectedClimate, "local");
     setWeatherAuto(true);
     setWeatherNote(label + ": feels like " + Math.round(feels) + "°C; " +
       (current.precipitation > 0 ? "rain reported" : "no rain reported") +
@@ -329,7 +349,7 @@ export default function WardrobeScreen() {
           <Text style={styles.heading}>Plan what to wear</Text>
           <TextInput style={styles.input} value={occasion} onChangeText={setOccasion} placeholder="Occasion (e.g. work, weekend)" placeholderTextColor="#888" maxLength={80} />
           <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
-            <Pressable key={value} onPress={() => { setClimate(value); client.setQueryData(["stylist-weather-selection"], {climate: value, source: "manual", observed_at: Date.now()}); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
+            <Pressable key={value} onPress={() => { setClimate(value); client.setQueryData(["stylist-weather-selection"], {climate: value, source: "manual", observed_at: new Date().toISOString()}); void persistWeather(value, "manual"); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
           ))}</View>
           <Pressable accessibilityRole="button" testID="wardrobe-use-device-weather"
             disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
@@ -346,7 +366,7 @@ export default function WardrobeScreen() {
             <Text style={styles.buttonText}>{weatherBusy ? "Checking weather…" : "Find weather for this city"}</Text>
           </Pressable>
           <Text accessibilityLiveRegion="polite" style={styles.note}>{weatherNote}</Text>
-          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from local weather)" : " (manual)"}. Change it at any time. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
+          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from last local weather check)" : " (manual)"}. Saved choices persist across reloads; refresh your location for current weather. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
           {planningBusy ? <ActivityIndicator accessibilityLabel="Updating wardrobe recommendations" /> : null}
           <Pressable testID="wardrobe-plan-outfits" style={styles.button} onPress={async () => {
             try { const result = await getWardrobeOutfits(occasion, climate); setPlannedOutfits(result.outfits); setError(null); }
