@@ -453,7 +453,7 @@ export default function DiscoverScreen() {
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
             <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
           {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
-            <Text style={styles.note}>No complete combinations yet. Add a top and bottom, or a dress, to start creating outfits.</Text> : null}
+            <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
           {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
