@@ -223,6 +223,8 @@ export default function WardrobeScreen() {
       const path = await uploadImage(asset.uri, asset.name, asset.type, "garment");
       uploadedPhotoRef.current = path;
       setPhotoPath(path); setPhotoPreview(asset.uri); setRecognitionNeedsReview(false);
+      // Never carry recognised labels from a previous photo onto a new garment.
+      setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setCategory("top");
       setRecognitionMessage("Photo uploaded. Analyse it to suggest garment details, or complete the fields yourself.");
       if (autoRecognize) await recognizePhoto(path);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
