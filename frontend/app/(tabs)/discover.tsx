@@ -488,7 +488,49 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
-              <Text style={styles.note}>Your actual saved garments shown together as an outfit board; not a generated photograph of a model wearing them.</Text>
+              <Text style={styles.note}>Your actual saved garments are shown above. The optional generated model illustration below uses confirmed garment descriptions and may not reproduce the exact garments.</Text>
+              {(() => {
+                const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
+                const descriptions = garments.slice(0, 5).map(g => ({name: g.name.slice(0,100), colour: (g.colour || "neutral").slice(0,40)}));
+                const previewKey = previewGarmentKey(presentation, descriptions);
+                const image = outfitPreviewImages[previewKey];
+                const requestId = "owned:" + outfit.item_ids.join("|").slice(0,135);
+                return <View style={{gap:8}}>
+                  {image ? <Image source={{uri:image}} resizeMode="contain"
+                    accessibilityLabel="AI illustration of a model wearing a concept based on your labelled garments"
+                    style={{width:"100%",maxWidth:390,alignSelf:"center",height:390,borderRadius:8,backgroundColor:"#f4f4f2"}} /> : null}
+                  <Text style={styles.note}>{image ? "Saved AI model concept · not an exact virtual fitting" : "Optional: see an illustrative full-outfit image on a generic adult model. Private wardrobe photos are NOT sent as image references."}</Text>
+                  <Pressable accessibilityRole="button"
+                    disabled={outfitPreviewLoading !== null || descriptions.length < 2}
+                    testID={`owned-preview-${index}`}
+                    onPress={async () => {
+                      setOutfitPreviewLoading(requestId);
+                      setOutfitPreviewErrors(old => ({...old,[requestId]:""}));
+                      try {
+                        const result = await generateOutfitPreview({
+                          outfit_id: requestId,
+                          presentation,
+                          garments: descriptions,
+                          reference_images: [],
+                          force_regenerate: false,
+                        });
+                        setOutfitPreviewImages(old => ({...old,[previewKey]:result.image}));
+                      } catch (e) {
+                        const message = e instanceof Error ? e.message : "";
+                        setOutfitPreviewErrors(old => ({...old,[requestId]:
+                          message.includes("503") ? "AI image previews are disabled on this server." :
+                          message.includes("429") ? "Daily AI preview limit reached." :
+                          "Could not create a model illustration. Your wardrobe photos are still available above."}));
+                      } finally {
+                        setOutfitPreviewLoading(null);
+                      }
+                    }}
+                    style={{padding:12,minHeight:44,justifyContent:"center",borderRadius:8,backgroundColor:"rgba(120,120,120,0.12)"}}>
+                    <Text style={styles.body}>{outfitPreviewLoading === requestId ? "Preparing AI model concept…" : image ? "Show saved model concept" : "Generate full-outfit model concept (optional AI usage)"}</Text>
+                  </Pressable>
+                  {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
+                </View>;
+              })()}
               {!hasShoes ? <Text style={styles.note}>Complete this look: add shoes in Wardrobe or review compatible suggestions below.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>An accessory can optionally finish the look.</Text> : null}
