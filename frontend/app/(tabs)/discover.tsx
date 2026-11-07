@@ -32,7 +32,7 @@ export default function DiscoverScreen() {
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
   const { data: mixedSuggestions, isLoading: mixedLoading, isError: mixedError } = useQuery({
-    queryKey: ["mixed-wardrobe-outfits", ownedWardrobe.map(item=>item.id).join("|"), profile?.updated_at],
+    queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at],
     queryFn: getMixedWardrobeOutfits,
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
@@ -521,7 +521,7 @@ export default function DiscoverScreen() {
               ) : null}
             </View>
           ))}
-          <Text style={styles.note}>Preview tiles show real wardrobe photographs and catalogue image references together; they are not a generated photograph of someone wearing the outfit. Open an owned look in Try-On to test fit visually.</Text>
+          <Text style={styles.note}>Owned garments are ranked first using your confirmed colours, styles and personal palette. Product images are supplier references, not verified stock. For generated model previews, see the full-outfit recommendations below; personal Try-On is separate and optional.</Text>
         </View>
         <Text style={styles.section}>PRE-LOVED · OPTIONAL</Text>
         <View style={styles.card}>
