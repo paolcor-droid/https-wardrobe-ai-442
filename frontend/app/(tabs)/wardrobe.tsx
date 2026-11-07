@@ -22,6 +22,15 @@ export default function WardrobeScreen() {
   const client = useQueryClient();
   const { data: wardrobeItems, isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
   const items = wardrobeItems ?? EMPTY_WARDROBE;
+  const ownsTop = items.some(item => item.category === "top");
+  const ownsBottom = items.some(item => item.category === "bottom");
+  const ownsDress = items.some(item => item.category === "dress");
+  const ownsShoes = items.some(item => item.category === "shoes");
+  const canBuildOutfit = ownsDress || (ownsTop && ownsBottom);
+  const suggestedNextPiece = !items.length ? "your first garment"
+    : !ownsTop && !ownsDress ? "a top or dress"
+    : ownsTop && !ownsBottom && !ownsDress ? "a bottom to pair with your tops"
+    : !ownsShoes ? "shoes to complete your outfits" : "another piece you love";
   const [sheetOpen, setSheetOpen] = useState(false);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -34,6 +43,7 @@ export default function WardrobeScreen() {
   const [recognitionLoading, setRecognitionLoading] = useState(false);
   const [autoRecognize, setAutoRecognize] = useState(false);
   const [recognitionMessage, setRecognitionMessage] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
   const [recognitionNeedsReview, setRecognitionNeedsReview] = useState(false);
   const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
@@ -175,6 +185,7 @@ export default function WardrobeScreen() {
   const save = useMutation({
     mutationFn: addWardrobeItem,
     onSuccess: () => {
+      setSaveNotice("Saved " + name.trim() + " to your private wardrobe. Discover can now consider this garment in its recommendations.");
       client.invalidateQueries({ queryKey: ["wardrobe"] });
       client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
       client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
@@ -207,7 +218,7 @@ export default function WardrobeScreen() {
     onError: (e: Error) => setError(e.message),
   });
   const onPicked = async (asset: PickResult) => {
-    setSheetOpen(false); setBusy(true); setError(null);
+    setSheetOpen(false); setBusy(true); setError(null); setSaveNotice("");
     try {
       const path = await uploadImage(asset.uri, asset.name, asset.type, "garment");
       uploadedPhotoRef.current = path;
@@ -261,6 +272,7 @@ export default function WardrobeScreen() {
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 60 }}>
         <View style={styles.form}>
           <Text style={styles.heading}>Add something you own</Text>
+          <Text style={styles.note}>1. Choose a garment photo. 2. Analyse it (optional) or enter its details. 3. Confirm any AI suggestions and save. LUMIÈRE then uses the saved garment for styling.</Text>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: autoRecognize }}
             onPress={() => setAutoRecognize(value => !value)}
             style={{ paddingVertical: 12, minHeight: 44 }}>
@@ -298,6 +310,14 @@ export default function WardrobeScreen() {
             onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "" })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
+          {saveNotice ? <View style={styles.planned}>
+            <Text accessibilityLiveRegion="polite" style={styles.itemName}>{saveNotice}</Text>
+            <Text style={styles.note}>Suggested next addition: {suggestedNextPiece}.</Text>
+            <Pressable accessibilityRole="button" testID="wardrobe-open-discover-after-save"
+              style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+              <Text style={styles.buttonText}>See outfit suggestions in Discover</Text>
+            </Pressable>
+          </View> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Text style={styles.note}>Removing an item hides its wardrobe record; uploaded photos are not yet permanently erased from storage.</Text>
         </View>
@@ -332,9 +352,22 @@ export default function WardrobeScreen() {
             try { setCapsule(await getCapsulePlan(occasion, climate)); setError(null); }
             catch (e) { setError(e instanceof Error ? e.message : "Capsule planning failed"); }
           }}><Text style={styles.buttonText}>Build capsule wardrobe</Text></Pressable>
-          {items.length === 0 ? <Text style={styles.note}>Upload a garment to start receiving wardrobe-based outfits.</Text> : null}
-          {items.length > 0 && plannedOutfits.length === 0 && !planningBusy ?
-            <Text style={styles.note}>No complete outfit yet. Add a top and bottom, or a dress. Capsule planning below identifies missing pieces.</Text> : null}
+          {items.length === 0 ? <Text style={styles.note}>Your wardrobe is empty. Upload your first garment above to start personalised styling.</Text> : null}
+          {items.length > 0 && !canBuildOutfit ?
+            <View style={styles.planned}>
+              <Text style={styles.itemName}>Complete your first outfit</Text>
+              <Text style={styles.note}>You have {items.length} saved piece{items.length === 1 ? "" : "s"}. Add {suggestedNextPiece} to build an owned outfit, or open Discover to explore suggestions for missing garments.</Text>
+              <Pressable accessibilityRole="button" testID="wardrobe-discover-missing-piece"
+                style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+                <Text style={styles.buttonText}>Explore matching pieces in Discover</Text>
+              </Pressable>
+            </View> : null}
+          {items.length > 0 && canBuildOutfit && plannedOutfits.length === 0 && !planningBusy ?
+            <Text style={styles.note}>No outfit combinations were returned. Check your confirmed garment categories, then try Suggest outfits again.</Text> : null}
+          {plannedOutfits.length > 0 ? <Pressable accessibilityRole="button" testID="wardrobe-view-discover-outfits"
+            style={styles.button} onPress={() => router.push("/(tabs)/discover")}>
+            <Text style={styles.buttonText}>View ranked looks in Discover</Text>
+          </Pressable> : null}
           {plannedOutfits.map((outfit, index) => <View key={index} style={styles.planned}>
             <Text style={styles.itemName}>{outfit.names.join(" + ")}</Text>
             {typeof outfit.compatibility_score === "number" ?
