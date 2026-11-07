@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
@@ -119,6 +119,11 @@ export default function DiscoverScreen() {
   const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
+  const [expandedOwnedLooks, setExpandedOwnedLooks] = useState<string[]>([]);
+  const {data: previewCapability} = useQuery({
+    queryKey:["outfit-preview-capability"], queryFn:getOutfitPreviewStatus,
+    enabled:Boolean(profile), staleTime:60000,
+  });
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -480,8 +485,8 @@ export default function DiscoverScreen() {
             return <View key={outfit.item_ids.join("|") + index}
               style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 14, gap: 10 }}>
               <Text style={styles.body}>Look {index + 1} · {garments.map(g => [g.colour, g.name].filter(Boolean).join(" ")).join(" + ")}</Text>
-              <Text style={styles.note}>Relative style score: {outfit.compatibility_score ?? "—"}/100 (capped estimate; not a perfect-fit guarantee)</Text>
-              <Text style={styles.note}>Optional model illustration, followed by the actual uploaded garment photographs below. The illustration uses confirmed descriptions and may not reproduce exact garments.</Text>
+              <Text style={styles.note}>Style compatibility estimate: {outfit.compatibility_score ?? "—"}/100 · relative ranking, not fit verification</Text>
+              <Text style={styles.note}>Personalised look using your own clothes · {discoverClimate} weather</Text>
               {(() => {
                 const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
                 const descriptions = garments.slice(0, 5).map(g => ({name: g.name.slice(0,100), colour: (g.colour || "neutral").slice(0,40)}));
@@ -492,9 +497,11 @@ export default function DiscoverScreen() {
                   {image ? <Image source={{uri:image}} resizeMode="contain"
                     accessibilityLabel="AI illustration of a model wearing a concept based on your labelled garments"
                     style={{width:"100%",maxWidth:390,alignSelf:"center",height:390,borderRadius:8,backgroundColor:"#f4f4f2"}} /> : null}
-                  <Text style={styles.note}>{image ? "Saved AI model concept · not an exact virtual fitting" : "Optional: see an illustrative full-outfit image on a generic adult model. Private wardrobe photos are NOT sent as image references."}</Text>
+                  <Text style={styles.note}>{image ? "Saved AI concept on a generic model; not a precise virtual fitting." :
+                    previewCapability?.enabled === false ? "AI model illustration is disabled on this server. Your wardrobe photos are available below." :
+                    "Optional generic-model styling concept. Private garment photos are never sent as references."}</Text>
                   <Pressable accessibilityRole="button"
-                    disabled={outfitPreviewLoading !== null || descriptions.length < 2}
+                    disabled={outfitPreviewLoading !== null || descriptions.length < 2 || (previewCapability?.enabled === false && !image)}
                     testID={`owned-preview-${index}`}
                     onPress={async () => {
                       setOutfitPreviewLoading(requestId);
@@ -519,7 +526,10 @@ export default function DiscoverScreen() {
                       }
                     }}
                     style={{padding:12,minHeight:44,justifyContent:"center",borderRadius:8,backgroundColor:"rgba(120,120,120,0.12)"}}>
-                    <Text style={styles.body}>{outfitPreviewLoading === requestId ? "Preparing AI model concept…" : image ? "Show saved model concept" : "Generate full-outfit model concept (optional AI usage)"}</Text>
+                    <Text style={styles.body}>{outfitPreviewLoading === requestId ? "Preparing AI model concept…" :
+                      image ? "Saved model illustration" :
+                      previewCapability?.enabled === false ? "Model illustration unavailable" :
+                      "Generate model illustration (optional AI usage)"}</Text>
                   </Pressable>
                   {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
                 </View>;
@@ -535,10 +545,17 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
-              {!hasShoes ? <Text style={styles.note}>Complete this look: add shoes in Wardrobe or review compatible suggestions below.</Text> : null}
+              {!hasShoes ? <Text style={styles.note}>Missing: shoes. See matching footwear options in “Build a look from what you own” below, when available.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
-              {!hasAccessory ? <Text style={styles.note}>An accessory can optionally finish the look.</Text> : null}
-              <Text style={styles.note}>{outfit.reason}</Text>
+              {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
+              <Pressable accessibilityRole="button" testID={`owned-explanation-${index}`}
+                style={{paddingVertical:10,minHeight:44,justifyContent:"center"}}
+                onPress={() => setExpandedOwnedLooks(old => old.includes(outfit.item_ids.join("|"))
+                  ? old.filter(id => id !== outfit.item_ids.join("|")) : [...old, outfit.item_ids.join("|")])}>
+                <Text style={styles.body}>{expandedOwnedLooks.includes(outfit.item_ids.join("|")) ? "Hide styling analysis" : "Why this outfit works"}</Text>
+              </Pressable>
+              {expandedOwnedLooks.includes(outfit.item_ids.join("|")) ?
+                <Text style={styles.note}>{outfit.reason}</Text> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
                 testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
                 style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
