@@ -275,7 +275,10 @@ export type Preferences = {
   shop_for: "mens" | "womens" | "all";
 };
 
+export type StylistWeatherSelection = { climate: "hot" | "mild" | "cold"; source: "local" | "manual"; observed_at: string };
+
 export type Profile = {
+  stylist_weather?: StylistWeatherSelection | null;
   id: string;
   favorite_colors: string[];
   styles: string[];
@@ -309,6 +312,15 @@ export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | 
     body: JSON.stringify(body),
   });
   return res;
+}
+
+export async function saveStylistWeather(
+  climate: "hot" | "mild" | "cold", source: "local" | "manual",
+): Promise<StylistWeatherSelection> {
+  return accountRequest("/stylist-weather", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({climate, source}),
+  });
 }
 
 export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
