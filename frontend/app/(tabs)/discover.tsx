@@ -34,10 +34,14 @@ export default function DiscoverScreen() {
     queryFn: async () => undefined,
     enabled: false,
   });
-  const discoverClimate = activeWeather?.climate || (
-    ["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
-      ? profile!.preferences!.climate : "mild"
-  );
+  const savedClimate = profile?.stylist_weather?.climate;
+  const discoverClimate = activeWeather?.climate ||
+    (savedClimate && ["hot", "mild", "cold"].includes(savedClimate) ? savedClimate : null) ||
+    (["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
+      ? profile!.preferences!.climate : "mild");
+  const weatherSelectionSource = activeWeather ? "selected in Wardrobe"
+    : savedClimate ? "saved weather choice; refresh it in Wardrobe for today's conditions"
+    : "saved profile preference";
   const { data: ownedWardrobe = [], isLoading: wardrobeLoading, isError: wardrobeError } = useQuery({
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
@@ -457,7 +461,7 @@ export default function DiscoverScreen() {
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
           <Text style={styles.body}>Style the clothes you already own. Rankings use your confirmed colour and style labels, saved colour scan and preferences—not the shopping catalogue.</Text>
-          <Text style={styles.note}>Planning for: {discoverClimate} weather{activeWeather ? " (selected in Wardrobe)" : " (saved profile preference)"}. Change the current weather in Wardrobe to update these looks.</Text>
+          <Text style={styles.note}>Planning for: {discoverClimate} weather ({weatherSelectionSource}). Visit Wardrobe to refresh the current weather and update these looks.</Text>
           <Text style={styles.note}>Scores are relative, capped styling estimates—not probabilities, perfect-match guarantees or verified fit.</Text>
           {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
           {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
