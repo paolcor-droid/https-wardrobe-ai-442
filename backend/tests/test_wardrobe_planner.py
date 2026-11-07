@@ -199,3 +199,16 @@ def test_cold_weather_outfit_includes_owned_layer_and_accessory():
     assert {"shirt", "trousers", "coat", "scarf"} == set(outfits[0]["item_ids"])
     hot_outfits = plan_outfits(items, climate="hot")
     assert "coat" not in hot_outfits[0]["item_ids"]
+
+
+def test_visually_duplicate_uploads_do_not_repeat_identical_looks():
+    items = [
+        {"id": "shirt1", "name": "Button-up shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "shirt2", "name": " Button-up  shirt ", "category": "top", "colour": "Navy", "style": "classic"},
+        {"id": "shirt3", "name": "Button-up shirt", "category": "top", "colour": "light blue", "style": "classic"},
+        {"id": "pants", "name": "Trousers", "category": "bottom", "colour": "grey"},
+    ]
+    outfits = plan_outfits(items)
+    assert len(outfits) == 2
+    assert {row["item_ids"][0] for row in outfits} <= {"shirt1", "shirt2", "shirt3"}
+    assert any(row["item_ids"][0] == "shirt3" for row in outfits)
