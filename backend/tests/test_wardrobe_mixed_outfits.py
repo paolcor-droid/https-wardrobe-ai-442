@@ -113,3 +113,12 @@ def test_missing_shoes_rankings_consider_selected_weather():
     cold = mixed_outfits(wardrobe, products, preferences={"climate": "cold"})
     assert any(r["purchase_required"] for r in hot["outfits"])
     assert any(r["purchase_required"] for r in cold["outfits"])
+
+
+def test_optional_missing_shoes_remain_visible_with_many_owned_base_looks():
+    wardrobe = [own("shirt-" + str(i), "top") for i in range(5)]
+    wardrobe += [own("pants-" + str(i), "bottom") for i in range(3)]
+    result = mixed_outfits(wardrobe, [supplier("shoes", "shoes")], limit=8)
+    assert len(result["outfits"]) <= 8
+    assert result["outfits"][0]["purchase_required"] is False
+    assert any(row["purchase_required"] for row in result["outfits"])
