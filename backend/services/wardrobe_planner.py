@@ -28,6 +28,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     dresses = [x for x in items if x.get("category") == "dress"]
     shoes = [x for x in items if x.get("category") == "shoes"]
     outer = [x for x in items if x.get("category") == "outerwear"]
+    accessories = [x for x in items if x.get("category") == "accessory"]
     # Bound work and avoid a 200-item wardrobe producing millions of sets.
     bases = ([[top, bottom] for top in tops for bottom in bottoms] +
              [[dress] for dress in dresses])[:1200]
@@ -46,6 +47,10 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 chosen.append(shoe)
             if climate == "cold" and outer:
                 chosen.append(outer[index % len(outer)])
+            # Accessorise owned looks when possible, but keep a single optional
+            # accessory to avoid expensive combinations or unnecessary layers.
+            if accessories:
+                chosen.append(accessories[index % len(accessories)])
             ids = tuple(x["id"] for x in chosen)
             if ids in seen:
                 continue
