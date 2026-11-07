@@ -1630,6 +1630,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
 
 
+    @router.get("/outfit-preview-status")
+    async def outfit_preview_status(user_id: str = Depends(current_user)):
+        """Capability only; never expose credentials or consume generation quota."""
+        enabled = bool(os.environ.get("OPENAI_API_KEY")) and (
+            os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") == "1")
+        return {"enabled": enabled,
+                "daily_limit": max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20")))),
+                "notice": ("Model illustrations are optional AI-generated styling concepts."
+                           if enabled else "AI illustrations are unavailable on this server. Saved wardrobe photos remain usable.")}
+
     @router.get("/outfit-previews")
     async def list_outfit_previews(user_id: str = Depends(current_user)):
         rows = await db.customer_outfit_previews.find(
