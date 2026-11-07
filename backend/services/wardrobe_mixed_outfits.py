@@ -49,7 +49,12 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
     elif bottoms and not tops and not dresses:
         missing, anchors = "top", bottoms
     elif (tops and bottoms or dresses) and not any(g.get("category") == "shoes" for g in owned):
-        missing, anchors = "shoes", (tops[:3] + bottoms[:3]) if tops and bottoms else dresses[:3]
+        missing = "shoes"
+        # Anchor shopping suggestions to an actual top+bottom or dress outfit.
+        # The previous list of tops followed by bottoms could select two tops.
+        by_id = {g["id"]: g for g in owned}
+        anchors = ([by_id[i] for i in complete[0]["item_ids"] if i in by_id]
+                   if complete else ([tops[0], bottoms[0]] if tops and bottoms else dresses[:1]))
     else:
         missing, anchors = None, []
     if missing:
