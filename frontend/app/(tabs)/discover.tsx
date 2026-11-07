@@ -708,7 +708,7 @@ export default function DiscoverScreen() {
                   {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
                     <View>
                       <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
-                      <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
+                      <Text style={styles.note}>Saved full-outfit styling concept restored from your account when available. This is AI-generated imagery, not a verified product photograph or fit prediction.</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
                         setOutfitPreviewLoading(outfit.id);
                         try {
