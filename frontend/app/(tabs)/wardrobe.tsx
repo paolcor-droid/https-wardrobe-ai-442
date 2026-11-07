@@ -12,13 +12,16 @@ import { PhotoSourceSheet } from "@/src/components/PhotoSourceSheet";
 import type { PickResult } from "@/src/utils/media";
 
 const CATEGORIES: WardrobeItem["category"][] = ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"];
+// Stable empty value: an inline [] would trigger the planning effect on every render.
+const EMPTY_WARDROBE: WardrobeItem[] = [];
 
 export default function WardrobeScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const client = useQueryClient();
-  const { data: items = [], isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
+  const { data: wardrobeItems, isLoading } = useQuery({ queryKey: ["wardrobe"], queryFn: listWardrobe });
+  const items = wardrobeItems ?? EMPTY_WARDROBE;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
