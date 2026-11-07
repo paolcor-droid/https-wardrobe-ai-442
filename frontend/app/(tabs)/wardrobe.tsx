@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -38,6 +38,57 @@ export default function WardrobeScreen() {
   const [outfitSelection, setOutfitSelection] = useState<WardrobeItem[]>([]);
   const [occasion, setOccasion] = useState("casual");
   const [climate, setClimate] = useState<"hot" | "mild" | "cold">("mild");
+  const [weatherCity, setWeatherCity] = useState("");
+  const [weatherNote, setWeatherNote] = useState("Select weather manually, or look up a city (optional).");
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const [weatherAuto, setWeatherAuto] = useState(false);
+  const [planningBusy, setPlanningBusy] = useState(false);
+  const planningRevision = useRef(0);
+  const updateCityWeather = async () => {
+    const city = weatherCity.trim();
+    if (city.length < 2 || city.length > 100) { setWeatherNote("Enter a city name first."); return; }
+    setWeatherBusy(true);
+    try {
+      // Weather lookups are explicit, so no precise device location is transmitted.
+      const search = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(city) + "&count=1");
+      if (!search.ok) throw new Error("City search unavailable");
+      const place = (await search.json()).results?.[0];
+      if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) throw new Error("City not found");
+      const url = "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude +
+        "&longitude=" + place.longitude +
+        "&current=apparent_temperature,temperature_2m,precipitation,wind_speed_10m&timezone=auto";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Forecast unavailable");
+      const data = (await response.json()).current;
+      if (!data || !Number.isFinite(data.apparent_temperature)) throw new Error("No current weather returned");
+      const feels = Number(data.apparent_temperature);
+      setClimate(feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild");
+      setWeatherAuto(true);
+      setWeatherNote(place.name + ": feels like " + Math.round(feels) + "°C, " +
+        (data.precipitation > 0 ? "rain reported" : "no rain reported") +
+        ". Weather-derived outfits will update below.");
+    } catch (error) {
+      setWeatherAuto(false);
+      setWeatherNote((error instanceof Error ? error.message : "Weather unavailable") + ". Use the manual weather buttons.");
+    } finally { setWeatherBusy(false); }
+  };
+  // Update existing results when the user changes climate, occasion or wardrobe.
+  // A revision guard prevents stale requests overwriting newer suggestions.
+  useEffect(() => {
+    if (!items.length) { setPlannedOutfits([]); setCapsule(null); return; }
+    const revision = ++planningRevision.current;
+    setPlanningBusy(true);
+    Promise.all([getWardrobeOutfits(occasion, climate), getCapsulePlan(occasion, climate)])
+      .then(([looks, cap]) => {
+        if (planningRevision.current !== revision) return;
+        setPlannedOutfits(looks.outfits); setCapsule(cap); setError(null);
+      })
+      .catch(error => {
+        if (planningRevision.current === revision) setError(error instanceof Error ? error.message : "Could not refresh outfits");
+      })
+      .finally(() => { if (planningRevision.current === revision) setPlanningBusy(false); });
+    return () => { planningRevision.current++; };
+  }, [occasion, climate, items]);
   const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
   const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
   const [editing, setEditing] = useState<WardrobeItem | null>(null);
@@ -75,6 +126,8 @@ export default function WardrobeScreen() {
     mutationFn: addWardrobeItem,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["wardrobe"] });
+      client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
+      client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
       setPhotoPath(null); uploadedPhotoRef.current = null; setPhotoPreview(null); setName(""); setColour(""); setStyle(""); setPattern(""); setSeason(""); setMaterial(""); setRecognitionMessage(""); setError(null);
     },
     onError: (e: Error) => setError(e.message),
@@ -94,7 +147,11 @@ export default function WardrobeScreen() {
   });
   const del = useMutation({
     mutationFn: deleteWardrobeItem,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["wardrobe"] }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["wardrobe"] });
+      client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
+      client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
+    },
     onError: (e: Error) => setError(e.message),
   });
   const onPicked = async (asset: PickResult) => {
@@ -191,9 +248,19 @@ export default function WardrobeScreen() {
           <Text style={styles.heading}>Plan what to wear</Text>
           <TextInput style={styles.input} value={occasion} onChangeText={setOccasion} placeholder="Occasion (e.g. work, weekend)" placeholderTextColor="#888" maxLength={80} />
           <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
-            <Pressable key={value} onPress={() => setClimate(value)} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
+            <Pressable key={value} onPress={() => { setClimate(value); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
           ))}</View>
-          <Text style={styles.note}>Choose a climate preference. Live weather is not connected.</Text>
+          <TextInput accessibilityLabel="City for weather-based outfits" style={styles.input}
+            value={weatherCity} onChangeText={setWeatherCity} placeholder="City (optional, e.g. Brisbane)"
+            placeholderTextColor="#888" maxLength={100} />
+          <Pressable accessibilityRole="button" testID="wardrobe-check-weather"
+            disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
+            onPress={updateCityWeather}>
+            <Text style={styles.buttonText}>{weatherBusy ? "Checking weather…" : "Use current city weather"}</Text>
+          </Pressable>
+          <Text accessibilityLiveRegion="polite" style={styles.note}>{weatherNote}</Text>
+          <Text style={styles.note}>Selected: {climate}{weatherAuto ? " (from city weather)" : " (manual)"}. Change it at any time. Weather data: Open-Meteo; current conditions, not a forecast for a future outing.</Text>
+          {planningBusy ? <ActivityIndicator accessibilityLabel="Updating wardrobe recommendations" /> : null}
           <Pressable testID="wardrobe-plan-outfits" style={styles.button} onPress={async () => {
             try { const result = await getWardrobeOutfits(occasion, climate); setPlannedOutfits(result.outfits); setError(null); }
             catch (e) { setError(e instanceof Error ? e.message : "Planning failed"); }
@@ -202,6 +269,9 @@ export default function WardrobeScreen() {
             try { setCapsule(await getCapsulePlan(occasion, climate)); setError(null); }
             catch (e) { setError(e instanceof Error ? e.message : "Capsule planning failed"); }
           }}><Text style={styles.buttonText}>Build capsule wardrobe</Text></Pressable>
+          {items.length === 0 ? <Text style={styles.note}>Upload a garment to start receiving wardrobe-based outfits.</Text> : null}
+          {items.length > 0 && plannedOutfits.length === 0 && !planningBusy ?
+            <Text style={styles.note}>No complete outfit yet. Add a top and bottom, or a dress. Capsule planning below identifies missing pieces.</Text> : null}
           {plannedOutfits.map((outfit, index) => <View key={index} style={styles.planned}>
             <Text style={styles.itemName}>{outfit.names.join(" + ")}</Text>
             {typeof outfit.compatibility_score === "number" ?
@@ -217,6 +287,7 @@ export default function WardrobeScreen() {
             <Text style={styles.note}>{capsule.items.map((item) => item.name).join(" · ") || "Add wardrobe items to begin."}</Text>
             <Text style={styles.itemName}>Pieces to consider</Text>
             <Text style={styles.note}>{capsule.missing_categories.join(" · ") || "No basic category gaps identified."}</Text>
+            <Text style={styles.note}>These gaps are suggestions, not an instruction to purchase. Existing clothes come first.</Text>
             <Text style={styles.note}>{capsule.possible_outfits.length} possible combinations from these pieces (not fit-verified).</Text>
           </View>}
         </View>
