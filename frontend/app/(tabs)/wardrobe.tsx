@@ -76,23 +76,30 @@ export default function WardrobeScreen() {
       setWeatherNote((error instanceof Error ? error.message : "Weather unavailable") + ". Use the manual weather buttons.");
     } finally { setWeatherBusy(false); }
   };
-  // Update existing results when the user changes climate, occasion or wardrobe.
-  // A revision guard prevents stale requests overwriting newer suggestions.
+  // A primitive fingerprint avoids treating an unchanged query array as new data.
+  // In particular, no state updates should occur in effects while the wardrobe is empty.
+  const wardrobeFingerprint = JSON.stringify(items.map(item => [
+    item.id, item.category, item.colour, item.style, item.pattern, item.season, item.deleted_at
+  ]));
   useEffect(() => {
-    if (!items.length) { setPlannedOutfits([]); setCapsule(null); return; }
+    if (!items.length) return;
     const revision = ++planningRevision.current;
     setPlanningBusy(true);
     Promise.all([getWardrobeOutfits(occasion, climate), getCapsulePlan(occasion, climate)])
       .then(([looks, cap]) => {
         if (planningRevision.current !== revision) return;
-        setPlannedOutfits(looks.outfits); setCapsule(cap); setError(null);
+        setPlannedOutfits(looks.outfits);
+        setCapsule(cap);
+        setError(null);
       })
       .catch(error => {
-        if (planningRevision.current === revision) setError(error instanceof Error ? error.message : "Could not refresh outfits");
+        if (planningRevision.current === revision)
+          setError(error instanceof Error ? error.message : "Could not refresh outfits");
       })
       .finally(() => { if (planningRevision.current === revision) setPlanningBusy(false); });
     return () => { planningRevision.current++; };
-  }, [occasion, climate, items]);
+    // Depend only on stable primitive inputs, not query result array identity.
+  }, [occasion, climate, wardrobeFingerprint]);
   const [plannedOutfits, setPlannedOutfits] = useState<OutfitPlan[]>([]);
   const [capsule, setCapsule] = useState<CapsulePlan | null>(null);
   const [editing, setEditing] = useState<WardrobeItem | null>(null);
@@ -155,6 +162,8 @@ export default function WardrobeScreen() {
       client.invalidateQueries({ queryKey: ["wardrobe"] });
       client.invalidateQueries({ queryKey: ["mixed-wardrobe-outfits"] });
       client.invalidateQueries({ queryKey: ["wardrobe-outfits"] });
+      setPlannedOutfits([]);
+      setCapsule(null);
     },
     onError: (e: Error) => setError(e.message),
   });
