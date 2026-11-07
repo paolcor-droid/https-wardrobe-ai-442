@@ -88,3 +88,28 @@ def test_confirmed_season_and_occasion_labels_affect_ranking():
     casual_hot = score_owned_outfit(business, occasion="casual", climate="hot")
     assert formal_cold["compatibility_score"] >= casual_hot["compatibility_score"]
     assert formal_cold["image_colour_verified"] is False
+
+
+def test_missing_shoes_are_matched_to_top_and_bottom_not_two_tops():
+    wardrobe = [
+        own("shirt-a", "top", "navy"), own("shirt-b", "top", "cream"),
+        own("trousers", "bottom", "grey"),
+    ]
+    result = mixed_outfits(wardrobe, [supplier("loafers", "shoes")])
+    shoe_looks = [row for row in result["outfits"] if row["purchase_required"]]
+    assert shoe_looks
+    anchors = shoe_looks[0]["owned_ids"]
+    assert "trousers" in anchors
+    assert sum(item in anchors for item in ("shirt-a", "shirt-b")) == 1
+    assert shoe_looks[0]["suggested_products"][0]["category"] == "shoes"
+
+
+def test_missing_shoes_rankings_consider_selected_weather():
+    wardrobe = [
+        own("shirt", "top", "navy"), own("trousers", "bottom", "cream")
+    ]
+    products = [supplier("sandals", "shoes", "tan")]
+    hot = mixed_outfits(wardrobe, products, preferences={"climate": "hot"})
+    cold = mixed_outfits(wardrobe, products, preferences={"climate": "cold"})
+    assert any(r["purchase_required"] for r in hot["outfits"])
+    assert any(r["purchase_required"] for r in cold["outfits"])
