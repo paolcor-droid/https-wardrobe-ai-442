@@ -708,6 +708,10 @@ export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<Checko
   return accountRequest<CheckoutReadiness>(`/checkout/readiness?country=${country}`);
 }
 
+export async function getOutfitPreviewStatus(): Promise<{enabled:boolean;daily_limit:number;notice:string}> {
+  return accountRequest("/outfit-preview-status");
+}
+
 /** Optional authenticated AI illustration; charged only on user action and cached per account/outfit. */
 export async function generateOutfitPreview(input: {
   outfit_id: string;
