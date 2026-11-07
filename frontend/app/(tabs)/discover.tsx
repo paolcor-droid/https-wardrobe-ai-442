@@ -28,6 +28,16 @@ export default function DiscoverScreen() {
   const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; stylistQuery?: string; }>();
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
+  // A shared, in-memory selection keeps the two tabs aligned without storing GPS.
+  const { data: activeWeather } = useQuery<{climate: "hot" | "mild" | "cold"; source: string; observed_at: number} | undefined>({
+    queryKey: ["stylist-weather-selection"],
+    queryFn: async () => undefined,
+    enabled: false,
+  });
+  const discoverClimate = activeWeather?.climate || (
+    ["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
+      ? profile!.preferences!.climate : "mild"
+  );
   const { data: ownedWardrobe = [], isLoading: wardrobeLoading, isError: wardrobeError } = useQuery({
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
@@ -71,11 +81,10 @@ export default function DiscoverScreen() {
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
   const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
     queryKey: ["wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])),
-      profile?.preferences?.occasion, profile?.preferences?.climate],
+      profile?.preferences?.occasion, discoverClimate],
     queryFn: () => getWardrobeOutfits(
       profile?.preferences?.occasion || "casual",
-      (["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
-        ? profile!.preferences!.climate : "mild") as "hot" | "mild" | "cold",
+      discoverClimate as "hot" | "mild" | "cold",
     ),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
@@ -447,7 +456,9 @@ export default function DiscoverScreen() {
 
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
-          <Text style={styles.body}>Style the clothes you already own. These combinations rank clothes you own using confirmed colour and style labels, your saved colour scan and your preferences—not the shopping catalogue.</Text>
+          <Text style={styles.body}>Style the clothes you already own. Rankings use your confirmed colour and style labels, saved colour scan and preferences—not the shopping catalogue.</Text>
+          <Text style={styles.note}>Planning for: {discoverClimate} weather{activeWeather ? " (selected in Wardrobe)" : " (saved profile preference)"}. Change the current weather in Wardrobe to update these looks.</Text>
+          <Text style={styles.note}>Scores are relative, capped styling estimates—not probabilities, perfect-match guarantees or verified fit.</Text>
           {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
           {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
@@ -456,19 +467,39 @@ export default function DiscoverScreen() {
             <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
-          {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
-            <View key={outfit.item_ids.join("|") + index} style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 12, gap: 7 }}>
-              <Text style={styles.body}>{outfit.names.join(" + ")}</Text>
-              {typeof outfit.compatibility_score === "number" ? <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Relative style estimate</Text> : null}
+          {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => {
+            const garments = outfit.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
+              .filter((item): item is WardrobeItem => Boolean(item));
+            const hasShoes = garments.some(item => item.category === "shoes");
+            const hasOuterwear = garments.some(item => item.category === "outerwear");
+            const hasAccessory = garments.some(item => item.category === "accessory");
+            return <View key={outfit.item_ids.join("|") + index}
+              style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 14, gap: 10 }}>
+              <Text style={styles.body}>Look {index + 1} · {garments.map(g => [g.colour, g.name].filter(Boolean).join(" ")).join(" + ")}</Text>
+              <Text style={styles.note}>Relative style score: {outfit.compatibility_score ?? "—"}/100 (capped estimate; not a perfect-fit guarantee)</Text>
+              <View style={{flexDirection:"row", flexWrap:"wrap", gap:10}}>
+                {garments.map(garment => (
+                  <View key={garment.id} style={{width:108, gap:4}}>
+                    {garment.image_path ?
+                      <AccountPhoto path={garment.image_path} style={{width:108,height:135,borderRadius:8}} contentFit="contain" />
+                      : <View style={{width:108,height:135,backgroundColor:"rgba(120,120,120,0.12)",borderRadius:8,justifyContent:"center",padding:8}}><Text style={styles.note}>No garment photo</Text></View>}
+                    <Text style={styles.note} numberOfLines={3}>{garment.name} · {garment.colour || "Colour not labelled"}</Text>
+                    <Text style={styles.note}>{garment.category} · Owned</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.note}>Your actual saved garments shown together as an outfit board; not a generated photograph of a model wearing them.</Text>
+              {!hasShoes ? <Text style={styles.note}>Complete this look: add shoes in Wardrobe or review compatible suggestions below.</Text> : null}
+              {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
+              {!hasAccessory ? <Text style={styles.note}>An accessory can optionally finish the look.</Text> : null}
               <Text style={styles.note}>{outfit.reason}</Text>
-              <Text style={styles.note}>From your wardrobe · Actual colours and fit are not image-verified</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
                 testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
                 style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
-                <Text style={styles.body}>Try my clothes on</Text>
+                <Text style={styles.body}>Try my clothes on (first two saved items)</Text>
               </Pressable>
-            </View>
-          ))}
+            </View>;
+          })}
           <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/wardrobe" as any)} style={{ paddingVertical: 12 }}>
             <Text style={styles.body}>Manage my wardrobe</Text>
           </Pressable>
