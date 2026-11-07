@@ -71,7 +71,9 @@ export default function WardrobeScreen() {
     if (!current || !Number.isFinite(current.apparent_temperature))
       throw new Error("Current weather unavailable");
     const feels = Number(current.apparent_temperature);
-    setClimate(feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild");
+    const selectedClimate = feels >= 26 ? "hot" : feels <= 15 ? "cold" : "mild";
+    setClimate(selectedClimate);
+    client.setQueryData(["stylist-weather-selection"], {climate: selectedClimate, source: "local", observed_at: Date.now()});
     setWeatherAuto(true);
     setWeatherNote(label + ": feels like " + Math.round(feels) + "°C; " +
       (current.precipitation > 0 ? "rain reported" : "no rain reported") +
@@ -327,7 +329,7 @@ export default function WardrobeScreen() {
           <Text style={styles.heading}>Plan what to wear</Text>
           <TextInput style={styles.input} value={occasion} onChangeText={setOccasion} placeholder="Occasion (e.g. work, weekend)" placeholderTextColor="#888" maxLength={80} />
           <View style={styles.chips}>{(["hot", "mild", "cold"] as const).map((value) => (
-            <Pressable key={value} onPress={() => { setClimate(value); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
+            <Pressable key={value} onPress={() => { setClimate(value); client.setQueryData(["stylist-weather-selection"], {climate: value, source: "manual", observed_at: Date.now()}); setWeatherAuto(false); setWeatherNote("Manual weather selected; wardrobe suggestions update automatically."); }} style={[styles.chip, climate === value && styles.active]}><Text style={styles.chipText}>{value}</Text></Pressable>
           ))}</View>
           <Pressable accessibilityRole="button" testID="wardrobe-use-device-weather"
             disabled={weatherBusy} style={[styles.button, weatherBusy && styles.disabled]}
