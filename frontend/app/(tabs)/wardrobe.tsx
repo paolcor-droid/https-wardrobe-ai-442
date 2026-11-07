@@ -79,7 +79,7 @@ export default function WardrobeScreen() {
   // A primitive fingerprint avoids treating an unchanged query array as new data.
   // In particular, no state updates should occur in effects while the wardrobe is empty.
   const wardrobeFingerprint = JSON.stringify(items.map(item => [
-    item.id, item.category, item.colour, item.style, item.pattern, item.season, item.deleted_at
+    item.id, item.category, item.colour, item.style, item.pattern, item.season, item.name
   ]));
   useEffect(() => {
     if (!items.length) return;
