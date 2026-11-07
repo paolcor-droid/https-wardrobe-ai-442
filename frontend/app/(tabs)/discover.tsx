@@ -42,8 +42,8 @@ export default function DiscoverScreen() {
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
   const { data: mixedSuggestions, isLoading: mixedLoading, isError: mixedError } = useQuery({
-    queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at],
-    queryFn: getMixedWardrobeOutfits,
+    queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at, discoverClimate],
+    queryFn: () => getMixedWardrobeOutfits(discoverClimate as "hot" | "mild" | "cold", profile?.preferences?.occasion || "casual"),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
   const [mixedFeedbackBusy, setMixedFeedbackBusy] = useState<string|null>(null);
