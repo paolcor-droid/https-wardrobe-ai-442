@@ -110,8 +110,21 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
         raise ValueError("max_items must be between 1 and 50")
     items = _items(items)
     priority = {"top": 0, "bottom": 1, "dress": 2, "shoes": 3, "outerwear": 4, "accessory": 5, "other": 6}
+    # Select useful owned garments rather than alphabetical names. Full-outfit
+    # compatibility is ranked using the same confirmed labels, scan and style
+    # preferences as Discover, then balanced across garment categories.
+    ranked_looks = plan_outfits(
+        items, occasion, climate, limit=20, scan=scan,
+        preferred_colours=preferred_colours,
+        avoided_colours=avoided_colours,
+        preferred_style=preferred_style)
+    usefulness = Counter()
+    for rank, look in enumerate(ranked_looks):
+        for garment_id in look["item_ids"]:
+            usefulness[garment_id] += max(1, 20 - rank)
     groups = {}
-    for item in sorted(items, key=lambda x: (str(x.get("name") or "").casefold(), str(x["id"]))):
+    for item in sorted(items, key=lambda x: (
+            -usefulness[x["id"]], str(x.get("name") or "").casefold(), str(x["id"]))):
         groups.setdefault(item.get("category") or "other", []).append(item)
     # Take one from each relevant category first. The previous alphabetical
     # truncation could fill the entire capsule with tops, yielding no outfits.
@@ -148,5 +161,5 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
                                         preferred_style=preferred_style),
         "missing_categories": missing,
         "wardrobe_insights": wardrobe_insights(items),
-        "notice": "Planning suggestions based on manually entered wardrobe labels, not live weather, visual garment verification or stock.",
+        "notice": "Capsule selection favours pieces used in your highest-ranked compatible owned outfits, then balances garment types. Rankings use confirmed garment details, not verified fit, stock or fabric.",
     }
