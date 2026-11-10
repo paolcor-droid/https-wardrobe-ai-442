@@ -610,6 +610,8 @@ export type MixedWardrobeOutfit = {
   suggested_products: Array<{product_id:string; name:string; category:string; image_url?:string|null; price?:number|null; currency?:string|null; price_verified:false; stock_verified:false}>;
   score: number;
   reason: string;
+  is_complete?: boolean;
+  missing_categories?: string[];
   type: "all_owned" | "wardrobe_plus_catalogue";
   purchase_required: boolean;
 };
