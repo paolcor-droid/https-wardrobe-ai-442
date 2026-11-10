@@ -399,7 +399,7 @@ export default function WardrobeScreen() {
                 ? "Needs " + outfit.missing_categories.join(" and ") + " to complete this outfit"
                 : "Wardrobe combination"}</Text>
             {typeof outfit.compatibility_score === "number" ?
-              <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Relative style estimate, not a fit guarantee</Text> : null}
+              <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Calibrated styling estimate (maximum 95), not a fit guarantee</Text> : null}
             <Text style={styles.note}>{outfit.reason}</Text>
             {outfit.item_ids.length >= 2 && <Pressable onPress={() => {
               const chosen = outfit.item_ids.map((id) => items.find((item) => item.id === id)).filter((item): item is WardrobeItem => Boolean(item));
