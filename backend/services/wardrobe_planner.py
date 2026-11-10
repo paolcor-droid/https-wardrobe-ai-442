@@ -6,6 +6,8 @@ saved wardrobe labels; they do not infer garment colours from photographs.
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
+import json
 
 
 def _items(items):
@@ -21,26 +23,38 @@ def _feedback_adjustments(items, feedback):
     """
     by_id = {item["id"]: item for item in items}
     signals = []
+    legacy_signals = {}
     for row in (feedback or []):
         if not isinstance(row, dict) or not str(row.get("product_id", "")).startswith("owned-outfit:"):
             continue
         ids = row.get("wardrobe_item_ids")
         sentiment = row.get("sentiment")
-        if (sentiment not in {"liked", "saved", "disliked"} or
-                not isinstance(ids, list) or not 1 <= len(ids) <= 5 or
+        if sentiment not in {"liked", "saved", "disliked"}:
+            continue
+        if ids is None:
+            # Older feedback records stored only the salted-free digest of
+            # sorted owned IDs. Match those to the exact look, never infer
+            # which garment IDs were rated or generalise to other looks.
+            digest = row["product_id"].removeprefix("owned-outfit:")
+            if len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
+                legacy_signals[digest] = sentiment
+            continue
+        if (not isinstance(ids, list) or not 1 <= len(ids) <= 5 or
                 len(set(str(value) for value in ids)) != len(ids) or
                 any(not isinstance(value, str) or value not in by_id for value in ids)):
             continue
         signals.append((set(ids), sentiment))
     # Keep behaviour deterministic even with large feedback histories.
-    return by_id, signals[-100:]
+    return by_id, signals[-100:], legacy_signals
 
 
-def _feedback_delta(look_ids, by_id, signals):
+def _feedback_delta(look_ids, by_id, signals, legacy_signals):
     from services.wardrobe_compatibility import norm
-    if not signals:
+    if not signals and not legacy_signals:
         return 0
     look = set(look_ids)
+    digest = hashlib.sha256(json.dumps(sorted(look_ids)).encode()).hexdigest()
+    legacy_sentiment = legacy_signals.get(digest)
     positives, negatives = [], []
     for rated_ids, sentiment in signals:
         if look == rated_ids:
@@ -68,6 +82,12 @@ def _feedback_delta(look_ids, by_id, signals):
             positives.append(adjustment)
         elif adjustment < 0:
             negatives.append(adjustment)
+    if legacy_sentiment is not None:
+        # The current record format supersedes legacy digest-only records.
+        # A legacy exact match is still stronger than similar-outfit hints.
+        exact_delta = {"liked": 14, "saved": 18, "disliked": -24}[legacy_sentiment]
+        if not any(rated_ids == look for rated_ids, _ in signals):
+            return exact_delta
     # A single repeated tap or many similar looks cannot overpower a strong
     # avoided-colour or weather penalty. Exact dislikes remain meaningful.
     return max(-24, min(18, (max(positives) if positives else 0) +
@@ -86,7 +106,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     if not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
     items = _items(items)
-    feedback_items, feedback_signals = _feedback_adjustments(items, feedback)
+    feedback_items, feedback_signals, legacy_feedback = _feedback_adjustments(items, feedback)
     tops = [x for x in items if x.get("category") == "top"]
     bottoms = [x for x in items if x.get("category") == "bottom"]
     dresses = [x for x in items if x.get("category") == "dress"]
@@ -132,7 +152,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 missing.append("shoes")
             if climate == "cold" and not any(g.get("category") == "outerwear" for g in chosen):
                 missing.append("outerwear")
-            feedback_delta = _feedback_delta(ids, feedback_items, feedback_signals)
+            feedback_delta = _feedback_delta(ids, feedback_items, feedback_signals, legacy_feedback)
             # Preserve the full internal order even when the user-facing,
             # calibrated score approaches its 95-point display ceiling.
             personalised_rank_score = evidence["compatibility_score"] + feedback_delta
@@ -140,7 +160,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 0, min(95, personalised_rank_score))
             if feedback_delta:
                 evidence["compatibility_reasons"].append(
-                    "Your previous outfit likes, saves or dislikes influenced this ranking.")
+                    "Your saved outfit feedback influenced this ranking.")
             outfits.append({
                 "item_ids": list(ids), "names": names,
                 "reason": " ".join(evidence["compatibility_reasons"]),
