@@ -1610,6 +1610,11 @@ def test_owned_outfit_feedback_updates_rankings_without_cross_account_learning()
     feedback = client.put("/api/account/wardrobe/outfit-feedback", headers=a,
         json={"item_ids": target_a, "sentiment": "disliked"})
     assert feedback.status_code == 200, feedback.text
+    assert client.get("/api/account/wardrobe/outfit-feedback").status_code == 401
+    records_a = client.get("/api/account/wardrobe/outfit-feedback", headers=a).json()
+    records_b = client.get("/api/account/wardrobe/outfit-feedback", headers=b).json()
+    assert records_a == [{"item_ids": target_a, "sentiment": "disliked"}]
+    assert records_b == []
     after_a = client.post("/api/account/wardrobe/outfits", headers=a, json=payload).json()
     after_b = client.post("/api/account/wardrobe/outfits", headers=b, json=payload).json()
     before_a_looks = {frozenset(look["item_ids"]): look for look in initial_a.json()["outfits"]}
