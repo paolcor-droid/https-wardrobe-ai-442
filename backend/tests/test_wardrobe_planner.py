@@ -343,3 +343,78 @@ def test_capsule_can_use_saved_outfit_feedback_when_choosing_between_tops():
     }]
     chosen = capsule_plan(wardrobe, max_items=2, feedback=feedback)
     assert {x["id"] for x in chosen["items"]} == {"second", "pants"}
+
+
+def test_formal_outfits_rank_classic_shoes_above_sporty_shoes():
+    wardrobe = [
+        {"id": "top", "name": "Shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "bottom", "name": "Trousers", "category": "bottom", "colour": "cream", "style": "classic"},
+        {"id": "trainers", "name": "Sporty shoes", "category": "shoes",
+         "colour": "black", "style": "sporty"},
+        {"id": "loafers", "name": "Classic shoes", "category": "shoes",
+         "colour": "black", "style": "classic"},
+    ]
+    looks = plan_outfits(wardrobe, occasion="business", preferred_style="classic")
+    assert looks[0]["item_ids"][2] == "loafers"
+    assert any(look["item_ids"][2] == "trainers" for look in looks)
+
+
+def test_later_uploaded_best_shoes_are_considered():
+    wardrobe = [
+        {"id": "top", "name": "Classic shirt", "category": "top", "style": "classic"},
+        {"id": "bottom", "name": "Classic trousers", "category": "bottom", "style": "classic"},
+    ]
+    wardrobe.extend(
+        {"id": f"shoe{i}", "name": f"Sporty shoe {i}", "category": "shoes",
+         "style": "sporty"} for i in range(5))
+    wardrobe.append({"id": "bestshoe", "name": "Classic shoes",
+                     "category": "shoes", "style": "classic"})
+    looks = plan_outfits(wardrobe, occasion="formal", preferred_style="classic")
+    assert "bestshoe" in looks[0]["item_ids"]
+    assert all("bestshoe" in look["item_ids"] or
+               "shoe" in look["item_ids"][2] for look in looks)
+
+
+def test_cold_weather_selects_matching_outerwear_instead_of_first_upload():
+    wardrobe = [
+        {"id": "top", "name": "Shirt", "category": "top",
+         "colour": "navy", "style": "classic"},
+        {"id": "bottom", "name": "Trousers", "category": "bottom",
+         "colour": "cream", "style": "classic"},
+        {"id": "wrong", "name": "Sport jacket", "category": "outerwear",
+         "colour": "orange", "style": "sporty"},
+        {"id": "right", "name": "Classic coat", "category": "outerwear",
+         "colour": "navy", "style": "classic"},
+    ]
+    looks = plan_outfits(wardrobe, climate="cold", preferred_style="classic",
+                         avoided_colours=["orange"])
+    assert "right" in looks[0]["item_ids"]
+    assert "wrong" not in looks[0]["item_ids"]
+
+
+def test_patterns_and_accent_balance_influence_composition():
+    from services.wardrobe_compatibility import score_owned_outfit
+    top = {"id": "top", "name": "Printed top", "category": "top",
+           "colour": "blue", "pattern": "striped"}
+    patterned = {"id": "pattern", "name": "Pattern trousers", "category": "bottom",
+                 "colour": "cream", "pattern": "checked"}
+    plain = {"id": "plain", "name": "Plain trousers", "category": "bottom",
+             "colour": "cream", "pattern": "solid"}
+    two_patterns = score_owned_outfit([top, patterned])
+    balanced = score_owned_outfit([top, plain])
+    assert balanced["compatibility_score"] > two_patterns["compatibility_score"]
+    assert "labelled patterns" in " ".join(two_patterns["compatibility_reasons"])
+
+
+def test_style_scores_still_respect_preferred_colours_and_user_feedback():
+    items = [
+        {"id": "navy", "name": "Navy top", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "red", "name": "Red top", "category": "top", "colour": "red", "style": "casual"},
+        {"id": "bottom", "name": "Bottom", "category": "bottom", "colour": "cream"},
+    ]
+    looks = plan_outfits(items, preferred_style="classic",
+                         avoided_colours=["red"], feedback=[{
+        "product_id": "owned-outfit:test",
+        "wardrobe_item_ids": ["red", "bottom"], "sentiment": "liked",
+    }])
+    assert looks[0]["item_ids"][0] == "navy"
