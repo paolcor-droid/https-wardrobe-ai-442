@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
@@ -50,6 +50,14 @@ export default function DiscoverScreen() {
     queryFn: () => getMixedWardrobeOutfits(discoverClimate as "hot" | "mild" | "cold", profile?.preferences?.occasion || "casual"),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
+  const {data: ratedWardrobeLooks = []} = useQuery({
+    queryKey:["wardrobe-outfit-feedback"], queryFn:getWardrobeOutfitFeedback,
+    enabled:Boolean(profile),
+  });
+  const ratedLook = (ids:string[]) => {
+    const key = [...ids].sort().join("|");
+    return ratedWardrobeLooks.find(entry => [...entry.item_ids].sort().join("|") === key)?.sentiment;
+  };
   const [mixedFeedbackBusy, setMixedFeedbackBusy] = useState<string|null>(null);
   const [mixedFeedbackError, setMixedFeedbackError] = useState("");
   const [stylingFeedbackNotice, setStylingFeedbackNotice] = useState("");
@@ -63,6 +71,7 @@ export default function DiscoverScreen() {
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]}),
         queryClient.invalidateQueries({queryKey:["wardrobe-outfits"]}),
+        queryClient.invalidateQueries({queryKey:["wardrobe-outfit-feedback"]}),
       ]);
     } catch (error) {
       setMixedFeedbackError(error instanceof Error ? error.message : "Could not save outfit feedback.");
@@ -570,11 +579,13 @@ export default function DiscoverScreen() {
               <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
                 {(["liked","disliked","saved"] as const).map(reaction => (
                   <Pressable key={reaction} accessibilityRole="button"
+                    accessibilityState={{selected:ratedLook(outfit.item_ids)===reaction}}
                     disabled={mixedFeedbackBusy !== null}
                     testID={`owned-outfit-feedback-${reaction}-${index}`}
                     onPress={() => reactToOwnedLook(outfit.item_ids, reaction)}
                     style={{padding:10,minHeight:44,borderWidth:1,borderRadius:8,
-                      borderColor:"rgba(128,128,128,0.4)"}}>
+                      borderColor:ratedLook(outfit.item_ids)===reaction ? "#616ac4" : "rgba(128,128,128,0.4)",
+                      backgroundColor:ratedLook(outfit.item_ids)===reaction ? "rgba(97,106,196,0.12)" : "transparent"}}>
                     <Text style={styles.body}>{reaction === "liked" ? "Like this look" :
                       reaction === "disliked" ? "Not for me" : "Save this look"}</Text>
                   </Pressable>
