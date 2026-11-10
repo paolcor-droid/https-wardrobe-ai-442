@@ -133,8 +133,11 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
             if climate == "cold" and not any(g.get("category") == "outerwear" for g in chosen):
                 missing.append("outerwear")
             feedback_delta = _feedback_delta(ids, feedback_items, feedback_signals)
+            # Preserve the full internal order even when the user-facing,
+            # calibrated score approaches its 95-point display ceiling.
+            personalised_rank_score = evidence["compatibility_score"] + feedback_delta
             evidence["compatibility_score"] = max(
-                0, min(95, evidence["compatibility_score"] + feedback_delta))
+                0, min(95, personalised_rank_score))
             if feedback_delta:
                 evidence["compatibility_reasons"].append(
                     "Your previous outfit likes, saves or dislikes influenced this ranking.")
@@ -142,20 +145,21 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 "item_ids": list(ids), "names": names,
                 "reason": " ".join(evidence["compatibility_reasons"]),
                 "feedback_adjustment": feedback_delta,
+                "personalised_rank_score": personalised_rank_score,
                 "missing_categories": missing,
                 "is_complete": not missing,
                 **evidence,
             })
     # Diversify the ranked set so one high-scoring shirt cannot consume all slots.
     # Always keep the highest-ranked look; use a small repetition penalty afterwards.
-    ranked = sorted(outfits, key=lambda row: -row["compatibility_score"])
+    ranked = sorted(outfits, key=lambda row: -row["personalised_rank_score"])
     selected = []
     used = Counter()
     visible_combinations = set()
     by_id = {item["id"]: item for item in items}
     while ranked and len(selected) < limit:
         index = max(range(len(ranked)), key=lambda i: (
-            ranked[i]["compatibility_score"] -
+            ranked[i]["personalised_rank_score"] -
             sum(9 * used[item_id] for item_id in ranked[i]["item_ids"]),
             -i))
         choice = ranked.pop(index)
