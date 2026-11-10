@@ -81,7 +81,7 @@ fi
 # Expo started with --host localhost can listen on IPv6 (::1), not 127.0.0.1.
 # Verify the actual web API before deciding whether another Expo process is needed.
 expo_responding() {
-  curl -fsS --max-time 5 http://localhost:8081/api/profile >/dev/null 2>&1
+  curl -4 -fsS --max-time 5 http://127.0.0.1:8081/api/profile >/dev/null 2>&1
 }
 
 port_occupied() {
@@ -98,11 +98,11 @@ raise SystemExit(0 if found else 1)'
 if expo_responding; then
   echo "Expo web proxy already running."
 elif port_occupied; then
-  echo "Port 8081 is occupied, but the LUMIÈRE API proxy is not responding yet."
-  echo "Waiting for the existing server instead of launching a duplicate..."
+  echo "Port 8081 is occupied but its IPv4 web proxy is not responding."
+  echo "An old Expo process may be bound to IPv6 ::1 only. Restart it with --host lan."
 else
   echo "Starting Expo web preview on port 8081..."
-  (cd "$ROOT/frontend" && nohup ./node_modules/.bin/expo start --web --host localhost --port 8081 \
+  (cd "$ROOT/frontend" && nohup ./node_modules/.bin/expo start --web --host lan --port 8081 \
     >"$LOG_DIR/expo.log" 2>&1 </dev/null &)
 fi
 
@@ -118,6 +118,7 @@ done
 if [[ "$expo_ready" != true ]]; then
   echo "Port 8081 did not serve the expected LUMIÈRE API proxy." >&2
   echo "Check the existing Expo terminal or $LOG_DIR/expo.log." >&2
+  echo "If Expo is listening only on [::1]:8081, stop just that Expo process and restart with --host lan." >&2
   echo "The script will not change ports or stop an existing process automatically." >&2
   exit 1
 fi
