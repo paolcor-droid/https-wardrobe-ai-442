@@ -122,3 +122,30 @@ def test_optional_missing_shoes_remain_visible_with_many_owned_base_looks():
     assert len(result["outfits"]) <= 8
     assert result["outfits"][0]["purchase_required"] is False
     assert any(row["purchase_required"] for row in result["outfits"])
+
+
+def test_legacy_digest_feedback_does_not_generalise_without_garment_ids():
+    from hashlib import sha256
+    import json
+    wardrobe = [own("navy", "top", "navy"), own("red", "top", "red"),
+                own("bottom", "bottom", "cream")]
+    before = mixed_outfits(wardrobe, [])["outfits"]
+    target = before[0]["owned_ids"]
+    digest = sha256(json.dumps(sorted(target)).encode()).hexdigest()
+    after = mixed_outfits(wardrobe, [], feedback=[
+        {"product_id": "owned-outfit:" + digest, "sentiment": "disliked"},
+    ])["outfits"]
+    scores_before = {tuple(row["owned_ids"]): row["score"] for row in before}
+    scores_after = {tuple(row["owned_ids"]): row["score"] for row in after}
+    assert scores_after[tuple(target)] < scores_before[tuple(target)]
+    other = next(row["owned_ids"] for row in before if row["owned_ids"] != target)
+    assert scores_after[tuple(other)] == scores_before[tuple(other)]
+
+
+def test_malformed_legacy_feedback_does_not_affect_rankings():
+    wardrobe = [own("shirt", "top"), own("trousers", "bottom")]
+    original = mixed_outfits(wardrobe, [])["outfits"]
+    after = mixed_outfits(wardrobe, [], feedback=[
+        {"product_id": "owned-outfit:invalid", "sentiment": "disliked"},
+    ])["outfits"]
+    assert after == original
