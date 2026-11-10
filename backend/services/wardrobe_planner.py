@@ -81,6 +81,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     selected = []
     used = Counter()
     visible_combinations = set()
+    by_id = {item["id"]: item for item in items}
     while ranked and len(selected) < limit:
         index = max(range(len(ranked)), key=lambda i: (
             ranked[i]["compatibility_score"] -
@@ -89,7 +90,6 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
         choice = ranked.pop(index)
         # Different uploads with the same garment labels can otherwise make
         # indistinguishable recommendations. Preserve distinct colours/styles.
-        by_id = {item["id"]: item for item in items}
         signature = tuple(
             (str(by_id[item_id].get("category") or "").casefold(),
              " ".join(str(by_id[item_id].get("name") or "").casefold().split()),
