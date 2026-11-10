@@ -5,7 +5,7 @@ Scores compare garments within a user's own wardrobe; not probabilities.
 """
 from __future__ import annotations
 
-import re
+import math
 from services.recommendation_engine import COLOUR_EQUIVALENTS
 
 NEUTRALS = frozenset({
@@ -138,6 +138,12 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if not styles:
         reasons.append("Add confirmed styles for more personalised ranking.")
     reasons.append(f"Ranked for your {occasion} occasion and {climate} climate preference; fit and weather are unverified.")
-    return {"compatibility_score": max(0, min(100, score)),
+    # Many matching labels can add up to well over 100 even though we cannot
+    # verify the actual appearance or fit. Compress high additive scores into
+    # an intentionally non-perfect 0-95 estimate, preserving monotonic order.
+    # Negative evidence still applies before calibration.
+    calibrated = (score if score <= 70 else
+                  70 + 25 * (1 - math.exp(-(score - 70) / 40)))
+    return {"compatibility_score": max(0, min(95, round(calibrated))),
             "compatibility_reasons": reasons[:6], "image_colour_verified": False,
-            "ranking_basis": "confirmed_wardrobe_labels_and_named_scan_swatches"}
+            "ranking_basis": "calibrated_confirmed_wardrobe_labels_and_named_scan_swatches"}
