@@ -118,23 +118,32 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
              [[dress] for dress in dresses])[:1200]
     outfits = []
     seen = set()
+    def composition_score(garments):
+        return score_owned_outfit(
+            garments, scan=scan, preferred_colours=preferred_colours,
+            avoided_colours=avoided_colours, preferred_style=preferred_style,
+            occasion=occasion, climate=climate)["compatibility_score"]
+
     for index, base in enumerate(bases):
-        shoe_options = shoes[:min(4, len(shoes))] if shoes else [None]
-        # When there are many base outfits, rotate the first shoe so all
-        # tied combinations do not just use the same accessory.
-        if len(bases) > 1 and shoes:
-            rotated = index % len(shoe_options)
-            shoe_options = shoe_options[rotated:] + shoe_options[:rotated]
+        # Choose footwear for the actual top/bottom (or dress) combination,
+        # rather than the first four uploads in arbitrary wardrobe order.
+        # Preserve alternatives if a user owns multiple suitable pairs.
+        shoe_options = sorted(
+            shoes, key=lambda shoe: -composition_score(base + [shoe]))[:4] if shoes else [None]
         for shoe in shoe_options:
             chosen = list(base)
             if shoe:
                 chosen.append(shoe)
             if climate == "cold" and outer:
-                chosen.append(outer[index % len(outer)])
-            # Accessorise owned looks when possible, but keep a single optional
-            # accessory to avoid expensive combinations or unnecessary layers.
+                # The previous round-robin ignored outerwear colour and style.
+                # Choose the most compatible available layer for this outfit.
+                layer = max(outer, key=lambda item: composition_score(chosen + [item]))
+                chosen.append(layer)
+            # Keep owned accessories optional in meaning; prefer the accessory
+            # that suits the particular look over the first uploaded item.
             if accessories:
-                chosen.append(accessories[index % len(accessories)])
+                accessory = max(accessories, key=lambda item: composition_score(chosen + [item]))
+                chosen.append(accessory)
             ids = tuple(x["id"] for x in chosen)
             if ids in seen:
                 continue
