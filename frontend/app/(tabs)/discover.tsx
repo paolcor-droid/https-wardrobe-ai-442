@@ -467,7 +467,7 @@ export default function DiscoverScreen() {
         <View style={styles.card}>
           <Text style={styles.body}>Style the clothes you already own. Rankings use your confirmed colour and style labels, saved colour scan and preferences—not the shopping catalogue.</Text>
           <Text style={styles.note}>Planning for: {discoverClimate} weather ({weatherSelectionSource}). Visit Wardrobe to refresh the current weather and update these looks.</Text>
-          <Text style={styles.note}>Scores are relative, capped styling estimates—not probabilities, perfect-match guarantees or verified fit.</Text>
+          <Text style={styles.note}>Scores are calibrated relative styling estimates (maximum 95/100), not probabilities, perfect-match guarantees or verified fit.</Text>
           {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
           {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
