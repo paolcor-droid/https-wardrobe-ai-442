@@ -149,3 +149,17 @@ def test_malformed_legacy_feedback_does_not_affect_rankings():
         {"product_id": "owned-outfit:invalid", "sentiment": "disliked"},
     ])["outfits"]
     assert after == original
+
+
+def test_wardrobe_first_cards_do_not_claim_no_shoes_is_complete():
+    without_shoes = mixed_outfits([
+        own("shirt", "top"), own("trousers", "bottom")
+    ], [])["outfits"][0]
+    assert without_shoes["purchase_required"] is False
+    assert without_shoes["is_complete"] is False
+    assert "shoes" in without_shoes["missing_categories"]
+    with_shoes = mixed_outfits([
+        own("shirt", "top"), own("trousers", "bottom"), own("shoes", "shoes")
+    ], [])["outfits"][0]
+    assert with_shoes["is_complete"] is True
+    assert with_shoes["missing_categories"] == []
