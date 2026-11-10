@@ -212,3 +212,36 @@ def test_visually_duplicate_uploads_do_not_repeat_identical_looks():
     assert len(outfits) == 2
     assert {row["item_ids"][0] for row in outfits} <= {"shirt1", "shirt2", "shirt3"}
     assert any(row["item_ids"][0] == "shirt3" for row in outfits)
+
+
+def test_outfit_completion_requires_shoes_but_not_optional_accessories():
+    base = [
+        {"id": "shirt", "name": "Navy shirt", "category": "top"},
+        {"id": "trousers", "name": "Grey trousers", "category": "bottom"},
+    ]
+    without_shoes = plan_outfits(base, climate="mild")[0]
+    assert without_shoes["is_complete"] is False
+    assert without_shoes["missing_categories"] == ["shoes"]
+    with_shoes = plan_outfits(base + [
+        {"id": "shoes", "name": "Black shoes", "category": "shoes"},
+    ], climate="mild")[0]
+    assert with_shoes["is_complete"] is True
+    assert with_shoes["missing_categories"] == []
+
+
+def test_cold_weather_look_explains_missing_layer_without_hiding_shoes():
+    base = [
+        {"id": "shirt", "name": "Shirt", "category": "top"},
+        {"id": "pants", "name": "Pants", "category": "bottom"},
+        {"id": "shoes", "name": "Shoes", "category": "shoes"},
+    ]
+    cold = plan_outfits(base, climate="cold")[0]
+    assert cold["is_complete"] is False
+    assert cold["missing_categories"] == ["outerwear"]
+    with_layer = plan_outfits(base + [
+        {"id": "jacket", "name": "Jacket", "category": "outerwear"},
+    ], climate="cold")[0]
+    assert with_layer["is_complete"] is True
+    assert with_layer["missing_categories"] == []
+    hot = plan_outfits(base, climate="hot")[0]
+    assert hot["is_complete"] is True
