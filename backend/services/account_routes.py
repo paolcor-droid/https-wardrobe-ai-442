@@ -1679,7 +1679,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
         now = datetime.now(timezone.utc)
         day = now.strftime("%Y-%m-%d")
-        daily_limit = max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        try:
+            daily_limit = max(1, min(100, int(os.environ.get(
+                "LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        except (ValueError, TypeError):
+            daily_limit = 20
         # Atomic daily quota reservation, including concurrent requests.
         quota = await db.customer_preview_quotas.find_one_and_update(
             {"_id": f"{user_id}:{day}", "count": {"$lt": daily_limit}},
