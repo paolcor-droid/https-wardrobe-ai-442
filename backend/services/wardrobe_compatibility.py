@@ -109,12 +109,36 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if len(styles) > 1 and len(set(styles)) == 1:
         score += 10
         reasons.append("The saved garment styles are consistent.")
+    # Evaluate the look as a composition, not just a sum of matching skin
+    # swatches. A neutral foundation and one accent generally coordinate more
+    # easily than several independently strong accents. Unknown labels stay
+    # neutral so we never infer patterns or fabrics from photographs.
+    core = [g for g in garments if g.get("category") in {"top", "bottom", "dress"}]
+    core_colours = [norm(g.get("colour")) for g in core if norm(g.get("colour"))]
+    core_accents = [c for c in core_colours if c not in NEUTRALS]
+    if len(core_colours) >= 2 and len(core_accents) == 1:
+        score += 5
+        reasons.append("A single labelled accent balances the core garments.")
+    patterns = [norm(g.get("pattern")) for g in core]
+    distinct_patterns = [p for p in patterns if p and p not in {"solid", "plain", "none", "other"}]
+    if len(distinct_patterns) >= 2:
+        score -= 12
+        reasons.append("Both core garments have labelled patterns; check that their scales coordinate.")
+    elif len(distinct_patterns) == 1:
+        score += 3
+        reasons.append("One labelled patterned piece provides a focal point.")
+    # Shoes should belong to the occasion; a good colour match alone is not
+    # enough to recommend sporty footwear for a formally labelled look.
+    shoe_styles = [norm(g.get("style")) for g in garments if g.get("category") == "shoes"]
     # Occasion and seasonality use user-confirmed labels only.
     formal_occasions = {"formal", "business", "office", "work", "evening"}
     formal_styles = {"formal", "business", "smart casual", "classic"}
     relaxed_styles = {"casual", "sporty", "streetwear", "bohemian"}
     occasion_label = norm(occasion)
     if occasion_label in formal_occasions:
+        if any(style in relaxed_styles for style in shoe_styles):
+            score -= 18
+            reasons.append("Saved shoe style may be too casual for this occasion.")
         aligned = sum(style in formal_styles for style in styles)
         if aligned:
             score += min(12, 6 * aligned)
@@ -122,6 +146,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(style in relaxed_styles for style in styles):
             score -= 7
     if climate in {"hot", "cold"}:
+        # Season labels may be simple adjectives in older saved wardrobes.
         unsuitable = "cool weather" if climate == "hot" else "warm weather"
         comfortable = "warm weather" if climate == "hot" else "cool weather"
         if any(norm(g.get("season")) == unsuitable for g in garments):
