@@ -486,7 +486,10 @@ export default function DiscoverScreen() {
               style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 14, gap: 10 }}>
               <Text style={styles.body}>Look {index + 1} · {garments.map(g => [g.colour, g.name].filter(Boolean).join(" ")).join(" + ")}</Text>
               <Text style={styles.note}>Style compatibility estimate: {outfit.compatibility_score ?? "—"}/100 · relative ranking, not fit verification</Text>
-              <Text style={styles.note}>Personalised look using your own clothes · {discoverClimate} weather</Text>
+              <Text style={styles.note}>{outfit.is_complete ? "Ready from your wardrobe" :
+                outfit.missing_categories?.length
+                  ? "Base outfit · still needs " + outfit.missing_categories.join(" and ")
+                  : "Personalised wardrobe look"} · {discoverClimate} weather</Text>
               {(() => {
                 const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
                 const descriptions = garments.slice(0, 5).map(g => ({name: g.name.slice(0,100), colour: (g.colour || "neutral").slice(0,40)}));
@@ -545,7 +548,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
-              {!hasShoes ? <Text style={styles.note}>Missing: shoes. See matching footwear options in “Build a look from what you own” below, when available.</Text> : null}
+              {!hasShoes ? <Text style={styles.note}>Finish this outfit with shoes. Matching catalogue options appear below when available; nothing is added to your wardrobe automatically.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
               <Pressable accessibilityRole="button" testID={`owned-explanation-${index}`}
