@@ -371,8 +371,8 @@ def test_later_uploaded_best_shoes_are_considered():
                      "category": "shoes", "style": "classic"})
     looks = plan_outfits(wardrobe, occasion="formal", preferred_style="classic")
     assert "bestshoe" in looks[0]["item_ids"]
-    assert all("bestshoe" in look["item_ids"] or
-               "shoe" in look["item_ids"][2] for look in looks)
+    assert "bestshoe" in {look["item_ids"][2] for look in looks}
+    assert len(looks) == 4  # Best four candidates, not first four uploads
 
 
 def test_cold_weather_selects_matching_outerwear_instead_of_first_upload():
