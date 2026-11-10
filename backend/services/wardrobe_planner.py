@@ -60,9 +60,19 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 chosen, scan=scan, preferred_colours=preferred_colours,
                 avoided_colours=avoided_colours, preferred_style=preferred_style,
                 occasion=occasion, climate=climate)
+            # Distinguish a styled base combination from a fully ready outfit.
+            # Accessories are optional; footwear and cold-weather layers are
+            # clearly marked as missing, not silently treated as "complete".
+            missing = []
+            if not shoe:
+                missing.append("shoes")
+            if climate == "cold" and not any(g.get("category") == "outerwear" for g in chosen):
+                missing.append("outerwear")
             outfits.append({
                 "item_ids": list(ids), "names": names,
                 "reason": " ".join(evidence["compatibility_reasons"]),
+                "missing_categories": missing,
+                "is_complete": not missing,
                 **evidence,
             })
     # Diversify the ranked set so one high-scoring shirt cannot consume all slots.
