@@ -628,7 +628,7 @@ export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"l
   });
 }
 
-export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; compatibility_score?: number; compatibility_reasons?: string[]; ranking_basis?: string };
+export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; is_complete?: boolean; missing_categories?: string[]; compatibility_score?: number; compatibility_reasons?: string[]; ranking_basis?: string };
 export type CapsulePlan = {
   items: Array<{ id: string; name: string; category: string; colour: string }>;
   possible_outfits: OutfitPlan[];
