@@ -665,7 +665,10 @@ export default function DiscoverScreen() {
             <View key={look.id} style={{ gap: 10, paddingVertical: 14, borderTopWidth: 1, borderColor: "rgba(128,128,128,0.25)" }}>
               <Text style={styles.body}>{look.purchase_required
                 ? "Optional matching piece to complete your outfit"
-                : "Complete look from your wardrobe"}</Text>
+                : look.is_complete ? "Ready-to-wear look from your wardrobe"
+                : "Outfit base from your wardrobe"}</Text>
+              {!look.purchase_required && (look.missing_categories?.length || 0) > 0 ?
+                <Text style={styles.note}>Still needs: {look.missing_categories?.join(" and ")}</Text> : null}
               <Text style={styles.note}>Relative styling score: {look.score}/100 · capped estimate, not a fit guarantee</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {look.owned_ids.map(id => {
