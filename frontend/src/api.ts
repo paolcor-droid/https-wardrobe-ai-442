@@ -621,6 +621,10 @@ export async function getMixedWardrobeOutfits(
   if (occasion) params.set("occasion", occasion);
   return accountRequest("/wardrobe/mixed-outfits" + (params.toString() ? "?" + params.toString() : ""));
 }
+export type WardrobeOutfitReaction = {item_ids:string[];sentiment:"liked"|"disliked"|"saved"};
+export async function getWardrobeOutfitFeedback():Promise<WardrobeOutfitReaction[]> {
+  return accountRequest("/wardrobe/outfit-feedback");
+}
 export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"liked"|"disliked"|"saved"):Promise<{success:boolean}> {
   return accountRequest("/wardrobe/outfit-feedback", {
     method:"PUT", headers:{"Content-Type":"application/json"},
