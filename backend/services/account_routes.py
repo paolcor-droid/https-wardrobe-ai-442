@@ -1635,8 +1635,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         """Capability only; never expose credentials or consume generation quota."""
         enabled = bool(os.environ.get("OPENAI_API_KEY")) and (
             os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") == "1")
-        return {"enabled": enabled,
-                "daily_limit": max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20")))),
+        try:
+            daily_limit = max(1, min(100, int(os.environ.get(
+                "LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        except (ValueError, TypeError):
+            daily_limit = 20
+        return {"enabled": enabled, "daily_limit": daily_limit,
                 "notice": ("Model illustrations are optional AI-generated styling concepts."
                            if enabled else "AI illustrations are unavailable on this server. Saved wardrobe photos remain usable.")}
 
