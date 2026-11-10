@@ -113,7 +113,7 @@ def test_named_scan_and_confirmed_garment_styles_change_order():
     ranked = plan_outfits(items, scan=scan, preferred_style="classic")
     assert ranked[0]["item_ids"][0] == "blue"
     assert ranked[0]["compatibility_score"] > ranked[1]["compatibility_score"]
-    assert ranked[0]["ranking_basis"] == "confirmed_wardrobe_labels_and_named_scan_swatches"
+    assert ranked[0]["ranking_basis"] == "calibrated_confirmed_wardrobe_labels_and_named_scan_swatches"
     assert not ranked[0]["image_colour_verified"]
 
 
@@ -245,3 +245,36 @@ def test_cold_weather_look_explains_missing_layer_without_hiding_shoes():
     assert with_layer["missing_categories"] == []
     hot = plan_outfits(base, climate="hot")[0]
     assert hot["is_complete"] is True
+
+
+def test_outfit_scores_are_calibrated_not_perfect_even_with_many_matches():
+    from services.wardrobe_compatibility import score_owned_outfit
+    pieces = [
+        {"id": "shirt", "name": "Shirt", "category": "top",
+         "colour": "navy", "style": "classic"},
+        {"id": "trousers", "name": "Trousers", "category": "bottom",
+         "colour": "cream", "style": "classic"},
+        {"id": "shoes", "name": "Shoes", "category": "shoes",
+         "colour": "black", "style": "classic"},
+    ]
+    scan = {"best_neutrals": [{"name": "navy"}, {"name": "cream"}, {"name": "black"}]}
+    strongest = score_owned_outfit(
+        pieces, scan=scan, preferred_colours=["navy", "cream", "black"],
+        preferred_style="classic", occasion="business")
+    baseline = score_owned_outfit(pieces)
+    assert 0 <= strongest["compatibility_score"] <= 95
+    assert strongest["compatibility_score"] > baseline["compatibility_score"]
+    assert strongest["image_colour_verified"] is False
+
+
+def test_avoid_colours_and_weather_remain_effective_after_calibration():
+    from services.wardrobe_compatibility import score_owned_outfit
+    shirt = {"id": "shirt", "name": "Shirt", "category": "top",
+             "colour": "navy", "style": "classic", "season": "cool weather"}
+    trousers = {"id": "trousers", "name": "Trousers", "category": "bottom",
+                "colour": "cream", "style": "classic"}
+    good = score_owned_outfit([shirt, trousers], climate="cold")
+    discouraged = score_owned_outfit(
+        [shirt, trousers], avoided_colours=["navy"], climate="hot")
+    assert good["compatibility_score"] > discouraged["compatibility_score"]
+    assert discouraged["compatibility_score"] < 95
