@@ -394,6 +394,10 @@ export default function WardrobeScreen() {
           </Pressable> : null}
           {plannedOutfits.map((outfit, index) => <View key={index} style={styles.planned}>
             <Text style={styles.itemName}>{outfit.names.join(" + ")}</Text>
+            <Text style={styles.note}>{outfit.is_complete ? "Ready from your wardrobe" :
+              outfit.missing_categories?.length
+                ? "Needs " + outfit.missing_categories.join(" and ") + " to complete this outfit"
+                : "Wardrobe combination"}</Text>
             {typeof outfit.compatibility_score === "number" ?
               <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Relative style estimate, not a fit guarantee</Text> : null}
             <Text style={styles.note}>{outfit.reason}</Text>
