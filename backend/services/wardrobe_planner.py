@@ -127,9 +127,10 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     for index, base in enumerate(bases):
         # Choose footwear for the actual top/bottom (or dress) combination,
         # rather than the first four uploads in arbitrary wardrobe order.
+        # Bound candidate evaluation on larger wardrobes.
         # Preserve alternatives if a user owns multiple suitable pairs.
         shoe_options = sorted(
-            shoes, key=lambda shoe: -composition_score(base + [shoe]))[:4] if shoes else [None]
+            shoes[:32], key=lambda shoe: -composition_score(base + [shoe]))[:4] if shoes else [None]
         for shoe in shoe_options:
             chosen = list(base)
             if shoe:
@@ -137,12 +138,12 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
             if climate == "cold" and outer:
                 # The previous round-robin ignored outerwear colour and style.
                 # Choose the most compatible available layer for this outfit.
-                layer = max(outer, key=lambda item: composition_score(chosen + [item]))
+                layer = max(outer[:24], key=lambda item: composition_score(chosen + [item]))
                 chosen.append(layer)
             # Keep owned accessories optional in meaning; prefer the accessory
             # that suits the particular look over the first uploaded item.
             if accessories:
-                accessory = max(accessories, key=lambda item: composition_score(chosen + [item]))
+                accessory = max(accessories[:24], key=lambda item: composition_score(chosen + [item]))
                 chosen.append(accessory)
             ids = tuple(x["id"] for x in chosen)
             if ids in seen:
