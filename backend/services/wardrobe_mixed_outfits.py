@@ -18,7 +18,7 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
         avoided_colours=prefs.get("avoided_colours"),
         preferred_style=prefs.get("style"),
         occasion=prefs.get("occasion", "casual"),
-        climate=prefs.get("climate", "mild"))
+        climate=prefs.get("climate", "mild"), feedback=feedback)
     results = []
     for look in complete:
         results.append({
@@ -27,18 +27,8 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
             "score": look["compatibility_score"], "reason": look["reason"],
             "type": "all_owned", "purchase_required": False,
         })
-    # Previous account-owned reactions tune the relative ranking.
-    from hashlib import sha256
-    import json
-    signals = {row.get("product_id"): row.get("sentiment")
-               for row in (feedback or []) if isinstance(row, dict)}
-    for look in results:
-        digest = sha256(json.dumps(sorted(look["owned_ids"])).encode()).hexdigest()
-        signal = signals.get("owned-outfit:" + digest)
-        delta = {"liked": 8, "saved": 12, "disliked": -25}.get(signal, 0)
-        look["score"] = max(0, min(100, look["score"] + delta))
-        if delta:
-            look["reason"] += " Your saved outfit feedback influenced this ranking."
+    # The shared wardrobe planner now scores exact and similar previously
+    # rated outfits. Do not apply the same feedback a second time here.
     results.sort(key=lambda x: -x["score"])
     # Fill an actual gap only; do not replace available owned pieces to sell more.
     tops = [g for g in owned if g.get("category") == "top"]
