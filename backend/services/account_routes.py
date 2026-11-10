@@ -1426,6 +1426,20 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
                              preferences=preferences, feedback=feedback)
 
+    @router.get("/wardrobe/outfit-feedback")
+    async def list_wardrobe_outfit_feedback(user_id: str = Depends(current_user)):
+        """Show the current user's previously rated wardrobe looks."""
+        records = await db.customer_feedback.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(1000)
+        return [
+            {"item_ids": row["wardrobe_item_ids"], "sentiment": row["sentiment"]}
+            for row in records
+            if isinstance(row.get("product_id"), str)
+            and row["product_id"].startswith("owned-outfit:")
+            and isinstance(row.get("wardrobe_item_ids"), list)
+            and row.get("sentiment") in {"liked", "disliked", "saved"}
+        ]
+
     @router.put("/wardrobe/outfit-feedback")
     async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
         """Owner-scoped preference signal, never a trusted price or item description."""
