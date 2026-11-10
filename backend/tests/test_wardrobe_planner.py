@@ -278,3 +278,68 @@ def test_avoid_colours_and_weather_remain_effective_after_calibration():
         [shirt, trousers], avoided_colours=["navy"], climate="hot")
     assert good["compatibility_score"] > discouraged["compatibility_score"]
     assert discouraged["compatibility_score"] < 95
+
+
+def test_saved_likes_and_dislikes_learn_from_similar_wardrobe_looks():
+    wardrobe = [
+        {"id": "navy", "name": "Navy shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "blue", "name": "Blue shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "orange", "name": "Orange shirt", "category": "top", "colour": "orange", "style": "streetwear"},
+        {"id": "pants", "name": "Trousers", "category": "bottom", "colour": "cream", "style": "classic"},
+    ]
+    signal = [{
+        "product_id": "owned-outfit:test", "wardrobe_item_ids": ["navy", "pants"],
+        "sentiment": "liked",
+    }]
+    initial = {tuple(o["item_ids"]): o for o in plan_outfits(wardrobe)}
+    learned = {tuple(o["item_ids"]): o for o in plan_outfits(wardrobe, feedback=signal)}
+    assert learned[("navy", "pants")]["compatibility_score"] > initial[("navy", "pants")]["compatibility_score"]
+    # A different saved shirt with the same confirmed colour and style also benefits.
+    assert learned[("blue", "pants")]["compatibility_score"] > initial[("blue", "pants")]["compatibility_score"]
+    assert learned[("orange", "pants")]["compatibility_score"] >= 0
+
+
+def test_dislike_reduces_direct_look_score_without_disabling_other_outfits():
+    wardrobe = [
+        {"id": "shirt", "name": "Navy shirt", "category": "top", "colour": "navy"},
+        {"id": "red", "name": "Red shirt", "category": "top", "colour": "red"},
+        {"id": "pants", "name": "Cream pants", "category": "bottom", "colour": "cream"},
+    ]
+    before = {tuple(o["item_ids"]): o for o in plan_outfits(wardrobe)}
+    after = {tuple(o["item_ids"]): o for o in plan_outfits(wardrobe, feedback=[{
+        "product_id": "owned-outfit:test", "wardrobe_item_ids": ["shirt", "pants"],
+        "sentiment": "disliked",
+    }])}
+    assert after[("shirt", "pants")]["compatibility_score"] < before[("shirt", "pants")]["compatibility_score"]
+    assert after[("red", "pants")]["compatibility_score"] > after[("shirt", "pants")]["compatibility_score"]
+
+
+def test_feedback_stays_with_current_wardrobe_and_preserves_style_preferences():
+    wardrobe = [
+        {"id": "classic", "name": "Classic shirt", "category": "top", "colour": "navy", "style": "classic"},
+        {"id": "sport", "name": "Sport shirt", "category": "top", "colour": "navy", "style": "sporty"},
+        {"id": "pants", "name": "Trousers", "category": "bottom", "colour": "cream"},
+    ]
+    unrelated = [{
+        "product_id": "owned-outfit:old", "wardrobe_item_ids": ["deleted", "pants"],
+        "sentiment": "saved",
+    }]
+    expected = plan_outfits(wardrobe, preferred_style="classic")
+    actual = plan_outfits(wardrobe, preferred_style="classic", feedback=unrelated)
+    assert [(o["item_ids"], o["compatibility_score"]) for o in expected] == [
+        (o["item_ids"], o["compatibility_score"]) for o in actual]
+    assert actual[0]["item_ids"][0] == "classic"
+
+
+def test_capsule_can_use_saved_outfit_feedback_when_choosing_between_tops():
+    wardrobe = [
+        {"id": "first", "name": "First shirt", "category": "top", "colour": "navy"},
+        {"id": "second", "name": "Second shirt", "category": "top", "colour": "navy"},
+        {"id": "pants", "name": "Pants", "category": "bottom", "colour": "cream"},
+    ]
+    feedback = [{
+        "product_id": "owned-outfit:sample", "wardrobe_item_ids": ["second", "pants"],
+        "sentiment": "saved",
+    }]
+    chosen = capsule_plan(wardrobe, max_items=2, feedback=feedback)
+    assert {x["id"] for x in chosen["items"]} == {"second", "pants"}
