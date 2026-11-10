@@ -27,9 +27,8 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
             "score": look["compatibility_score"], "reason": look["reason"],
             "type": "all_owned", "purchase_required": False,
         })
-    # The shared wardrobe planner now scores exact and similar previously
-    # rated outfits. Do not apply the same feedback a second time here.
-    results.sort(key=lambda x: -x["score"])
+    # Preserve the planner's personalised ordering, which also handles ties
+    # at the displayed 95-point ceiling. Never double-count feedback here.
     # Fill an actual gap only; do not replace available owned pieces to sell more.
     tops = [g for g in owned if g.get("category") == "top"]
     bottoms = [g for g in owned if g.get("category") == "bottom"]
