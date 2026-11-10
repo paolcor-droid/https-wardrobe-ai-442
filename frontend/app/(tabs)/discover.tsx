@@ -67,7 +67,11 @@ export default function DiscoverScreen() {
     setStylingFeedbackNotice("");
     try {
       await saveWardrobeOutfitFeedback(ids, reaction);
-      setStylingFeedbackNotice("Preference saved. Your wardrobe and capsule rankings now consider this feedback.");
+      setStylingFeedbackNotice(reaction === "disliked"
+        ? "Not for me saved. This look may move down the recommendations, but you can review or change your feedback below."
+        : reaction === "liked"
+          ? "Like saved. Similar wardrobe looks may rank higher."
+          : "Look saved. Your wardrobe recommendations will reflect this preference.");
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]}),
         queryClient.invalidateQueries({queryKey:["wardrobe-outfits"]}),
@@ -598,6 +602,55 @@ export default function DiscoverScreen() {
               </Pressable>
             </View>;
           })}
+          {ratedWardrobeLooks.length > 0 ? (
+            <View style={{marginTop:18,gap:10,borderTopWidth:1,borderColor:"rgba(128,128,128,0.25)",paddingTop:16}}>
+              <Text style={styles.body}>YOUR OUTFIT FEEDBACK</Text>
+              <Text style={styles.note}>Reviewed looks stay here even if they move out of your top recommendations. “Not for me” never removes garments or saved images from your wardrobe. You can change your preference at any time.</Text>
+              {ratedWardrobeLooks.filter(entry =>
+                entry.item_ids.length > 0 &&
+                entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id))
+              ).slice(0,20).map((entry, index) => {
+                const garments = entry.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
+                  .filter((item): item is WardrobeItem => Boolean(item));
+                return <View key={entry.item_ids.slice().sort().join("|")} style={{
+                  paddingVertical:12,gap:9,borderTopWidth:index ? 1 : 0,
+                  borderColor:"rgba(128,128,128,0.18)"
+                }}>
+                  <Text style={styles.body}>{entry.sentiment === "disliked" ? "Not for me" :
+                    entry.sentiment === "liked" ? "Liked look" : "Saved look"} · {garments.map(g => g.name).join(" + ")}</Text>
+                  <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                    {garments.map(garment => (
+                      <View key={garment.id} style={{width:78,gap:3}}>
+                        {garment.image_path
+                          ? <AccountPhoto path={garment.image_path}
+                              style={{width:78,height:96,borderRadius:8}} contentFit="contain" />
+                          : <View style={{width:78,height:96,borderRadius:8,
+                              backgroundColor:"rgba(120,120,120,0.1)",justifyContent:"center",padding:4}}>
+                              <Text style={styles.note}>No photo</Text>
+                            </View>}
+                        <Text style={styles.note} numberOfLines={2}>{garment.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                    {(["liked","disliked","saved"] as const).map(reaction => (
+                      <Pressable key={reaction} accessibilityRole="button"
+                        accessibilityState={{selected:entry.sentiment===reaction}}
+                        disabled={mixedFeedbackBusy !== null}
+                        testID={`reviewed-outfit-${reaction}-${index}`}
+                        onPress={() => reactToOwnedLook(entry.item_ids,reaction)}
+                        style={{minHeight:44,padding:10,borderWidth:1,borderRadius:8,
+                          borderColor:entry.sentiment===reaction ? "#616ac4" : "rgba(128,128,128,0.4)",
+                          backgroundColor:entry.sentiment===reaction ? "rgba(97,106,196,0.12)" : "transparent"}}>
+                        <Text style={styles.body}>{reaction === "liked" ? "Like" :
+                          reaction === "disliked" ? "Not for me" : "Save"}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>;
+              })}
+            </View>
+          ) : null}
           <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/wardrobe" as any)} style={{ paddingVertical: 12 }}>
             <Text style={styles.body}>Manage my wardrobe</Text>
           </Pressable>
