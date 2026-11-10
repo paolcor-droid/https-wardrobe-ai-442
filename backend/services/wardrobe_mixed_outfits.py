@@ -25,6 +25,8 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
             "id": "owned:" + "|".join(look["item_ids"]),
             "owned_ids": look["item_ids"], "suggested_products": [],
             "score": look["compatibility_score"], "reason": look["reason"],
+            "is_complete": look["is_complete"],
+            "missing_categories": look["missing_categories"],
             "type": "all_owned", "purchase_required": False,
         })
     # Preserve the planner's personalised ordering, which also handles ties
@@ -77,6 +79,7 @@ def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None
                     "price_verified": False, "stock_verified": False,
                 }],
                 "score": score, "reason": " ".join(evidence["compatibility_reasons"]),
+                "is_complete": False, "missing_categories": [missing],
                 "type": "wardrobe_plus_catalogue", "purchase_required": True,
             })
     # Reserve a small number of slots for missing-piece options when available.
