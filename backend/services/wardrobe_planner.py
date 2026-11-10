@@ -12,8 +12,71 @@ def _items(items):
     return [dict(item) for item in items if item.get("id") and item.get("name") and not item.get("deleted_at")]
 
 
+def _feedback_adjustments(items, feedback):
+    """Prepare bounded, account-supplied signals from previously rated owned looks.
+
+    Only currently owned item IDs are used; there is no global or cross-account
+    training. Matching a full saved combination has more weight than simply
+    sharing a garment or a confirmed colour/style label.
+    """
+    by_id = {item["id"]: item for item in items}
+    signals = []
+    for row in (feedback or []):
+        if not isinstance(row, dict) or not str(row.get("product_id", "")).startswith("owned-outfit:"):
+            continue
+        ids = row.get("wardrobe_item_ids")
+        sentiment = row.get("sentiment")
+        if (sentiment not in {"liked", "saved", "disliked"} or
+                not isinstance(ids, list) or not 1 <= len(ids) <= 5 or
+                len(set(str(value) for value in ids)) != len(ids) or
+                any(not isinstance(value, str) or value not in by_id for value in ids)):
+            continue
+        signals.append((set(ids), sentiment))
+    # Keep behaviour deterministic even with large feedback histories.
+    return by_id, signals[-100:]
+
+
+def _feedback_delta(look_ids, by_id, signals):
+    from services.wardrobe_compatibility import norm
+    if not signals:
+        return 0
+    look = set(look_ids)
+    positives, negatives = [], []
+    for rated_ids, sentiment in signals:
+        if look == rated_ids:
+            adjustment = {"liked": 14, "saved": 18, "disliked": -24}[sentiment]
+        else:
+            overlap = len(look & rated_ids) / max(1, len(look | rated_ids))
+            # Learn a little from similar confirmed garment types/labels,
+            # without treating unrelated looks as user preferences.
+            label_similarity = 0
+            for item_id in look - rated_ids:
+                garment = by_id[item_id]
+                for rated_id in rated_ids - look:
+                    rated = by_id[rated_id]
+                    if garment.get("category") != rated.get("category"):
+                        continue
+                    if (norm(garment.get("colour")) and
+                            norm(garment.get("colour")) == norm(rated.get("colour"))):
+                        label_similarity = max(label_similarity, 0.25)
+                    if (norm(garment.get("style")) and
+                            norm(garment.get("style")) == norm(rated.get("style"))):
+                        label_similarity = max(label_similarity, 0.15)
+            similarity = max(overlap, label_similarity)
+            adjustment = round(similarity * (9 if sentiment in {"liked", "saved"} else -12))
+        if adjustment > 0:
+            positives.append(adjustment)
+        elif adjustment < 0:
+            negatives.append(adjustment)
+    # A single repeated tap or many similar looks cannot overpower a strong
+    # avoided-colour or weather penalty. Exact dislikes remain meaningful.
+    return max(-24, min(18, (max(positives) if positives else 0) +
+                        (min(negatives) if negatives else 0)))
+
+
 def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
-                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None):
+                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None,
+                 feedback=None):
     """Rank owned combinations by labelled colour, style and saved-scan evidence.
 
     Use a bounded candidate pool; do not read garment pixels or infer fabric/fit.
@@ -23,6 +86,7 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     if not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
     items = _items(items)
+    feedback_items, feedback_signals = _feedback_adjustments(items, feedback)
     tops = [x for x in items if x.get("category") == "top"]
     bottoms = [x for x in items if x.get("category") == "bottom"]
     dresses = [x for x in items if x.get("category") == "dress"]
@@ -68,9 +132,16 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 missing.append("shoes")
             if climate == "cold" and not any(g.get("category") == "outerwear" for g in chosen):
                 missing.append("outerwear")
+            feedback_delta = _feedback_delta(ids, feedback_items, feedback_signals)
+            evidence["compatibility_score"] = max(
+                0, min(95, evidence["compatibility_score"] + feedback_delta))
+            if feedback_delta:
+                evidence["compatibility_reasons"].append(
+                    "Your previous outfit likes, saves or dislikes influenced this ranking.")
             outfits.append({
                 "item_ids": list(ids), "names": names,
                 "reason": " ".join(evidence["compatibility_reasons"]),
+                "feedback_adjustment": feedback_delta,
                 "missing_categories": missing,
                 "is_complete": not missing,
                 **evidence,
@@ -134,7 +205,8 @@ def wardrobe_insights(items):
 
 
 def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
-                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None):
+                 scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None,
+                 feedback=None):
     if not isinstance(max_items, int) or not 1 <= max_items <= 50:
         raise ValueError("max_items must be between 1 and 50")
     items = _items(items)
@@ -146,7 +218,7 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
         items, occasion, climate, limit=20, scan=scan,
         preferred_colours=preferred_colours,
         avoided_colours=avoided_colours,
-        preferred_style=preferred_style)
+        preferred_style=preferred_style, feedback=feedback)
     usefulness = Counter()
     for rank, look in enumerate(ranked_looks):
         for garment_id in look["item_ids"]:
@@ -187,7 +259,7 @@ def capsule_plan(items, occasion="casual", climate="mild", max_items=12, *,
         "possible_outfits": plan_outfits(chosen, occasion, climate, limit=20, scan=scan,
                                         preferred_colours=preferred_colours,
                                         avoided_colours=avoided_colours,
-                                        preferred_style=preferred_style),
+                                        preferred_style=preferred_style, feedback=feedback),
         "missing_categories": missing,
         "wardrobe_insights": wardrobe_insights(items),
         "notice": "Capsule selection favours pieces used in your highest-ranked compatible owned outfits, then balances garment types. Rankings use confirmed garment details, not verified fit, stock or fabric.",
