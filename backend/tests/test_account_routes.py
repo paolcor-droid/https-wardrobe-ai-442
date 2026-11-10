@@ -1511,3 +1511,64 @@ def test_preloved_publishing_disabled_by_default_and_anonymous_requests_blocked(
         json={"status": "published", "confirmation": "PUBLISH PRELOVED LISTING"})
     assert publish.status_code == 503
     assert client.get("/api/account/preloved/mine", headers=auth).json()[0]["status"] == "draft"
+
+
+def test_saved_weather_is_account_scoped_and_does_not_store_location():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    accounts = []
+    for email in ("weather-a@example.test", "weather-b@example.test"):
+        credentials = {"email": email, "password": "long secure password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        accounts.append({"Authorization": "Bearer " + token})
+    first, second = accounts
+    assert client.put("/api/account/stylist-weather", headers=first, json={
+        "climate": "hot", "source": "local", "latitude": -27.5, "longitude": 153.0,
+    }).status_code == 200
+    saved = client.get("/api/account/profile", headers=first).json()["stylist_weather"]
+    assert saved["climate"] == "hot"
+    assert saved["source"] == "local"
+    assert "latitude" not in saved and "longitude" not in saved
+    assert client.get("/api/account/profile", headers=second).json().get("stylist_weather") is None
+    assert client.put("/api/account/stylist-weather", headers=first,
+                      json={"climate": "rainy", "source": "local"}).status_code == 422
+    assert client.put("/api/account/stylist-weather", headers=second,
+                      json={"climate": "cold", "source": "manual"}).status_code == 200
+    assert client.get("/api/account/profile", headers=first).json()["stylist_weather"]["climate"] == "hot"
+    assert client.put("/api/account/stylist-weather", json={
+        "climate": "mild", "source": "manual"}).status_code == 401
+
+
+def test_preview_capability_never_exposes_api_key_or_spends_quota(monkeypatch):
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    credentials = {"email": "preview-status@example.test", "password": "long secure password"}
+    assert client.post("/api/account/register", json=credentials).status_code == 201
+    token = client.post("/api/account/login", json=credentials).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    assert client.get("/api/account/outfit-preview-status").status_code == 401
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-secret-not-for-response")
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0")
+    first = client.get("/api/account/outfit-preview-status", headers=headers)
+    assert first.status_code == 200
+    assert first.json()["enabled"] is False
+    assert "synthetic-secret" not in first.text
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "1")
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "invalid")
+    second = client.get("/api/account/outfit-preview-status", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["enabled"] is True
+    assert second.json()["daily_limit"] == 20
