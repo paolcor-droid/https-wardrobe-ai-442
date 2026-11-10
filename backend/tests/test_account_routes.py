@@ -1572,3 +1572,52 @@ def test_preview_capability_never_exposes_api_key_or_spends_quota(monkeypatch):
     assert second.status_code == 200
     assert second.json()["enabled"] is True
     assert second.json()["daily_limit"] == 20
+
+
+def test_owned_outfit_feedback_updates_rankings_without_cross_account_learning():
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("learning-a@example.test", "learning-b@example.test"):
+        credentials = {"email": email, "password": "long secure password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        headers.append({"Authorization": "Bearer " + token})
+    a, b = headers
+    wardrobe_ids = []
+    for auth in (a, b):
+        owned_ids = []
+        for name, category, colour in (
+            ("Navy shirt", "top", "navy"), ("Orange shirt", "top", "orange"),
+            ("Cream trousers", "bottom", "cream"),
+        ):
+            response = client.post("/api/account/wardrobe", headers=auth,
+                json={"name": name, "category": category, "colour": colour})
+            assert response.status_code == 201, response.text
+            owned_ids.append(response.json()["id"])
+        wardrobe_ids.append(owned_ids)
+    payload = {"occasion": "casual", "climate": "mild"}
+    initial_a = client.post("/api/account/wardrobe/outfits", headers=a, json=payload)
+    initial_b = client.post("/api/account/wardrobe/outfits", headers=b, json=payload)
+    assert initial_a.status_code == 200 and initial_b.status_code == 200
+    target_a = [wardrobe_ids[0][0], wardrobe_ids[0][2]]
+    feedback = client.put("/api/account/wardrobe/outfit-feedback", headers=a,
+        json={"item_ids": target_a, "sentiment": "disliked"})
+    assert feedback.status_code == 200, feedback.text
+    after_a = client.post("/api/account/wardrobe/outfits", headers=a, json=payload).json()
+    after_b = client.post("/api/account/wardrobe/outfits", headers=b, json=payload).json()
+    before_a_looks = {frozenset(look["item_ids"]): look for look in initial_a.json()["outfits"]}
+    after_a_looks = {frozenset(look["item_ids"]): look for look in after_a["outfits"]}
+    target = frozenset(target_a)
+    assert after_a_looks[target]["feedback_adjustment"] < 0
+    assert (after_a_looks[target]["compatibility_score"] <
+            before_a_looks[target]["compatibility_score"])
+    assert after_b == initial_b.json()
+    assert client.put("/api/account/wardrobe/outfit-feedback", headers=b,
+        json={"item_ids": target_a, "sentiment": "liked"}).status_code == 404
