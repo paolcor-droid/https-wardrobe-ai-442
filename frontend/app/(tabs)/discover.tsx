@@ -52,12 +52,18 @@ export default function DiscoverScreen() {
   });
   const [mixedFeedbackBusy, setMixedFeedbackBusy] = useState<string|null>(null);
   const [mixedFeedbackError, setMixedFeedbackError] = useState("");
+  const [stylingFeedbackNotice, setStylingFeedbackNotice] = useState("");
   const reactToOwnedLook = async (ids:string[], reaction:"liked"|"disliked"|"saved") => {
     if (mixedFeedbackBusy) return;
     setMixedFeedbackBusy(ids.join("|")); setMixedFeedbackError("");
+    setStylingFeedbackNotice("");
     try {
       await saveWardrobeOutfitFeedback(ids, reaction);
-      await queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]});
+      setStylingFeedbackNotice("Preference saved. Your wardrobe and capsule rankings now consider this feedback.");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]}),
+        queryClient.invalidateQueries({queryKey:["wardrobe-outfits"]}),
+      ]);
     } catch (error) {
       setMixedFeedbackError(error instanceof Error ? error.message : "Could not save outfit feedback.");
     } finally { setMixedFeedbackBusy(null); }
@@ -476,6 +482,8 @@ export default function DiscoverScreen() {
             <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
+          {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
+          {stylingFeedbackNotice ? <Text style={styles.note}>{stylingFeedbackNotice}</Text> : null}
           {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => {
             const garments = outfit.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
               .filter((item): item is WardrobeItem => Boolean(item));
@@ -559,6 +567,19 @@ export default function DiscoverScreen() {
               </Pressable>
               {expandedOwnedLooks.includes(outfit.item_ids.join("|")) ?
                 <Text style={styles.note}>{outfit.reason}</Text> : null}
+              <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                {(["liked","disliked","saved"] as const).map(reaction => (
+                  <Pressable key={reaction} accessibilityRole="button"
+                    disabled={mixedFeedbackBusy !== null}
+                    testID={`owned-outfit-feedback-${reaction}-${index}`}
+                    onPress={() => reactToOwnedLook(outfit.item_ids, reaction)}
+                    style={{padding:10,minHeight:44,borderWidth:1,borderRadius:8,
+                      borderColor:"rgba(128,128,128,0.4)"}}>
+                    <Text style={styles.body}>{reaction === "liked" ? "Like this look" :
+                      reaction === "disliked" ? "Not for me" : "Save this look"}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
                 testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
                 style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
