@@ -275,7 +275,10 @@ export type Preferences = {
   shop_for: "mens" | "womens" | "all";
 };
 
+export type StylistWeatherSelection = { climate: "hot" | "mild" | "cold"; source: "local" | "manual"; observed_at: string };
+
 export type Profile = {
+  stylist_weather?: StylistWeatherSelection | null;
   id: string;
   favorite_colors: string[];
   styles: string[];
@@ -309,6 +312,15 @@ export async function updateProfile(body: Partial<Omit<Profile, "id" | "skin" | 
     body: JSON.stringify(body),
   });
   return res;
+}
+
+export async function saveStylistWeather(
+  climate: "hot" | "mild" | "cold", source: "local" | "manual",
+): Promise<StylistWeatherSelection> {
+  return accountRequest("/stylist-weather", {
+    method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({climate, source}),
+  });
 }
 
 export async function analyzeSkin(imagePath: string, provider?: string | null): Promise<SkinAnalysis> {
@@ -598,11 +610,22 @@ export type MixedWardrobeOutfit = {
   suggested_products: Array<{product_id:string; name:string; category:string; image_url?:string|null; price?:number|null; currency?:string|null; price_verified:false; stock_verified:false}>;
   score: number;
   reason: string;
+  is_complete?: boolean;
+  missing_categories?: string[];
   type: "all_owned" | "wardrobe_plus_catalogue";
   purchase_required: boolean;
 };
-export async function getMixedWardrobeOutfits(): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
-  return accountRequest("/wardrobe/mixed-outfits");
+export async function getMixedWardrobeOutfits(
+  climate?: "hot" | "mild" | "cold", occasion?: string,
+): Promise<{outfits:MixedWardrobeOutfit[];notice:string}> {
+  const params = new URLSearchParams();
+  if (climate) params.set("climate", climate);
+  if (occasion) params.set("occasion", occasion);
+  return accountRequest("/wardrobe/mixed-outfits" + (params.toString() ? "?" + params.toString() : ""));
+}
+export type WardrobeOutfitReaction = {item_ids:string[];sentiment:"liked"|"disliked"|"saved"};
+export async function getWardrobeOutfitFeedback():Promise<WardrobeOutfitReaction[]> {
+  return accountRequest("/wardrobe/outfit-feedback");
 }
 export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"liked"|"disliked"|"saved"):Promise<{success:boolean}> {
   return accountRequest("/wardrobe/outfit-feedback", {
@@ -611,7 +634,7 @@ export async function saveWardrobeOutfitFeedback(item_ids:string[], sentiment:"l
   });
 }
 
-export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; compatibility_score?: number; compatibility_reasons?: string[]; ranking_basis?: string };
+export type OutfitPlan = { item_ids: string[]; names: string[]; reason: string; image_colour_verified: boolean; is_complete?: boolean; missing_categories?: string[]; compatibility_score?: number; compatibility_reasons?: string[]; quality_cautions?: string[]; feedback_adjustment?: number; ranking_basis?: string };
 export type CapsulePlan = {
   items: Array<{ id: string; name: string; category: string; colour: string }>;
   possible_outfits: OutfitPlan[];
@@ -691,18 +714,22 @@ export async function getCheckoutReadiness(country: "AU" | "MD"): Promise<Checko
   return accountRequest<CheckoutReadiness>(`/checkout/readiness?country=${country}`);
 }
 
+export async function getOutfitPreviewStatus(): Promise<{enabled:boolean;daily_limit:number;notice:string}> {
+  return accountRequest("/outfit-preview-status");
+}
+
 /** Optional authenticated AI illustration; charged only on user action and cached per account/outfit. */
 export async function generateOutfitPreview(input: {
   outfit_id: string;
   force_regenerate?: boolean;
   reference_images?: string[];
   presentation: "woman" | "man";
-  garments: Array<{name: string; colour: string}>;
+  garments: Array<{name: string; colour: string; category?: string; style?: string; pattern?: string}>;
 }): Promise<{image: string; cached: boolean; label: string}> {
   return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
 }
 
 /** Previously rendered images are account private; does not call the image model. */
-export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string;presentation?:"woman"|"man"|null;garments?:Array<{name:string;colour:string}>|null}>}> {
+export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string;presentation?:"woman"|"man"|null;garments?:Array<{name:string;colour:string;category?:string;style?:string;pattern?:string}>|null}>}> {
   return accountRequest("/outfit-previews");
 }

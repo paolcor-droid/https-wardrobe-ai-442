@@ -5,7 +5,7 @@ Scores compare garments within a user's own wardrobe; not probabilities.
 """
 from __future__ import annotations
 
-import re
+import math
 from services.recommendation_engine import COLOUR_EQUIVALENTS
 
 NEUTRALS = frozenset({
@@ -32,6 +32,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     """Return deterministic relative score and evidence; no fabric/fit verification."""
     score = 50
     reasons = []
+    cautions = []
     preferred = [str(v) for v in (preferred_colours or []) if isinstance(v, str)]
     avoided = [str(v) for v in (avoided_colours or []) if isinstance(v, str)]
     neutrals = 0
@@ -52,6 +53,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(colour_match(colour, v) for v in avoided):
             score -= 32
             reasons.append(f"{garment['name']} has a colour you chose to avoid.")
+            cautions.append("Contains an explicitly avoided clothing colour")
         if any(colour_match(colour, v) for v in preferred):
             score += 12
             reasons.append(f"{garment['name']} matches a preferred clothing colour.")
@@ -71,6 +73,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         reasons.append(f"{matched_palette} garment colour(s) match named swatches in your saved scan.")
     if caution:
         reasons.append(f"{caution} garment colour(s) match your scan's caution swatches.")
+        cautions.append("Includes a caution colour from your saved colour analysis")
     colours = [norm(g.get("colour")) for g in garments if norm(g.get("colour"))]
     if len(colours) >= 2:
         if len(set(colours)) == 1:
@@ -109,12 +112,38 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if len(styles) > 1 and len(set(styles)) == 1:
         score += 10
         reasons.append("The saved garment styles are consistent.")
+    # Evaluate the look as a composition, not just a sum of matching skin
+    # swatches. A neutral foundation and one accent generally coordinate more
+    # easily than several independently strong accents. Unknown labels stay
+    # neutral so we never infer patterns or fabrics from photographs.
+    core = [g for g in garments if g.get("category") in {"top", "bottom", "dress"}]
+    core_colours = [norm(g.get("colour")) for g in core if norm(g.get("colour"))]
+    core_accents = [c for c in core_colours if c not in NEUTRALS]
+    if len(core_colours) >= 2 and len(core_accents) == 1:
+        score += 5
+        reasons.append("A single labelled accent balances the core garments.")
+    patterns = [norm(g.get("pattern")) for g in core]
+    distinct_patterns = [p for p in patterns if p and p not in {"solid", "plain", "none", "other"}]
+    if len(distinct_patterns) >= 2:
+        score -= 12
+        reasons.append("Both core garments have labelled patterns; check that their scales coordinate.")
+        cautions.append("Multiple patterned core garments need visual review")
+    elif len(distinct_patterns) == 1:
+        score += 3
+        reasons.append("One labelled patterned piece provides a focal point.")
+    # Shoes should belong to the occasion; a good colour match alone is not
+    # enough to recommend sporty footwear for a formally labelled look.
+    shoe_styles = [norm(g.get("style")) for g in garments if g.get("category") == "shoes"]
     # Occasion and seasonality use user-confirmed labels only.
     formal_occasions = {"formal", "business", "office", "work", "evening"}
     formal_styles = {"formal", "business", "smart casual", "classic"}
     relaxed_styles = {"casual", "sporty", "streetwear", "bohemian"}
     occasion_label = norm(occasion)
     if occasion_label in formal_occasions:
+        if any(style in relaxed_styles for style in shoe_styles):
+            score -= 18
+            reasons.append("Saved shoe style may be too casual for this occasion.")
+            cautions.append("Shoe style may be too casual for the chosen occasion")
         aligned = sum(style in formal_styles for style in styles)
         if aligned:
             score += min(12, 6 * aligned)
@@ -122,15 +151,18 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(style in relaxed_styles for style in styles):
             score -= 7
     if climate in {"hot", "cold"}:
+        # Season labels may be simple adjectives in older saved wardrobes.
         unsuitable = "cool weather" if climate == "hot" else "warm weather"
         comfortable = "warm weather" if climate == "hot" else "cool weather"
         if any(norm(g.get("season")) == unsuitable for g in garments):
             score -= 12
             reasons.append("A garment's confirmed season label may conflict with your climate preference.")
+            cautions.append("A confirmed garment season conflicts with the selected climate")
         if any(norm(g.get("season")) == comfortable for g in garments):
             score += 5
     if climate == "hot" and any(g.get("category") == "outerwear" for g in garments):
         score -= 20
+        cautions.append("An outer layer may be unsuitable for hot weather")
     if climate == "cold" and any(g.get("category") == "outerwear" for g in garments):
         score += 12
     if not labelled:
@@ -138,6 +170,13 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if not styles:
         reasons.append("Add confirmed styles for more personalised ranking.")
     reasons.append(f"Ranked for your {occasion} occasion and {climate} climate preference; fit and weather are unverified.")
-    return {"compatibility_score": max(0, min(100, score)),
-            "compatibility_reasons": reasons[:6], "image_colour_verified": False,
-            "ranking_basis": "confirmed_wardrobe_labels_and_named_scan_swatches"}
+    # Many matching labels can add up to well over 100 even though we cannot
+    # verify the actual appearance or fit. Compress high additive scores into
+    # an intentionally non-perfect 0-95 estimate, preserving monotonic order.
+    # Negative evidence still applies before calibration.
+    calibrated = (score if score <= 70 else
+                  70 + 25 * (1 - math.exp(-(score - 70) / 40)))
+    return {"compatibility_score": max(0, min(95, round(calibrated))),
+            "compatibility_reasons": reasons[:6], "quality_cautions": list(dict.fromkeys(cautions)),
+            "image_colour_verified": False,
+            "ranking_basis": "calibrated_confirmed_wardrobe_labels_and_named_scan_swatches"}

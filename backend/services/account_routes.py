@@ -1104,6 +1104,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         await db.customer_profiles.update_one({"user_id": user_id}, {"$set": allowed}, upsert=True)
         return await get_profile(user_id)
 
+    @router.put("/stylist-weather")
+    async def save_stylist_weather(payload: dict, user_id: str = Depends(current_user)):
+        """Persist only the climate choice, never device coordinates or city."""
+        climate = payload.get("climate")
+        source = payload.get("source")
+        if climate not in {"hot", "mild", "cold"} or source not in {"local", "manual"}:
+            raise HTTPException(422, "Invalid styling weather selection")
+        selection = {
+            "climate": climate, "source": source,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.customer_profiles.update_one(
+            {"user_id": user_id}, {"$set": {"stylist_weather": selection}}, upsert=True)
+        return selection
+
     @router.get("/wardrobe")
     async def wardrobe(user_id: str = Depends(current_user)):
         return await db.customer_wardrobe.find({"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
@@ -1373,13 +1388,24 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         ).to_list(200)
         profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
         prefs = profile.get("preferences") or {}
+        feedback = await db.customer_feedback.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(1000)
         return {"outfits": plan_outfits(items, occasion=occasion, climate=climate,
                 scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
-                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))}
+                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"),
+                feedback=feedback)}
 
     @router.get("/wardrobe/mixed-outfits")
-    async def owned_first_outfits(user_id: str = Depends(current_user)):
-        """Account-scoped owned-first looks with optional safe catalogue gap filling."""
+    async def owned_first_outfits(
+        user_id: str = Depends(current_user),
+        climate: str | None = Query(default=None),
+        occasion: str | None = Query(default=None),
+    ):
+        """Account-scoped owned-first looks, optionally using active styling choices."""
+        if climate is not None and climate not in {"hot", "mild", "cold"}:
+            raise HTTPException(422, "Invalid climate")
+        if occasion is not None and (len(occasion) > 80 or not occasion.strip()):
+            raise HTTPException(422, "Invalid occasion")
         from services.wardrobe_mixed_outfits import mixed_outfits
         wardrobe = await db.customer_wardrobe.find(
             {"user_id": user_id, "deleted_at": None}, {"_id": 0}).to_list(200)
@@ -1392,8 +1418,27 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             except Exception:
                 logger.warning("Optional catalogue unavailable in owned-first planner")
         feedback = await db.customer_feedback.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        preferences = dict(profile.get("preferences") or {})
+        if climate is not None:
+            preferences["climate"] = climate
+        if occasion is not None:
+            preferences["occasion"] = occasion.strip()
         return mixed_outfits(wardrobe, products, scan=profile.get("skin"),
-                             preferences=profile.get("preferences"), feedback=feedback)
+                             preferences=preferences, feedback=feedback)
+
+    @router.get("/wardrobe/outfit-feedback")
+    async def list_wardrobe_outfit_feedback(user_id: str = Depends(current_user)):
+        """Show the current user's previously rated wardrobe looks."""
+        records = await db.customer_feedback.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(1000)
+        return [
+            {"item_ids": row["wardrobe_item_ids"], "sentiment": row["sentiment"]}
+            for row in records
+            if isinstance(row.get("product_id"), str)
+            and row["product_id"].startswith("owned-outfit:")
+            and isinstance(row.get("wardrobe_item_ids"), list)
+            and row.get("sentiment") in {"liked", "disliked", "saved"}
+        ]
 
     @router.put("/wardrobe/outfit-feedback")
     async def wardrobe_outfit_feedback(payload: dict, user_id: str = Depends(current_user)):
@@ -1429,9 +1474,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         ).to_list(200)
         profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
         prefs = profile.get("preferences") or {}
+        feedback = await db.customer_feedback.find(
+            {"user_id": user_id}, {"_id": 0}).to_list(1000)
         return capsule_plan(items, occasion=occasion, climate=climate,
                 scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
-                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"))
+                avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"),
+                feedback=feedback)
 
     @router.post("/photos", status_code=201)
     async def upload_photo(file: UploadFile = File(...), purpose: str = Form("unspecified"), user_id: str = Depends(current_user)):
@@ -1602,6 +1650,20 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return [{"product_id": entry["product_id"], "sentiment": entry["sentiment"]} for entry in records]
 
 
+    @router.get("/outfit-preview-status")
+    async def outfit_preview_status(user_id: str = Depends(current_user)):
+        """Capability only; never expose credentials or consume generation quota."""
+        enabled = bool(os.environ.get("OPENAI_API_KEY")) and (
+            os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") == "1")
+        try:
+            daily_limit = max(1, min(100, int(os.environ.get(
+                "LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        except (ValueError, TypeError):
+            daily_limit = 20
+        return {"enabled": enabled, "daily_limit": daily_limit,
+                "notice": ("Model illustrations are optional AI-generated styling concepts."
+                           if enabled else "AI illustrations are unavailable on this server. Saved wardrobe photos remain usable.")}
+
     @router.get("/outfit-previews")
     async def list_outfit_previews(user_id: str = Depends(current_user)):
         rows = await db.customer_outfit_previews.find(
@@ -1622,7 +1684,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             colour = str(garment.get("colour", "")).strip()
             if not name or not colour or len(name) > 100 or len(colour) > 40:
                 raise HTTPException(422, "Invalid garment description")
-            validated.append({"name": name, "colour": colour})
+            details = {"name": name, "colour": colour}
+            # Optional user-confirmed descriptors improve illustrations. Never
+            # infer cut, pattern or material from an uploaded private image.
+            for field in ("category", "style", "pattern"):
+                raw = str(garment.get(field, "")).strip()
+                if len(raw) > 40:
+                    raise HTTPException(422, "Invalid garment description")
+                if raw:
+                    details[field] = raw
+            validated.append(details)
         # Hash the exact selected garment set: do not confuse unrelated outfits.
         fingerprint = hashlib.sha256(json.dumps(
             [payload.presentation, validated], sort_keys=True
@@ -1637,7 +1708,11 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
 
         now = datetime.now(timezone.utc)
         day = now.strftime("%Y-%m-%d")
-        daily_limit = max(1, min(100, int(os.environ.get("LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        try:
+            daily_limit = max(1, min(100, int(os.environ.get(
+                "LUMIERE_OUTFIT_PREVIEWS_DAILY_LIMIT", "20"))))
+        except (ValueError, TypeError):
+            daily_limit = 20
         # Atomic daily quota reservation, including concurrent requests.
         quota = await db.customer_preview_quotas.find_one_and_update(
             {"_id": f"{user_id}:{day}", "count": {"$lt": daily_limit}},
@@ -1655,8 +1730,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             + ("woman" if payload.presentation == "woman" else "man")
             + " model standing full length, neutral backdrop, natural proportions. "
             "Wear exactly these coordinating pieces, respecting the garment categories and colours: "
-            + "; ".join(g["colour"] + " " + g["name"] for g in validated)
-            + ". One person, no text, no brand logos, no additional garments changing the look. "
+            + "; ".join(
+                ", ".join(
+                    [g["colour"] + " " + g["name"]] +
+                    [field + ": " + g[field] for field in ("category", "style", "pattern")
+                     if g.get(field)]
+                ) for g in validated
+            )
+            + ". Reproduce the specified colours, roles, cuts and patterns consistently; "
+            "do not substitute garments or duplicate pieces. Unspecified details are illustrative. "
+            "One person, no text, no brand logos, no additional garments changing the look. "
             "This is a generic styling interpretation, not a supplier product or customer's likeness."
         )
         # Reference images must be synthetic garment demo assets, never personal photographs.

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
@@ -17,8 +17,13 @@ function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
 }
 
-function previewGarmentKey(presentation:string, garments:Array<{name:string;colour:string}>):string {
-  return "garments:" + JSON.stringify([presentation,garments.map(g=>[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()])]);
+type StylingGarment = {name:string;colour:string;category?:string;style?:string;pattern?:string};
+function previewGarmentKey(presentation:string, garments:StylingGarment[]):string {
+  return "garments:" + JSON.stringify([presentation,garments.map(g=>{
+    const base=[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()];
+    const details=[g.category,g.style,g.pattern].map(value=>(value||"").trim().toLowerCase());
+    return details.some(Boolean) ? [...base,...details] : base;
+  })]);
 }
 
 export default function DiscoverScreen() {
@@ -28,22 +33,55 @@ export default function DiscoverScreen() {
   const completingOutfit = useLocalSearchParams<{ outfitFirstPath?: string; outfitFirstName?: string; outfitFirstId?: string; outfitFirstSizes?: string; outfitFirstColours?: string; stylistQuery?: string; }>();
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: getProfile });
+  // A shared, in-memory selection keeps the two tabs aligned without storing GPS.
+  const { data: activeWeather } = useQuery<{climate: "hot" | "mild" | "cold"; source: string; observed_at: number} | undefined>({
+    queryKey: ["stylist-weather-selection"],
+    queryFn: async () => undefined,
+    enabled: false,
+  });
+  const savedClimate = profile?.stylist_weather?.climate;
+  const discoverClimate = activeWeather?.climate ||
+    (savedClimate && ["hot", "mild", "cold"].includes(savedClimate) ? savedClimate : null) ||
+    (["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
+      ? profile!.preferences!.climate : "mild");
+  const weatherSelectionSource = activeWeather ? "selected in Wardrobe"
+    : savedClimate ? "saved weather choice; refresh it in Wardrobe for today's conditions"
+    : "saved profile preference";
   const { data: ownedWardrobe = [], isLoading: wardrobeLoading, isError: wardrobeError } = useQuery({
     queryKey: ["wardrobe"], queryFn: listWardrobe,
   });
   const { data: mixedSuggestions, isLoading: mixedLoading, isError: mixedError } = useQuery({
-    queryKey: ["mixed-wardrobe-outfits", ownedWardrobe.map(item=>item.id).join("|"), profile?.updated_at],
-    queryFn: getMixedWardrobeOutfits,
+    queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at, discoverClimate],
+    queryFn: () => getMixedWardrobeOutfits(discoverClimate as "hot" | "mild" | "cold", profile?.preferences?.occasion || "casual"),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
+  const {data: ratedWardrobeLooks = []} = useQuery({
+    queryKey:["wardrobe-outfit-feedback"], queryFn:getWardrobeOutfitFeedback,
+    enabled:Boolean(profile),
+  });
+  const ratedLook = (ids:string[]) => {
+    const key = [...ids].sort().join("|");
+    return ratedWardrobeLooks.find(entry => [...entry.item_ids].sort().join("|") === key)?.sentiment;
+  };
   const [mixedFeedbackBusy, setMixedFeedbackBusy] = useState<string|null>(null);
   const [mixedFeedbackError, setMixedFeedbackError] = useState("");
+  const [stylingFeedbackNotice, setStylingFeedbackNotice] = useState("");
   const reactToOwnedLook = async (ids:string[], reaction:"liked"|"disliked"|"saved") => {
     if (mixedFeedbackBusy) return;
     setMixedFeedbackBusy(ids.join("|")); setMixedFeedbackError("");
+    setStylingFeedbackNotice("");
     try {
       await saveWardrobeOutfitFeedback(ids, reaction);
-      await queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]});
+      setStylingFeedbackNotice(reaction === "disliked"
+        ? "Not for me saved. This look may move down the recommendations, but you can review or change your feedback below."
+        : reaction === "liked"
+          ? "Like saved. Similar wardrobe looks may rank higher."
+          : "Look saved. Your wardrobe recommendations will reflect this preference.");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["mixed-wardrobe-outfits"]}),
+        queryClient.invalidateQueries({queryKey:["wardrobe-outfits"]}),
+        queryClient.invalidateQueries({queryKey:["wardrobe-outfit-feedback"]}),
+      ]);
     } catch (error) {
       setMixedFeedbackError(error instanceof Error ? error.message : "Could not save outfit feedback.");
     } finally { setMixedFeedbackBusy(null); }
@@ -71,11 +109,10 @@ export default function DiscoverScreen() {
   const [ownedOutfitError, setOwnedOutfitError] = useState("");
   const { data: ownedSuggestions, isLoading: ownedOutfitsLoading, isError: ownedOutfitsError } = useQuery({
     queryKey: ["wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])),
-      profile?.preferences?.occasion, profile?.preferences?.climate],
+      profile?.preferences?.occasion, discoverClimate],
     queryFn: () => getWardrobeOutfits(
       profile?.preferences?.occasion || "casual",
-      (["hot", "mild", "cold"].includes(profile?.preferences?.climate || "")
-        ? profile!.preferences!.climate : "mild") as "hot" | "mild" | "cold",
+      discoverClimate as "hot" | "mild" | "cold",
     ),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
   });
@@ -106,6 +143,12 @@ export default function DiscoverScreen() {
   const [favouriteOutfitIds, setFavouriteOutfitIds] = useState<string[]>([]);
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
+  const [expandedOwnedLooks, setExpandedOwnedLooks] = useState<string[]>([]);
+  const [showAllOwnedLooks, setShowAllOwnedLooks] = useState(false);
+  const {data: previewCapability} = useQuery({
+    queryKey:["outfit-preview-capability"], queryFn:getOutfitPreviewStatus,
+    enabled:Boolean(profile), staleTime:60000,
+  });
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -447,28 +490,229 @@ export default function DiscoverScreen() {
 
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
-          <Text style={styles.body}>Style the clothes you already own. These combinations rank clothes you own using confirmed colour and style labels, your saved colour scan and your preferences—not the shopping catalogue.</Text>
+          <Text style={styles.body}>Style the clothes you already own. Rankings use your confirmed colour and style labels, saved colour scan and preferences—not the shopping catalogue.</Text>
+          <Text style={styles.note}>Planning for: {discoverClimate} weather ({weatherSelectionSource}). Visit Wardrobe to refresh the current weather and update these looks.</Text>
+          <Text style={styles.note}>Scores are calibrated relative styling estimates (maximum 95/100), not probabilities, perfect-match guarantees or verified fit.</Text>
           {wardrobeLoading || ownedOutfitsLoading ? <ActivityIndicator accessibilityLabel="Loading your wardrobe outfit suggestions" /> : null}
           {wardrobeError ? <Text style={styles.error}>Unable to load your wardrobe.</Text> : null}
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
             <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
           {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
-            <Text style={styles.note}>No complete combinations yet. Add a top and bottom, or a dress, to start creating outfits.</Text> : null}
+            <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
-          {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => (
-            <View key={outfit.item_ids.join("|") + index} style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 12, gap: 7 }}>
-              <Text style={styles.body}>{outfit.names.join(" + ")}</Text>
-              {typeof outfit.compatibility_score === "number" ? <Text style={styles.note}>Compatibility ranking: {outfit.compatibility_score}/100 · Relative style estimate</Text> : null}
-              <Text style={styles.note}>{outfit.reason}</Text>
-              <Text style={styles.note}>From your wardrobe · Actual colours and fit are not image-verified</Text>
+          {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
+          {stylingFeedbackNotice ? <Text style={styles.note}>{stylingFeedbackNotice}</Text> : null}
+          {(ownedSuggestions?.outfits || []).slice(0, screenWidth < 760 && !showAllOwnedLooks ? 2 : 6).map((outfit, index) => {
+            const garments = outfit.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
+              .filter((item): item is WardrobeItem => Boolean(item));
+            const hasShoes = garments.some(item => item.category === "shoes");
+            const hasOuterwear = garments.some(item => item.category === "outerwear");
+            const hasAccessory = garments.some(item => item.category === "accessory");
+            return <View key={outfit.item_ids.join("|") + index}
+              style={{ borderTopWidth: index ? 1 : 0, borderColor: "rgba(128,128,128,0.2)", paddingVertical: 14, gap: 10 }}>
+              <Text style={styles.body}>Look {index + 1} · {garments.map(g => [g.colour, g.name].filter(Boolean).join(" ")).join(" + ")}</Text>
+              <Text style={styles.note}>Style compatibility estimate: {outfit.compatibility_score ?? "—"}/100 · relative ranking, not fit verification</Text>
+              <Text style={styles.note}>{outfit.is_complete ? "Ready from your wardrobe" :
+                outfit.missing_categories?.length
+                  ? "Base outfit · still needs " + outfit.missing_categories.join(" and ")
+                  : "Personalised wardrobe look"} · {discoverClimate} weather</Text>
+              {(() => {
+                const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
+                const descriptions:StylingGarment[] = garments.slice(0, 5).map(g => ({
+                  name:g.name.slice(0,100), colour:(g.colour || "neutral").slice(0,40),
+                  category:(g.category || "").slice(0,40),
+                  style:(g.style || "").slice(0,40),
+                  pattern:(g.pattern || "").slice(0,40),
+                }));
+                const previewKey = previewGarmentKey(presentation, descriptions);
+                // Preserve display of previews saved before category/style/pattern
+                // descriptors were supported; new previews get a distinct key.
+                const image = outfitPreviewImages[previewKey] ||
+                  outfitPreviewImages[previewGarmentKey(presentation,
+                    descriptions.map(g=>({name:g.name,colour:g.colour})))];
+                const requestId = "owned:" + outfit.item_ids.join("|").slice(0,135);
+                return <View style={{gap:8}}>
+                  {image ? <Image source={{uri:image}} resizeMode="contain"
+                    accessibilityLabel="AI illustration of a model wearing a concept based on your labelled garments"
+                    style={{width:"100%",maxWidth:390,alignSelf:"center",height:390,borderRadius:8,backgroundColor:"#f4f4f2"}} /> : null}
+                  <Text style={styles.note}>{image ? "Saved AI concept on a generic model; not a precise virtual fitting." :
+                    previewCapability?.enabled === false ? "AI model illustration is disabled on this server. Your wardrobe photos are available below." :
+                    "Optional generic-model styling concept. Private garment photos are never sent as references."}</Text>
+                  <Pressable accessibilityRole="button"
+                    disabled={outfitPreviewLoading !== null || descriptions.length < 2 || (previewCapability?.enabled === false && !image)}
+                    testID={`owned-preview-${index}`}
+                    onPress={async () => {
+                      setOutfitPreviewLoading(requestId);
+                      setOutfitPreviewErrors(old => ({...old,[requestId]:""}));
+                      try {
+                        const result = await generateOutfitPreview({
+                          outfit_id: requestId,
+                          presentation,
+                          garments: descriptions,
+                          reference_images: [],
+                          force_regenerate: false,
+                        });
+                        setOutfitPreviewImages(old => ({...old,[previewKey]:result.image}));
+                      } catch (e) {
+                        const message = e instanceof Error ? e.message : "";
+                        setOutfitPreviewErrors(old => ({...old,[requestId]:
+                          message.includes("503") ? "AI image previews are disabled on this server." :
+                          message.includes("429") ? "Daily AI preview limit reached." :
+                          "Could not create a model illustration. Your wardrobe photos are still available above."}));
+                      } finally {
+                        setOutfitPreviewLoading(null);
+                      }
+                    }}
+                    style={{padding:12,minHeight:44,justifyContent:"center",borderRadius:8,backgroundColor:"rgba(120,120,120,0.12)"}}>
+                    <Text style={styles.body}>{outfitPreviewLoading === requestId ? "Preparing AI model concept…" :
+                      image ? "Saved model illustration" :
+                      previewCapability?.enabled === false ? "Model illustration unavailable" :
+                      "Generate model illustration (optional AI usage)"}</Text>
+                  </Pressable>
+                  {image && previewCapability?.enabled === true ?
+                    <Pressable accessibilityRole="button"
+                      testID={`owned-preview-regenerate-${index}`}
+                      disabled={outfitPreviewLoading !== null}
+                      onPress={async () => {
+                        setOutfitPreviewLoading(requestId);
+                        setOutfitPreviewErrors(old=>({...old,[requestId]:""}));
+                        try {
+                          const result = await generateOutfitPreview({
+                            outfit_id:requestId, presentation, garments:descriptions,
+                            reference_images:[], force_regenerate:true,
+                          });
+                          setOutfitPreviewImages(old=>({...old,[previewKey]:result.image}));
+                        } catch (e) {
+                          const message = e instanceof Error ? e.message : "";
+                          setOutfitPreviewErrors(old=>({...old,[requestId]:
+                            message.includes("429") ? "Daily AI preview limit reached." :
+                            "Unable to regenerate this illustration right now."}));
+                        } finally {setOutfitPreviewLoading(null);}
+                      }}
+                      style={{padding:12,minHeight:44,justifyContent:"center"}}>
+                      <Text style={styles.note}>Preview doesn't match these garments? Regenerate illustration (uses one daily generation)</Text>
+                    </Pressable> : null}
+                  {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
+                </View>;
+              })()}
+              {screenWidth < 760 && garments.length > 2 ?
+                <Text style={styles.note}>Swipe to inspect your actual garment photos</Text> : null}
+              <ScrollView horizontal={screenWidth < 760 && garments.length > 2}
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={screenWidth < 760 && garments.length > 2}
+                accessibilityLabel="Your saved garment photos for this outfit"
+                contentContainerStyle={{flexDirection:"row",flexWrap:screenWidth >= 760 ? "wrap" : "nowrap",gap:10,paddingVertical:4}}
+                style={{maxWidth:"100%"}}>
+                {garments.map(garment => (
+                  <View key={garment.id} style={{width:108, gap:4}}>
+                    {garment.image_path ?
+                      <AccountPhoto path={garment.image_path} style={{width:108,height:135,borderRadius:8}} contentFit="contain" />
+                      : <View style={{width:108,height:135,backgroundColor:"rgba(120,120,120,0.12)",borderRadius:8,justifyContent:"center",padding:8}}><Text style={styles.note}>No garment photo</Text></View>}
+                    <Text style={styles.note} numberOfLines={3}>{garment.name} · {garment.colour || "Colour not labelled"}</Text>
+                    <Text style={styles.note}>{garment.category} · Owned</Text>
+                  </View>
+                ))}
+              </ScrollView>
+              {!hasShoes ? <Text style={styles.note}>Finish this outfit with shoes. Matching catalogue options appear below when available; nothing is added to your wardrobe automatically.</Text> : null}
+              {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
+              {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
+              <Pressable accessibilityRole="button" testID={`owned-explanation-${index}`}
+                style={{paddingVertical:10,minHeight:44,justifyContent:"center"}}
+                onPress={() => setExpandedOwnedLooks(old => old.includes(outfit.item_ids.join("|"))
+                  ? old.filter(id => id !== outfit.item_ids.join("|")) : [...old, outfit.item_ids.join("|")])}>
+                <Text style={styles.body}>{expandedOwnedLooks.includes(outfit.item_ids.join("|")) ? "Hide styling analysis" : "Why this outfit works"}</Text>
+              </Pressable>
+              {expandedOwnedLooks.includes(outfit.item_ids.join("|")) ?
+                <View style={{gap:6}}>
+                  <Text style={styles.note}>{outfit.reason}</Text>
+                  {(outfit.quality_cautions || []).map((caution, cautionIndex)=>(
+                    <Text key={cautionIndex} style={styles.note}>Review: {caution}</Text>
+                  ))}
+                  {typeof outfit.feedback_adjustment === "number" && outfit.feedback_adjustment !== 0 ?
+                    <Text style={styles.note}>{outfit.feedback_adjustment > 0
+                      ? "Similar saved or liked outfits improved this recommendation."
+                      : "Previous dislikes reduced this outfit's ranking."}</Text> : null}
+                  <Text style={styles.note}>These assessments use confirmed garment labels. Check your actual photographs for visual fit, proportion and fabric texture.</Text>
+                </View> : null}
+              <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                {(["liked","disliked","saved"] as const).map(reaction => (
+                  <Pressable key={reaction} accessibilityRole="button"
+                    accessibilityState={{selected:ratedLook(outfit.item_ids)===reaction}}
+                    disabled={mixedFeedbackBusy !== null}
+                    testID={`owned-outfit-feedback-${reaction}-${index}`}
+                    onPress={() => reactToOwnedLook(outfit.item_ids, reaction)}
+                    style={{padding:10,minHeight:44,borderWidth:1,borderRadius:8,
+                      borderColor:ratedLook(outfit.item_ids)===reaction ? "#616ac4" : "rgba(128,128,128,0.4)",
+                      backgroundColor:ratedLook(outfit.item_ids)===reaction ? "rgba(97,106,196,0.12)" : "transparent"}}>
+                    <Text style={styles.body}>{reaction === "liked" ? "Like this look" :
+                      reaction === "disliked" ? "Not for me" : "Save this look"}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <Pressable accessibilityRole="button" accessibilityLabel={`Try on wardrobe outfit ${outfit.names.join(" and ")}`}
                 testID={`discover-owned-outfit-${index}`} onPress={() => openOwnedOutfit(outfit.item_ids)}
                 style={{ padding: 12, minHeight: 44, justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(120,120,120,0.08)" }}>
-                <Text style={styles.body}>Try my clothes on</Text>
+                <Text style={styles.body}>Try my clothes on (first two saved items)</Text>
               </Pressable>
+            </View>;
+          })}
+          {screenWidth < 760 && (ownedSuggestions?.outfits?.length || 0) > 2 ?
+            <Pressable accessibilityRole="button" testID="discover-toggle-wardrobe-looks"
+              onPress={()=>setShowAllOwnedLooks(current=>!current)}
+              style={{padding:14,minHeight:48,justifyContent:"center",
+                borderRadius:10,backgroundColor:"rgba(120,120,120,0.1)"}}>
+              <Text style={styles.body}>{showAllOwnedLooks ? "Show top two looks" : "Explore more wardrobe looks"}</Text>
+            </Pressable> : null}
+          {ratedWardrobeLooks.length > 0 ? (
+            <View style={{marginTop:18,gap:10,borderTopWidth:1,borderColor:"rgba(128,128,128,0.25)",paddingTop:16}}>
+              <Text style={styles.body}>YOUR OUTFIT FEEDBACK</Text>
+              <Text style={styles.note}>Reviewed looks stay here even if they move out of your top recommendations. “Not for me” never removes garments or saved images from your wardrobe. You can change your preference at any time.</Text>
+              {ratedWardrobeLooks.filter(entry =>
+                entry.item_ids.length > 0 &&
+                entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id))
+              ).slice(0,20).map((entry, index) => {
+                const garments = entry.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
+                  .filter((item): item is WardrobeItem => Boolean(item));
+                return <View key={entry.item_ids.slice().sort().join("|")} style={{
+                  paddingVertical:12,gap:9,borderTopWidth:index ? 1 : 0,
+                  borderColor:"rgba(128,128,128,0.18)"
+                }}>
+                  <Text style={styles.body}>{entry.sentiment === "disliked" ? "Not for me" :
+                    entry.sentiment === "liked" ? "Liked look" : "Saved look"} · {garments.map(g => g.name).join(" + ")}</Text>
+                  <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                    {garments.map(garment => (
+                      <View key={garment.id} style={{width:78,gap:3}}>
+                        {garment.image_path
+                          ? <AccountPhoto path={garment.image_path}
+                              style={{width:78,height:96,borderRadius:8}} contentFit="contain" />
+                          : <View style={{width:78,height:96,borderRadius:8,
+                              backgroundColor:"rgba(120,120,120,0.1)",justifyContent:"center",padding:4}}>
+                              <Text style={styles.note}>No photo</Text>
+                            </View>}
+                        <Text style={styles.note} numberOfLines={2}>{garment.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+                    {(["liked","disliked","saved"] as const).map(reaction => (
+                      <Pressable key={reaction} accessibilityRole="button"
+                        accessibilityState={{selected:entry.sentiment===reaction}}
+                        disabled={mixedFeedbackBusy !== null}
+                        testID={`reviewed-outfit-${reaction}-${index}`}
+                        onPress={() => reactToOwnedLook(entry.item_ids,reaction)}
+                        style={{minHeight:44,padding:10,borderWidth:1,borderRadius:8,
+                          borderColor:entry.sentiment===reaction ? "#616ac4" : "rgba(128,128,128,0.4)",
+                          backgroundColor:entry.sentiment===reaction ? "rgba(97,106,196,0.12)" : "transparent"}}>
+                        <Text style={styles.body}>{reaction === "liked" ? "Like" :
+                          reaction === "disliked" ? "Not for me" : "Save"}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>;
+              })}
             </View>
-          ))}
+          ) : null}
           <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/wardrobe" as any)} style={{ paddingVertical: 12 }}>
             <Text style={styles.body}>Manage my wardrobe</Text>
           </Pressable>
@@ -479,9 +723,15 @@ export default function DiscoverScreen() {
           {mixedLoading ? <ActivityIndicator accessibilityLabel="Preparing wardrobe-first outfits" /> : null}
           {mixedError ? <Text style={styles.error}>Wardrobe-first suggestions are temporarily unavailable.</Text> : null}
           {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
-          {(mixedSuggestions?.outfits || []).slice(0, 6).map(look => (
+          {(mixedSuggestions?.outfits || []).slice(0, 8).map(look => (
             <View key={look.id} style={{ gap: 10, paddingVertical: 14, borderTopWidth: 1, borderColor: "rgba(128,128,128,0.25)" }}>
-              <Text style={styles.body}>{look.purchase_required ? "Your wardrobe + a suggested missing piece" : "Complete look from clothes you own"} · {look.score}/100</Text>
+              <Text style={styles.body}>{look.purchase_required
+                ? "Optional matching piece to complete your outfit"
+                : look.is_complete ? "Ready-to-wear look from your wardrobe"
+                : "Outfit base from your wardrobe"}</Text>
+              {!look.purchase_required && (look.missing_categories?.length || 0) > 0 ?
+                <Text style={styles.note}>Still needs: {look.missing_categories?.join(" and ")}</Text> : null}
+              <Text style={styles.note}>Relative styling score: {look.score}/100 · capped estimate, not a fit guarantee</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {look.owned_ids.map(id => {
                   const item = ownedWardrobe.find(garment => garment.id === id);
@@ -521,7 +771,7 @@ export default function DiscoverScreen() {
               ) : null}
             </View>
           ))}
-          <Text style={styles.note}>Preview tiles show real wardrobe photographs and catalogue image references together; they are not a generated photograph of someone wearing the outfit. Open an owned look in Try-On to test fit visually.</Text>
+          <Text style={styles.note}>Owned garments are ranked first using your confirmed colours, styles and personal palette. Product images are supplier references, not verified stock. For generated model previews, see the full-outfit recommendations below; personal Try-On is separate and optional.</Text>
         </View>
         <Text style={styles.section}>PRE-LOVED · OPTIONAL</Text>
         <View style={styles.card}>
@@ -708,7 +958,7 @@ export default function DiscoverScreen() {
                   {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
                     <View>
                       <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
-                      <Text style={styles.note}>AI-generated styling concept · Not actual supplier products</Text>
+                      <Text style={styles.note}>Saved full-outfit styling concept restored from your account when available. This is AI-generated imagery, not a verified product photograph or fit prediction.</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
                         setOutfitPreviewLoading(outfit.id);
                         try {

@@ -88,3 +88,78 @@ def test_confirmed_season_and_occasion_labels_affect_ranking():
     casual_hot = score_owned_outfit(business, occasion="casual", climate="hot")
     assert formal_cold["compatibility_score"] >= casual_hot["compatibility_score"]
     assert formal_cold["image_colour_verified"] is False
+
+
+def test_missing_shoes_are_matched_to_top_and_bottom_not_two_tops():
+    wardrobe = [
+        own("shirt-a", "top", "navy"), own("shirt-b", "top", "cream"),
+        own("trousers", "bottom", "grey"),
+    ]
+    result = mixed_outfits(wardrobe, [supplier("loafers", "shoes")])
+    shoe_looks = [row for row in result["outfits"] if row["purchase_required"]]
+    assert shoe_looks
+    anchors = shoe_looks[0]["owned_ids"]
+    assert "trousers" in anchors
+    assert sum(item in anchors for item in ("shirt-a", "shirt-b")) == 1
+    assert shoe_looks[0]["suggested_products"][0]["category"] == "shoes"
+
+
+def test_missing_shoes_rankings_consider_selected_weather():
+    wardrobe = [
+        own("shirt", "top", "navy"), own("trousers", "bottom", "cream")
+    ]
+    products = [supplier("sandals", "shoes", "tan")]
+    hot = mixed_outfits(wardrobe, products, preferences={"climate": "hot"})
+    cold = mixed_outfits(wardrobe, products, preferences={"climate": "cold"})
+    assert any(r["purchase_required"] for r in hot["outfits"])
+    assert any(r["purchase_required"] for r in cold["outfits"])
+
+
+def test_optional_missing_shoes_remain_visible_with_many_owned_base_looks():
+    wardrobe = [own("shirt-" + str(i), "top") for i in range(5)]
+    wardrobe += [own("pants-" + str(i), "bottom") for i in range(3)]
+    result = mixed_outfits(wardrobe, [supplier("shoes", "shoes")], limit=8)
+    assert len(result["outfits"]) <= 8
+    assert result["outfits"][0]["purchase_required"] is False
+    assert any(row["purchase_required"] for row in result["outfits"])
+
+
+def test_legacy_digest_feedback_does_not_generalise_without_garment_ids():
+    from hashlib import sha256
+    import json
+    wardrobe = [own("navy", "top", "navy"), own("red", "top", "red"),
+                own("bottom", "bottom", "cream")]
+    before = mixed_outfits(wardrobe, [])["outfits"]
+    target = before[0]["owned_ids"]
+    digest = sha256(json.dumps(sorted(target)).encode()).hexdigest()
+    after = mixed_outfits(wardrobe, [], feedback=[
+        {"product_id": "owned-outfit:" + digest, "sentiment": "disliked"},
+    ])["outfits"]
+    scores_before = {tuple(row["owned_ids"]): row["score"] for row in before}
+    scores_after = {tuple(row["owned_ids"]): row["score"] for row in after}
+    assert scores_after[tuple(target)] < scores_before[tuple(target)]
+    other = next(row["owned_ids"] for row in before if row["owned_ids"] != target)
+    assert scores_after[tuple(other)] == scores_before[tuple(other)]
+
+
+def test_malformed_legacy_feedback_does_not_affect_rankings():
+    wardrobe = [own("shirt", "top"), own("trousers", "bottom")]
+    original = mixed_outfits(wardrobe, [])["outfits"]
+    after = mixed_outfits(wardrobe, [], feedback=[
+        {"product_id": "owned-outfit:invalid", "sentiment": "disliked"},
+    ])["outfits"]
+    assert after == original
+
+
+def test_wardrobe_first_cards_do_not_claim_no_shoes_is_complete():
+    without_shoes = mixed_outfits([
+        own("shirt", "top"), own("trousers", "bottom")
+    ], [])["outfits"][0]
+    assert without_shoes["purchase_required"] is False
+    assert without_shoes["is_complete"] is False
+    assert "shoes" in without_shoes["missing_categories"]
+    with_shoes = mixed_outfits([
+        own("shirt", "top"), own("trousers", "bottom"), own("shoes", "shoes")
+    ], [])["outfits"][0]
+    assert with_shoes["is_complete"] is True
+    assert with_shoes["missing_categories"] == []
