@@ -1626,3 +1626,40 @@ def test_owned_outfit_feedback_updates_rankings_without_cross_account_learning()
     assert after_b == initial_b.json()
     assert client.put("/api/account/wardrobe/outfit-feedback", headers=b,
         json={"item_ids": target_a, "sentiment": "liked"}).status_code == 404
+
+
+def test_preview_metadata_validation_is_private_and_does_not_trigger_generation(monkeypatch):
+    db = Database()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    credentials = {"email":"preview-metadata@example.test","password":"safe synthetic password"}
+    assert client.post("/api/account/register", json=credentials).status_code == 201
+    token = client.post("/api/account/login", json=credentials).json()["access_token"]
+    headers = {"Authorization":"Bearer " + token}
+    payload = {
+        "outfit_id":"metadata-validation",
+        "presentation":"woman",
+        "garments":[
+            {"name":"Cotton blouse","colour":"cream","category":"top",
+             "pattern":"striped","style":"classic"},
+            {"name":"Trousers","colour":"navy","category":"bottom",
+             "pattern":"solid","style":"classic"},
+        ],
+        "reference_images":[],
+    }
+    assert client.post("/api/account/outfit-preview",json=payload).status_code == 401
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED","0")
+    monkeypatch.delenv("OPENAI_API_KEY",raising=False)
+    result = client.post("/api/account/outfit-preview",headers=headers,json=payload)
+    assert result.status_code == 503
+    # Metadata is validated prior to paid generation; invalid labels never
+    # create images or consume generation quota.
+    invalid = {**payload, "garments":[{**payload["garments"][0], "pattern":"x"*41},
+                                      payload["garments"][1]]}
+    error = client.post("/api/account/outfit-preview",headers=headers,json=invalid)
+    assert error.status_code == 422
