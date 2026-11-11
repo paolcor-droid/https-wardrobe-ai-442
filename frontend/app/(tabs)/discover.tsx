@@ -144,6 +144,7 @@ export default function DiscoverScreen() {
   const [outfitReactions, setOutfitReactions] = useState<Record<string, "loved" | "disliked">>({});
   const [outfitOccasionFilter, setOutfitOccasionFilter] = useState("All");
   const [expandedOwnedLooks, setExpandedOwnedLooks] = useState<string[]>([]);
+  const [showAllOwnedLooks, setShowAllOwnedLooks] = useState(false);
   const {data: previewCapability} = useQuery({
     queryKey:["outfit-preview-capability"], queryFn:getOutfitPreviewStatus,
     enabled:Boolean(profile), staleTime:60000,
@@ -502,7 +503,7 @@ export default function DiscoverScreen() {
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
           {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
           {stylingFeedbackNotice ? <Text style={styles.note}>{stylingFeedbackNotice}</Text> : null}
-          {(ownedSuggestions?.outfits || []).slice(0, 6).map((outfit, index) => {
+          {(ownedSuggestions?.outfits || []).slice(0, screenWidth < 760 && !showAllOwnedLooks ? 2 : 6).map((outfit, index) => {
             const garments = outfit.item_ids.map(id => ownedWardrobe.find(item => item.id === id))
               .filter((item): item is WardrobeItem => Boolean(item));
             const hasShoes = garments.some(item => item.category === "shoes");
@@ -525,7 +526,11 @@ export default function DiscoverScreen() {
                   pattern:(g.pattern || "").slice(0,40),
                 }));
                 const previewKey = previewGarmentKey(presentation, descriptions);
-                const image = outfitPreviewImages[previewKey];
+                // Preserve display of previews saved before category/style/pattern
+                // descriptors were supported; new previews get a distinct key.
+                const image = outfitPreviewImages[previewKey] ||
+                  outfitPreviewImages[previewGarmentKey(presentation,
+                    descriptions.map(g=>({name:g.name,colour:g.colour})))];
                 const requestId = "owned:" + outfit.item_ids.join("|").slice(0,135);
                 return <View style={{gap:8}}>
                   {image ? <Image source={{uri:image}} resizeMode="contain"
@@ -568,7 +573,14 @@ export default function DiscoverScreen() {
                   {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
                 </View>;
               })()}
-              <View style={{flexDirection:"row", flexWrap:"wrap", gap:10}}>
+              {screenWidth < 760 && garments.length > 2 ?
+                <Text style={styles.note}>Swipe to inspect your actual garment photos</Text> : null}
+              <ScrollView horizontal={screenWidth < 760 && garments.length > 2}
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={screenWidth < 760 && garments.length > 2}
+                accessibilityLabel="Your saved garment photos for this outfit"
+                contentContainerStyle={{flexDirection:"row",flexWrap:screenWidth >= 760 ? "wrap" : "nowrap",gap:10,paddingVertical:4}}
+                style={{maxWidth:"100%"}}>
                 {garments.map(garment => (
                   <View key={garment.id} style={{width:108, gap:4}}>
                     {garment.image_path ?
@@ -578,7 +590,7 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>{garment.category} · Owned</Text>
                   </View>
                 ))}
-              </View>
+              </ScrollView>
               {!hasShoes ? <Text style={styles.note}>Finish this outfit with shoes. Matching catalogue options appear below when available; nothing is added to your wardrobe automatically.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
@@ -589,7 +601,17 @@ export default function DiscoverScreen() {
                 <Text style={styles.body}>{expandedOwnedLooks.includes(outfit.item_ids.join("|")) ? "Hide styling analysis" : "Why this outfit works"}</Text>
               </Pressable>
               {expandedOwnedLooks.includes(outfit.item_ids.join("|")) ?
-                <Text style={styles.note}>{outfit.reason}</Text> : null}
+                <View style={{gap:6}}>
+                  <Text style={styles.note}>{outfit.reason}</Text>
+                  {(outfit.quality_cautions || []).map((caution, cautionIndex)=>(
+                    <Text key={cautionIndex} style={styles.note}>Review: {caution}</Text>
+                  ))}
+                  {typeof outfit.feedback_adjustment === "number" && outfit.feedback_adjustment !== 0 ?
+                    <Text style={styles.note}>{outfit.feedback_adjustment > 0
+                      ? "Similar saved or liked outfits improved this recommendation."
+                      : "Previous dislikes reduced this outfit's ranking."}</Text> : null}
+                  <Text style={styles.note}>These assessments use confirmed garment labels. Check your actual photographs for visual fit, proportion and fabric texture.</Text>
+                </View> : null}
               <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
                 {(["liked","disliked","saved"] as const).map(reaction => (
                   <Pressable key={reaction} accessibilityRole="button"
@@ -612,6 +634,13 @@ export default function DiscoverScreen() {
               </Pressable>
             </View>;
           })}
+          {screenWidth < 760 && (ownedSuggestions?.outfits?.length || 0) > 2 ?
+            <Pressable accessibilityRole="button" testID="discover-toggle-wardrobe-looks"
+              onPress={()=>setShowAllOwnedLooks(current=>!current)}
+              style={{padding:14,minHeight:48,justifyContent:"center",
+                borderRadius:10,backgroundColor:"rgba(120,120,120,0.1)"}}>
+              <Text style={styles.body}>{showAllOwnedLooks ? "Show top two looks" : "Explore more wardrobe looks"}</Text>
+            </Pressable> : null}
           {ratedWardrobeLooks.length > 0 ? (
             <View style={{marginTop:18,gap:10,borderTopWidth:1,borderColor:"rgba(128,128,128,0.25)",paddingTop:16}}>
               <Text style={styles.body}>YOUR OUTFIT FEEDBACK</Text>
