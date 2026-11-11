@@ -724,12 +724,12 @@ export async function generateOutfitPreview(input: {
   force_regenerate?: boolean;
   reference_images?: string[];
   presentation: "woman" | "man";
-  garments: Array<{name: string; colour: string}>;
+  garments: Array<{name: string; colour: string; category?: string; style?: string; pattern?: string}>;
 }): Promise<{image: string; cached: boolean; label: string}> {
   return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
 }
 
 /** Previously rendered images are account private; does not call the image model. */
-export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string;presentation?:"woman"|"man"|null;garments?:Array<{name:string;colour:string}>|null}>}> {
+export async function getSavedOutfitPreviews(): Promise<{previews:Array<{outfit_id:string;image:string;presentation?:"woman"|"man"|null;garments?:Array<{name:string;colour:string;category?:string;style?:string;pattern?:string}>|null}>}> {
   return accountRequest("/outfit-previews");
 }
