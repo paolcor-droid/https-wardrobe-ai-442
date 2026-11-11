@@ -418,3 +418,43 @@ def test_style_scores_still_respect_preferred_colours_and_user_feedback():
         "wardrobe_item_ids": ["red", "bottom"], "sentiment": "liked",
     }])
     assert looks[0]["item_ids"][0] == "navy"
+
+
+def test_quality_assurance_warns_about_conflicting_pattern_and_occasion():
+    wardrobe = [
+        {"id":"top","name":"Striped shirt","category":"top","colour":"navy",
+         "pattern":"stripes","style":"classic"},
+        {"id":"pants","name":"Checked trousers","category":"bottom","colour":"cream",
+         "pattern":"checks","style":"classic"},
+        {"id":"sneakers","name":"Trainers","category":"shoes","colour":"white",
+         "style":"sporty"},
+    ]
+    outfit = plan_outfits(wardrobe, occasion="business")[0]
+    assert any("patterned core" in note for note in outfit["quality_cautions"])
+    assert any("shoe style" in note.lower() for note in outfit["quality_cautions"])
+    assert outfit["quality_summary"].startswith("Needs visual review")
+    assert outfit["image_colour_verified"] is False
+
+
+def test_avoided_optional_accessory_is_not_forced_into_outfit():
+    items = [
+        {"id":"top","name":"Shirt","category":"top","colour":"navy"},
+        {"id":"pants","name":"Pants","category":"bottom","colour":"cream"},
+        {"id":"scarf","name":"Bright scarf","category":"accessory","colour":"orange"},
+    ]
+    look = plan_outfits(items, avoided_colours=["orange"])[0]
+    assert "scarf" not in look["item_ids"]
+    assert set(look["item_ids"]) == {"top","pants"}
+
+
+def test_wardrobe_quality_review_is_deterministic_and_read_only():
+    items = [
+        {"id":"top","name":"Top","category":"top","colour":"navy","pattern":"solid"},
+        {"id":"pants","name":"Trousers","category":"bottom","colour":"grey","pattern":"solid"},
+    ]
+    snapshot = [dict(x) for x in items]
+    first = plan_outfits(items)[0]
+    second = plan_outfits(items)[0]
+    assert first["item_ids"] == second["item_ids"]
+    assert first["quality_cautions"] == second["quality_cautions"] == []
+    assert items == snapshot
