@@ -1630,6 +1630,7 @@ def test_owned_outfit_feedback_updates_rankings_without_cross_account_learning()
 
 def test_preview_metadata_validation_is_private_and_does_not_trigger_generation(monkeypatch):
     db = Database()
+    db.customer_outfit_previews = Collection()
     app = FastAPI()
     app.include_router(configure_account_router(
         db, lambda *args: ("png", "image/png"),
