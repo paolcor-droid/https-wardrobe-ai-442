@@ -32,6 +32,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     """Return deterministic relative score and evidence; no fabric/fit verification."""
     score = 50
     reasons = []
+    cautions = []
     preferred = [str(v) for v in (preferred_colours or []) if isinstance(v, str)]
     avoided = [str(v) for v in (avoided_colours or []) if isinstance(v, str)]
     neutrals = 0
@@ -52,6 +53,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(colour_match(colour, v) for v in avoided):
             score -= 32
             reasons.append(f"{garment['name']} has a colour you chose to avoid.")
+            cautions.append("Contains an explicitly avoided clothing colour")
         if any(colour_match(colour, v) for v in preferred):
             score += 12
             reasons.append(f"{garment['name']} matches a preferred clothing colour.")
@@ -71,6 +73,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         reasons.append(f"{matched_palette} garment colour(s) match named swatches in your saved scan.")
     if caution:
         reasons.append(f"{caution} garment colour(s) match your scan's caution swatches.")
+        cautions.append("Includes a caution colour from your saved colour analysis")
     colours = [norm(g.get("colour")) for g in garments if norm(g.get("colour"))]
     if len(colours) >= 2:
         if len(set(colours)) == 1:
@@ -124,6 +127,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     if len(distinct_patterns) >= 2:
         score -= 12
         reasons.append("Both core garments have labelled patterns; check that their scales coordinate.")
+        cautions.append("Multiple patterned core garments need visual review")
     elif len(distinct_patterns) == 1:
         score += 3
         reasons.append("One labelled patterned piece provides a focal point.")
@@ -139,6 +143,7 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(style in relaxed_styles for style in shoe_styles):
             score -= 18
             reasons.append("Saved shoe style may be too casual for this occasion.")
+            cautions.append("Shoe style may be too casual for the chosen occasion")
         aligned = sum(style in formal_styles for style in styles)
         if aligned:
             score += min(12, 6 * aligned)
@@ -152,10 +157,12 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
         if any(norm(g.get("season")) == unsuitable for g in garments):
             score -= 12
             reasons.append("A garment's confirmed season label may conflict with your climate preference.")
+            cautions.append("A confirmed garment season conflicts with the selected climate")
         if any(norm(g.get("season")) == comfortable for g in garments):
             score += 5
     if climate == "hot" and any(g.get("category") == "outerwear" for g in garments):
         score -= 20
+        cautions.append("An outer layer may be unsuitable for hot weather")
     if climate == "cold" and any(g.get("category") == "outerwear" for g in garments):
         score += 12
     if not labelled:
@@ -170,5 +177,6 @@ def score_owned_outfit(garments, *, scan=None, preferred_colours=None, avoided_c
     calibrated = (score if score <= 70 else
                   70 + 25 * (1 - math.exp(-(score - 70) / 40)))
     return {"compatibility_score": max(0, min(95, round(calibrated))),
-            "compatibility_reasons": reasons[:6], "image_colour_verified": False,
+            "compatibility_reasons": reasons[:6], "quality_cautions": list(dict.fromkeys(cautions)),
+            "image_colour_verified": False,
             "ranking_basis": "calibrated_confirmed_wardrobe_labels_and_named_scan_swatches"}
