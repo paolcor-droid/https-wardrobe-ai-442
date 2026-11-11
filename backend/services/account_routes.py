@@ -1684,7 +1684,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             colour = str(garment.get("colour", "")).strip()
             if not name or not colour or len(name) > 100 or len(colour) > 40:
                 raise HTTPException(422, "Invalid garment description")
-            validated.append({"name": name, "colour": colour})
+            details = {"name": name, "colour": colour}
+            # Optional user-confirmed descriptors improve illustrations. Never
+            # infer cut, pattern or material from an uploaded private image.
+            for field in ("category", "style", "pattern"):
+                raw = str(garment.get(field, "")).strip()
+                if len(raw) > 40:
+                    raise HTTPException(422, "Invalid garment description")
+                if raw:
+                    details[field] = raw
+            validated.append(details)
         # Hash the exact selected garment set: do not confuse unrelated outfits.
         fingerprint = hashlib.sha256(json.dumps(
             [payload.presentation, validated], sort_keys=True
@@ -1721,8 +1730,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             + ("woman" if payload.presentation == "woman" else "man")
             + " model standing full length, neutral backdrop, natural proportions. "
             "Wear exactly these coordinating pieces, respecting the garment categories and colours: "
-            + "; ".join(g["colour"] + " " + g["name"] for g in validated)
-            + ". One person, no text, no brand logos, no additional garments changing the look. "
+            + "; ".join(
+                ", ".join(
+                    [g["colour"] + " " + g["name"]] +
+                    [field + ": " + g[field] for field in ("category", "style", "pattern")
+                     if g.get(field)]
+                ) for g in validated
+            )
+            + ". Reproduce the specified colours, roles, cuts and patterns consistently; "
+            "do not substitute garments or duplicate pieces. Unspecified details are illustrative. "
+            "One person, no text, no brand logos, no additional garments changing the look. "
             "This is a generic styling interpretation, not a supplier product or customer's likeness."
         )
         # Reference images must be synthetic garment demo assets, never personal photographs.
