@@ -144,7 +144,10 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
             # that suits the particular look over the first uploaded item.
             if accessories:
                 accessory = max(accessories[:24], key=lambda item: composition_score(chosen + [item]))
-                chosen.append(accessory)
+                # Accessories are optional: do not automatically attach a
+                # strongly incompatible piece just because it is owned.
+                if composition_score(chosen + [accessory]) >= composition_score(chosen) - 3:
+                    chosen.append(accessory)
             ids = tuple(x["id"] for x in chosen)
             if ids in seen:
                 continue
@@ -175,6 +178,9 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                 "item_ids": list(ids), "names": names,
                 "reason": " ".join(evidence["compatibility_reasons"]),
                 "feedback_adjustment": feedback_delta,
+                "quality_summary": ("Needs visual review: " + "; ".join(evidence["quality_cautions"])
+                    if evidence["quality_cautions"] else
+                    "No labelled colour, pattern, occasion or climate conflicts detected."),
                 "personalised_rank_score": personalised_rank_score,
                 "missing_categories": missing,
                 "is_complete": not missing,
