@@ -17,8 +17,13 @@ function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
 }
 
-function previewGarmentKey(presentation:string, garments:Array<{name:string;colour:string}>):string {
-  return "garments:" + JSON.stringify([presentation,garments.map(g=>[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()])]);
+type StylingGarment = {name:string;colour:string;category?:string;style?:string;pattern?:string};
+function previewGarmentKey(presentation:string, garments:StylingGarment[]):string {
+  return "garments:" + JSON.stringify([presentation,garments.map(g=>{
+    const base=[g.name.trim().toLowerCase(),g.colour.trim().toLowerCase()];
+    const details=[g.category,g.style,g.pattern].map(value=>(value||"").trim().toLowerCase());
+    return details.some(Boolean) ? [...base,...details] : base;
+  })]);
 }
 
 export default function DiscoverScreen() {
@@ -513,7 +518,12 @@ export default function DiscoverScreen() {
                   : "Personalised wardrobe look"} · {discoverClimate} weather</Text>
               {(() => {
                 const presentation = prefs?.shop_for === "womens" ? "woman" : "man";
-                const descriptions = garments.slice(0, 5).map(g => ({name: g.name.slice(0,100), colour: (g.colour || "neutral").slice(0,40)}));
+                const descriptions:StylingGarment[] = garments.slice(0, 5).map(g => ({
+                  name:g.name.slice(0,100), colour:(g.colour || "neutral").slice(0,40),
+                  category:(g.category || "").slice(0,40),
+                  style:(g.style || "").slice(0,40),
+                  pattern:(g.pattern || "").slice(0,40),
+                }));
                 const previewKey = previewGarmentKey(presentation, descriptions);
                 const image = outfitPreviewImages[previewKey];
                 const requestId = "owned:" + outfit.item_ids.join("|").slice(0,135);
