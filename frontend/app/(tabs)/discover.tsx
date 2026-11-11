@@ -570,6 +570,29 @@ export default function DiscoverScreen() {
                       previewCapability?.enabled === false ? "Model illustration unavailable" :
                       "Generate model illustration (optional AI usage)"}</Text>
                   </Pressable>
+                  {image && previewCapability?.enabled === true ?
+                    <Pressable accessibilityRole="button"
+                      testID={`owned-preview-regenerate-${index}`}
+                      disabled={outfitPreviewLoading !== null}
+                      onPress={async () => {
+                        setOutfitPreviewLoading(requestId);
+                        setOutfitPreviewErrors(old=>({...old,[requestId]:""}));
+                        try {
+                          const result = await generateOutfitPreview({
+                            outfit_id:requestId, presentation, garments:descriptions,
+                            reference_images:[], force_regenerate:true,
+                          });
+                          setOutfitPreviewImages(old=>({...old,[previewKey]:result.image}));
+                        } catch (e) {
+                          const message = e instanceof Error ? e.message : "";
+                          setOutfitPreviewErrors(old=>({...old,[requestId]:
+                            message.includes("429") ? "Daily AI preview limit reached." :
+                            "Unable to regenerate this illustration right now."}));
+                        } finally {setOutfitPreviewLoading(null);}
+                      }}
+                      style={{padding:12,minHeight:44,justifyContent:"center"}}>
+                      <Text style={styles.note}>Preview doesn't match these garments? Regenerate illustration (uses one daily generation)</Text>
+                    </Pressable> : null}
                   {outfitPreviewErrors[requestId] ? <Text style={styles.note}>{outfitPreviewErrors[requestId]}</Text> : null}
                 </View>;
               })()}
