@@ -12,13 +12,16 @@ ROLES = ("top", "bottom", "dress", "shoes")
 def mixed_outfits(owned, products, *, scan=None, preferences=None, feedback=None, limit=8):
     prefs = preferences or {}
     owned = [dict(g) for g in owned if g.get("id") and not g.get("deleted_at")]
+    if prefs.get("shop_for") in ("mens", "womens"):
+        owned = [g for g in owned if g.get("shop_for") in (prefs["shop_for"], "all")]
     complete = plan_outfits(
         owned, limit=limit, scan=scan,
         preferred_colours=prefs.get("preferred_colours"),
         avoided_colours=prefs.get("avoided_colours"),
         preferred_style=prefs.get("style"),
         occasion=prefs.get("occasion", "casual"),
-        climate=prefs.get("climate", "mild"), feedback=feedback)
+        climate=prefs.get("climate", "mild"), feedback=feedback,
+        shop_for=prefs.get("shop_for"))
     results = []
     for look in complete:
         results.append({
