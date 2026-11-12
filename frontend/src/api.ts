@@ -481,6 +481,16 @@ export async function searchDemoCatalogue(filters: CatalogueSearchFilters): Prom
   return accountRequest<CatalogueSearchResponse>(`/catalogue/demo/search?${query.toString()}`);
 }
 
+export type SupplierOutfit = {
+  id:string; score:number; reason:string;
+  garments:Array<{product_id:string;name:string;brand?:string|null;category?:string|null;
+    colour_names:string[];image_url?:string|null;price?:number|null;currency?:string|null}>;
+  price_verified_live:false;stock_verified_live:false;
+};
+export async function getSupplierOutfits():Promise<{outfits:SupplierOutfit[];notice:string;source?:string}>{
+  return accountRequest<{outfits:SupplierOutfit[];notice:string;source?:string}>("/catalogue/outfits");
+}
+
 export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
   return accountRequest<CatalogueRecommendationsResponse>("/catalogue/recommendations");
 }
