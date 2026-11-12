@@ -12,9 +12,10 @@ export default function HandbagsScreen(){
  const insets=useSafeAreaInsets(), {width}=useWindowDimensions();
  const {data:profile}=useQuery({queryKey:["profile"],queryFn:getProfile});
  const [filter,setFilter]=useState<Filter>("All"),[expanded,setExpanded]=useState<string|null>(null);
- const p=profile?.preferences||{};
- const preferred=Array.isArray(p.preferred_colours)?p.preferred_colours.filter((c:unknown):c is string=>typeof c==="string"):[];
- const avoided=Array.isArray(p.avoided_colours)?p.avoided_colours.filter((c:unknown):c is string=>typeof c==="string"):[];
+ const preferred: string[]=Array.isArray(profile?.preferences?.preferred_colours)
+  ? profile.preferences.preferred_colours.filter((c:unknown):c is string=>typeof c==="string") : [];
+ const avoided: string[]=Array.isArray(profile?.preferences?.avoided_colours)
+  ? profile.preferences.avoided_colours.filter((c:unknown):c is string=>typeof c==="string") : [];
  const ordered=useMemo(()=>matchingSPCBags(preferred,avoided),[JSON.stringify(preferred),JSON.stringify(avoided)]);
  const items=filter==="All"?SPC_BAGS:filter==="Colour matches"?ordered.filter(b=>preferred.some(c=>b.colour.toLowerCase().includes(c.toLowerCase()))):SPC_BAGS.filter(b=>filter==="Neutral"?neutral.some(c=>b.colour.toLowerCase().includes(c)):b.colour.toLowerCase().includes(filter.toLowerCase()));
  const cardWidth=width>950?Math.min(280,(width-115)/3):width>620?(width-66)/2:width-36;
