@@ -1507,7 +1507,7 @@ async def supplier_outfits_for_customer(user_id):
     normalized = [normalize_product("matterhorn", record) for record in raw]
     if catalogue_enabled():
         normalized.extend(await read_catalogue(db))
-    eligible = rank_verified_products(normalized, profile, limit=500, diversify=False)
+    eligible = rank_verified_products(normalized, profile, limit=5000, diversify=False)
     feedback = await db.customer_feedback.find({"user_id":user_id}, {"_id":0}).to_list(500)
     blocked = {str(row.get("product_id")) for row in feedback if row.get("sentiment")=="disliked"}
     eligible = [p for p in eligible if p.get("external_id") not in blocked and product_key(p) not in blocked]
