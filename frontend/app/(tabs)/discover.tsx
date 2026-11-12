@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
 
-import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, getSupplierOutfits, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
@@ -55,6 +55,11 @@ export default function DiscoverScreen() {
     queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at, discoverClimate],
     queryFn: () => getMixedWardrobeOutfits(discoverClimate as "hot" | "mild" | "cold", profile?.preferences?.occasion || "casual"),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
+  });
+  const {data: supplierOutfits, isLoading: supplierOutfitsLoading, isError: supplierOutfitsError} = useQuery({
+    queryKey:["supplier-outfits",profile?.updated_at,profile?.preferences?.shop_for],
+    queryFn:getSupplierOutfits,
+    enabled:profile?.preferences?.shop_for==="womens",
   });
   const {data: ratedWardrobeLooks = []} = useQuery({
     queryKey:["wardrobe-outfit-feedback"], queryFn:getWardrobeOutfitFeedback,
@@ -488,6 +493,37 @@ export default function DiscoverScreen() {
             </View>
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
+
+        {prefs?.shop_for === "womens" ? <>
+          <Text style={styles.section}>WOMEN'S OUTFITS FROM THE CATALOGUE</Text>
+          <View style={styles.card}>
+            <Text style={styles.body}>Ready-to-style ideas from genuine women's supplier catalogue records, even if your personal wardrobe is empty.</Text>
+            <Text style={styles.note}>Photographs show the actual catalogue products. Supplier stock and current pricing are not verified. Handbag price is on request. These are separate product photos, not a generated photograph of the complete look.</Text>
+            {supplierOutfitsLoading ? <ActivityIndicator accessibilityLabel="Finding women's catalogue outfits"/> : null}
+            {supplierOutfitsError ? <Text style={styles.error}>Women's catalogue outfits could not be loaded. Check the backend log and restart FastAPI.</Text> : null}
+            {!supplierOutfitsLoading && !supplierOutfitsError && !(supplierOutfits?.outfits?.length) ?
+              <Text style={styles.note}>No compatible women's catalogue combinations were found. Check your colour restrictions and available clothing categories.</Text> : null}
+            {(supplierOutfits?.outfits || []).map((outfit,index)=>(
+              <View key={outfit.id} style={{paddingVertical:16,gap:10,borderTopWidth:index?1:0,borderColor:"rgba(128,128,128,0.2)"}}>
+                <Text style={styles.body}>Women's catalogue look {index+1}</Text>
+                <Text style={styles.note}>Coordinated from supplier products · {outfit.garments.length} clothing pieces</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:12}}>
+                  {outfit.garments.map(garment=>(
+                    <View key={garment.product_id} style={{width:138,gap:5}}>
+                      {garment.image_url?<Image source={{uri:garment.image_url}} resizeMode="contain" style={{width:138,height:170,borderRadius:8,backgroundColor:"#f4f2ef"}}/>:
+                        <View style={{width:138,height:170,backgroundColor:"#eee"}}/>}
+                      <Text style={styles.note} numberOfLines={3}>{garment.name}</Text>
+                      <Text style={styles.note}>{garment.colour_names.join(", ")||"Colour not labelled"}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+                <OutfitHandbagSuggestion garments={outfit.garments} occasion={prefs?.occasion} preferred={prefs?.preferred_colours||[]} avoided={prefs?.avoided_colours||[]}/>
+                <Text style={styles.note}>{outfit.reason}</Text>
+                <Text style={styles.note}>Supplier snapshot · availability and current prices unverified · no checkout in this outfit view</Text>
+              </View>
+            ))}
+          </View>
+        </> : null}
 
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
