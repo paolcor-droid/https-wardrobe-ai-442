@@ -668,7 +668,7 @@ export default function DiscoverScreen() {
                 borderRadius:10,backgroundColor:"rgba(120,120,120,0.1)"}}>
               <Text style={styles.body}>{showAllOwnedLooks ? "Show top two looks" : "Explore more wardrobe looks"}</Text>
             </Pressable> : null}
-          {ratedWardrobeLooks.some(entry => entry.item_ids.length > 0 && entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id && (prefs?.shop_for !== "womens" && prefs?.shop_for !== "mens" || item.shop_for === prefs.shop_for || item.shop_for === "all")))) ? (
+          {ratedWardrobeLooks.some(entry => entry.item_ids.length > 0 && entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id && (prefs?.shop_for !== "womens" && prefs?.shop_for !== "mens" || item.shop_for === prefs?.shop_for || item.shop_for === "all")))) ? (
             <View style={{marginTop:18,gap:10,borderTopWidth:1,borderColor:"rgba(128,128,128,0.25)",paddingTop:16}}>
               <Text style={styles.body}>YOUR OUTFIT FEEDBACK</Text>
               <Text style={styles.note}>Past feedback for garments eligible under your current fashion selection. Other history is retained and will reappear if you switch audiences. “Not for me” never deletes wardrobe photos.</Text>
