@@ -78,7 +78,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None, recognize_garment=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None, recognize_garment=None, supplier_outfits=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -1074,6 +1074,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "q": q, "brand": brand, "category": category, "colour": colour,
             "size": size, "min_price": min_price, "max_price": max_price,
         }, page, per_page)
+
+    @router.get("/catalogue/outfits")
+    async def supplier_outfit_suggestions(user_id: str = Depends(current_user)):
+        if supplier_outfits is None:
+            raise HTTPException(503, "Supplier outfit suggestions unavailable")
+        return await supplier_outfits(user_id)
 
     @router.get("/catalogue/recommendations")
     async def customer_discover(user_id: str = Depends(current_user)):
