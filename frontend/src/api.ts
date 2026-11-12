@@ -510,6 +510,7 @@ export async function previewCatalogueRecommendations(
 }
 
 export type WardrobeItem = {
+  shop_for?: "mens" | "womens" | "all";
   id: string;
   name: string;
   category: "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "other";
@@ -548,14 +549,14 @@ export async function listWardrobe(): Promise<WardrobeItem[]> {
   return accountRequest<WardrobeItem[]>("/wardrobe");
 }
 
-export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes"> & { style?: string; pattern?: string; season?: string; material?: string }): Promise<WardrobeItem> {
+export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes" | "shop_for"> & { style?: string; pattern?: string; season?: string; material?: string }): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>("/wardrobe", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
 }
 
 export async function correctWardrobeItem(
-  id: string, fields: Partial<Pick<WardrobeItem, "name"|"category"|"colour"|"style"|"pattern"|"season"|"material">>
+  id: string, fields: Partial<Pick<WardrobeItem, "name"|"category"|"colour"|"style"|"pattern"|"season"|"material"|"shop_for">>
 ): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>(`/wardrobe/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: {"Content-Type":"application/json"},
