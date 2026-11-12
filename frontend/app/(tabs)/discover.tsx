@@ -499,7 +499,9 @@ export default function DiscoverScreen() {
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
             <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
           {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
-            <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
+            <Text style={styles.note}>{prefs?.shop_for === "womens" || prefs?.shop_for === "mens"
+              ? "No complete outfit from garments marked for this audience. Open Wardrobe → Edit on your saved garments and label each Women, Men or Everyone. Older garments are unclassified; LUMIÈRE will not assume they belong to your newly selected fashion category."
+              : "No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to Build a look from what you own below to see available suggestions for missing categories."}</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
           {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
