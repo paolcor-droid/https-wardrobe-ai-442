@@ -48,6 +48,7 @@ export default function WardrobeScreen() {
   const [recognitionNeedsReview, setRecognitionNeedsReview] = useState(false);
   const uploadedPhotoRef = useRef<string | null>(null);
   const [category, setCategory] = useState<WardrobeItem["category"]>("top");
+  const [garmentAudience,setGarmentAudience] = useState<"womens"|"mens"|"all">("womens");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outfitSelection, setOutfitSelection] = useState<WardrobeItem[]>([]);
@@ -218,7 +219,7 @@ export default function WardrobeScreen() {
   const correction = useMutation({
     mutationFn: (item: WardrobeItem) => correctWardrobeItem(item.id, {
       name:item.name, category:item.category, colour:item.colour, style:item.style || "",
-      pattern:item.pattern || "", season:item.season || "", material:item.material || "",
+      pattern:item.pattern || "", season:item.season || "", material:item.material || "", shop_for:item.shop_for,
     }),
     onSuccess: () => {
       client.invalidateQueries({queryKey:["wardrobe"]});
@@ -329,9 +330,11 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{c}</Text>
             </Pressable>
           ))}</View>
+          <Text style={styles.note}>This garment is intended for:</Text>
+          <View style={styles.chips}>{(["womens","mens","all"] as const).map(audience=><Pressable key={audience} accessibilityRole="button" accessibilityState={{selected:garmentAudience===audience}} onPress={()=>setGarmentAudience(audience)} style={[styles.chip,garmentAudience===audience&&styles.active]}><Text style={styles.chipText}>{audience==="womens"?"Women":audience==="mens"?"Men":"Everyone"}</Text></Pressable>)}</View>
           <Pressable testID="wardrobe-save" style={[styles.button, (!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending) && styles.disabled]}
             disabled={!photoPath || !name.trim() || recognitionNeedsReview || busy || recognitionLoading || save.isPending}
-            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "" })}>
+            onPress={() => save.mutate({ name: name.trim(), category, colour: colour.trim(), style: style.trim(), pattern: pattern.trim(), season: season.trim(), material: material.trim(), image_path: photoPath!, notes: "", shop_for:garmentAudience })}>
             <Text style={styles.buttonText}>{busy || save.isPending ? "Saving…" : "Save to wardrobe"}</Text>
           </Pressable>
           {saveNotice ? <View style={styles.planned}>
@@ -495,10 +498,12 @@ export default function WardrobeScreen() {
               <Text style={styles.chipText}>{key}</Text>
             </Pressable>
           ))}</View>
+          <Text style={styles.note}>Who can wear this piece? Unclassified older garments are not used in gender-specific outfit suggestions until you select one.</Text>
+          <View style={styles.chips}>{(["womens","mens","all"] as const).map(audience=><Pressable key={audience} accessibilityRole="button" accessibilityState={{selected:editing.shop_for===audience}} onPress={()=>setEditing(current=>current?{...current,shop_for:audience}:current)} style={[styles.chip,editing.shop_for===audience&&styles.active]}><Text style={styles.chipText}>{audience==="womens"?"Women":audience==="mens"?"Men":"Everyone"}</Text></Pressable>)}</View>
           <Pressable accessibilityRole="button" testID="wardrobe-save-corrections"
-            disabled={!editing.name.trim() || correction.isPending}
+            disabled={!editing.name.trim() || !editing.shop_for || correction.isPending}
             onPress={() => correction.mutate(editing)}
-            style={[styles.button,(!editing.name.trim()||correction.isPending)&&styles.disabled]}>
+            style={[styles.button,(!editing.name.trim()||!editing.shop_for||correction.isPending)&&styles.disabled]}>
             <Text style={styles.buttonText}>{correction.isPending ? "Saving changes…" : "Save corrected details"}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setEditing(null)} style={{paddingVertical:12}}>
@@ -518,7 +523,7 @@ export default function WardrobeScreen() {
           <View key={item.id} style={styles.item}>
             <AccountPhoto path={item.image_path} style={styles.itemPhoto} contentFit="cover" />
             <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.note}>{item.category}{item.colour ? ` · ${item.colour}` : ""}{item.style ? ` · ${item.style}` : ""}{item.pattern ? ` · ${item.pattern}` : ""}{item.season ? ` · ${item.season}` : ""}</Text>
+            <Text style={styles.note}>{item.shop_for==="womens"?"Women":item.shop_for==="mens"?"Men":item.shop_for==="all"?"Everyone":"Unclassified · edit to assign"} · {item.category}{item.colour ? ` · ${item.colour}` : ""}{item.style ? ` · ${item.style}` : ""}{item.pattern ? ` · ${item.pattern}` : ""}{item.season ? ` · ${item.season}` : ""}</Text>
             <Pressable testID={`wardrobe-try-${item.id}`} onPress={() => tryItem(item)}><Text style={styles.action}>Try on</Text></Pressable>
             <Pressable testID={`wardrobe-select-${item.id}`} onPress={() => toggleOutfit(item)}>
               <Text style={styles.action}>{outfitSelection.some((i) => i.id === item.id) ? "✓ Selected" : "+ Add to outfit"}</Text>
