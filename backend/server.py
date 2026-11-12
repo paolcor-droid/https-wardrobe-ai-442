@@ -1497,6 +1497,26 @@ async def recommend_catalogue_for_customer(user_id):
             "notice": "Trial catalogue snapshot; price and stock are not live."}
 
 
+async def supplier_outfits_for_customer(user_id):
+    """Account-filtered genuine catalogue outfit ideas, independent of wardrobe."""
+    profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
+    prefs = profile.get("preferences") or {}
+    if prefs.get("shop_for") != "womens":
+        return {"outfits": [], "notice": "Select women's fashion in You to see women's supplier outfits."}
+    raw, source = load_customer_catalogue()
+    normalized = [normalize_product("matterhorn", record) for record in raw]
+    if catalogue_enabled():
+        normalized.extend(await read_catalogue(db))
+    eligible = rank_verified_products(normalized, profile, limit=500, diversify=False)
+    feedback = await db.customer_feedback.find({"user_id":user_id}, {"_id":0}).to_list(500)
+    blocked = {str(row.get("product_id")) for row in feedback if row.get("sentiment")=="disliked"}
+    eligible = [p for p in eligible if p.get("external_id") not in blocked and product_key(p) not in blocked]
+    from services.supplier_outfit_combinations import build_supplier_outfits
+    return {"outfits": build_supplier_outfits(eligible),
+            "source": source, "live_inventory_enabled": False,
+            "notice": "Real supplier snapshot products; availability, price freshness and photographed shade are not verified live."}
+
+
 async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
     """Filter source-backed products, rerank with account colour eligibility, paginate."""
     profile = await db.customer_profiles.find_one({"user_id": user_id}) or {}
@@ -1768,7 +1788,7 @@ async def generate_customer_styling_reply(conversation_id, profile, prior, messa
 from services.garment_recognition import analyze_garment as recognize_private_garment
 
 app.include_router(api_router)
-app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, search_demo_catalogue=search_demo_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer, recognize_garment=recognize_private_garment))
+app.include_router(configure_account_router(db, validate_uploaded_image, sanitize_photo, store_bytes, get_object, delete_owned_object, generate_customer_styling_reply, recommend_catalogue_for_customer, generate_customer_tryon, analyze_customer_skin_photo, prepare_trusted_garment_for_customer, resolve_tryon_identity=resolve_tryon_identity_for_customer, resolve_saved_outfit=resolve_saved_outfit_garment, search_catalogue=search_catalogue_for_customer, search_demo_catalogue=search_demo_catalogue_for_customer, resolve_bag_product=resolve_bag_product_for_customer, recognize_garment=recognize_private_garment, supplier_outfits=supplier_outfits_for_customer))
 
 # Explicit trusted origins only. Development clients may be configured via
 # LUMIERE_CORS_ORIGINS (comma-separated); never allow wildcard + credentials.
