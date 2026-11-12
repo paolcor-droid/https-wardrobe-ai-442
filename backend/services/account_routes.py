@@ -1170,6 +1170,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             photo_id = private_path.removeprefix("private:")
             if not await db.customer_photos.find_one({"id": photo_id, "user_id": user_id}):
                 raise HTTPException(404, "Wardrobe photograph not found")
+        if payload.get("shop_for") not in {"mens", "womens", "all"}:
+            raise HTTPException(422, "Choose whether this garment is for women, men or everyone")
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
                 "colour": str(payload.get("colour", ""))[:80],
@@ -1179,6 +1181,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 "material": str(payload.get("material", ""))[:80],
                 "image_path": private_path,
                 "notes": str(payload.get("notes", ""))[:500],
+                "shop_for": payload.get("shop_for"),
                 "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
         item.pop("_id", None)
@@ -1187,7 +1190,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     @router.patch("/wardrobe/{item_id}")
     async def wardrobe_correct(item_id: str, payload: dict, user_id: str = Depends(current_user)):
         """Allow a customer to correct confirmed labels; never change photo ownership."""
-        allowed = {"name", "category", "colour", "style", "pattern", "season", "material"}
+        allowed = {"name", "category", "colour", "style", "pattern", "season", "material", "shop_for"}
         categories = {"top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"}
         if not isinstance(payload, dict) or not payload or set(payload) - allowed:
             raise HTTPException(422, "Only confirmed garment labels can be edited")
@@ -1200,6 +1203,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 raise HTTPException(422, "Garment name cannot be empty")
             if field == "category" and cleaned not in categories:
                 raise HTTPException(422, "Invalid garment category")
+            if field == "shop_for" and cleaned not in {"mens", "womens", "all"}:
+                raise HTTPException(422, "Invalid garment audience")
             updated[field] = cleaned
         result = await db.customer_wardrobe.update_one(
             {"id": item_id, "user_id": user_id, "deleted_at": None},
@@ -1393,7 +1398,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return {"outfits": plan_outfits(items, occasion=occasion, climate=climate,
                 scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
                 avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"),
-                feedback=feedback)}
+                feedback=feedback, shop_for=prefs.get("shop_for"))}
 
     @router.get("/wardrobe/mixed-outfits")
     async def owned_first_outfits(
