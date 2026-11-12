@@ -12,6 +12,7 @@ import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
+import { OutfitHandbagSuggestion } from "@/src/components/OutfitHandbagSuggestion";
 
 function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[]}>):string {
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
@@ -614,6 +615,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </ScrollView>
+              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={garments} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
               {!hasShoes ? <Text style={styles.note}>Finish this outfit with shoes. Matching catalogue options appear below when available; nothing is added to your wardrobe automatically.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
@@ -748,6 +750,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
+              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={[...look.owned_ids.map(id=>ownedWardrobe.find(g=>g.id===id)).filter((g):g is WardrobeItem=>Boolean(g)),...look.suggested_products.map(p=>({name:p.name,colour_names:p.colour_names}))]} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
               <Text style={styles.note}>{look.reason}</Text>
               {!look.purchase_required && look.owned_ids.length ? (
                 <Pressable accessibilityRole="button" testID={`mixed-outfit-try-${look.id}`}
@@ -953,6 +956,7 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>Simulated outfit total</Text>
                   </View>
                 </View>
+                {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
                   {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
