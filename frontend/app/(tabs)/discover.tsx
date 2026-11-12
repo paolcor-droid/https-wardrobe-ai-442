@@ -750,7 +750,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
-              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={[...look.owned_ids.map(id=>ownedWardrobe.find(g=>g.id===id)).filter((g):g is WardrobeItem=>Boolean(g)),...look.suggested_products.map(p=>({name:p.name,colour_names:p.colour_names}))]} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
+              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={[...look.owned_ids.map(id=>ownedWardrobe.find(g=>g.id===id)).filter((g):g is WardrobeItem=>Boolean(g)),...look.suggested_products.map(p=>({name:p.name}))]} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
               <Text style={styles.note}>{look.reason}</Text>
               {!look.purchase_required && look.owned_ids.length ? (
                 <Pressable accessibilityRole="button" testID={`mixed-outfit-try-${look.id}`}
