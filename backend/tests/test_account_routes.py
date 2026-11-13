@@ -1729,3 +1729,65 @@ def test_outfit_handbag_preview_is_distinct_from_clothing_only_cache(monkeypatch
     bad_colour = client.post("/api/account/outfit-preview", headers=headers,
                              json={**request, "handbag": {**handbag, "colour": ""}})
     assert bad_colour.status_code == 422
+
+
+def test_handbag_refinement_requires_existing_private_image_and_approved_sku(monkeypatch):
+    """Never refine another customer's image or consume quota without a saved preview."""
+    import hashlib
+    import json
+    from services import stefania_handbag_reference as bag_refs
+    from services.outfit_handbag_pose import HANDBAG_POSE_VERSION
+    db = Database()
+    db.customer_outfit_previews = Collection()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("bag-owner@example.test", "bag-stranger@example.test"):
+        credentials = {"email":email,"password":"test secure account password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        headers.append({"Authorization":"Bearer "+token})
+    owner, stranger = headers
+    bag = {"sku":"SPC-FW2627-15", "name":"Aura Sposa",
+           "colour":"Silk White", "brand":"Stefania P. Creations"}
+    canonical = {**bag,"material":"satin","dimensions":"21 × 14 × 3 cm","photo_sha256":"b"*64}
+    monkeypatch.setattr(bag_refs,"handbag_reference",
+                        lambda sku: (canonical,b"synthetic-photo"))
+    garments = [{"name":"Coral top","colour":"Coral"},
+                {"name":"White shorts","colour":"White"}]
+    payload = {"outfit_id":"bag-refine","presentation":"woman",
+               "garments":garments,"handbag":bag,
+               "refine_existing":True,"reference_images":[]}
+    assert client.post("/api/account/outfit-preview",json=payload).status_code==401
+    # Missing image is rejected even if model generation is configured.
+    assert client.post("/api/account/outfit-preview",headers=owner,json=payload).status_code==409
+    fingerprint = hashlib.sha256(json.dumps(
+        ["woman",garments,canonical,HANDBAG_POSE_VERSION],sort_keys=True
+    ).encode()).hexdigest()
+    db.customer_outfit_previews.docs.append({
+        "user_id": db.customer_accounts.docs[0]["id"],
+        "fingerprint":fingerprint,
+        "image":"data:image/png;base64,not-valid-base64!",
+    })
+    # Image is scoped to the owner, never accessible from another account.
+    assert client.post("/api/account/outfit-preview",headers=stranger,json=payload).status_code==409
+    # Malformed saved images cannot be forwarded to image-edit endpoints.
+    assert client.post("/api/account/outfit-preview",headers=owner,json=payload).status_code==422
+    # Refinement without a selected handbag is not allowed.
+    no_bag={k:v for k,v in payload.items() if k!="handbag"}
+    assert client.post("/api/account/outfit-preview",headers=owner,json=no_bag).status_code==409
+
+
+def test_handbag_refinement_prompt_preserves_outfit_and_corrects_carried_bag():
+    from services.outfit_handbag_pose import handbag_refinement_guidance
+    prompt=handbag_refinement_guidance()
+    assert "same adult model" in prompt
+    assert "FIRST reference" in prompt
+    assert "ABOVE THE KNEE" in prompt
+    assert "Do not change the handbag into a plain tote" in prompt
+    assert "full head" in prompt
