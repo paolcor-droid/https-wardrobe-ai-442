@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -143,6 +143,9 @@ export default function DiscoverScreen() {
   };
   const [searchText, setSearchText] = useState("");
   const [demoMode, setDemoMode] = useState(false);
+  const catalogueScrollRef = useRef<ScrollView>(null);
+  const [demoOutfitsY, setDemoOutfitsY] = useState<number | null>(null);
+  const [jumpToDemo, setJumpToDemo] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
   const [expandedProductDetails, setExpandedProductDetails] = useState<string[]>([]);
@@ -223,6 +226,14 @@ export default function DiscoverScreen() {
     queryFn: () => demoMode ? searchDemoCatalogue(searchFilters) : searchCatalogue(searchFilters),
     enabled: Boolean(profile),
   });
+  // Wait until demo results have rendered before scrolling to their section.
+  // Switching source never mixes synthetic results with live supplier data.
+  useEffect(() => {
+    if (jumpToDemo && demoMode && !searching && searchResults && demoOutfitsY !== null) {
+      catalogueScrollRef.current?.scrollTo({y:Math.max(0,demoOutfitsY - 16),animated:true});
+      setJumpToDemo(false);
+    }
+  }, [jumpToDemo,demoMode,searching,searchResults,demoOutfitsY]);
   const shownProducts = [...(searchResults?.recommendations ?? [])].sort((a,b) => brandSort ? (a.brand || "").localeCompare(b.brand || "") : 0);
   const [bagMessage, setBagMessage] = useState("");
   const [bagMessageProduct, setBagMessageProduct] = useState("");
@@ -464,7 +475,7 @@ export default function DiscoverScreen() {
         <Text style={styles.title}>Discover</Text>
         <Text style={styles.subtitle}>Your personalised shopping edit</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={catalogueScrollRef} contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>What LUMIÈRE is looking for</Text>
           <Text style={styles.body}>
@@ -494,8 +505,37 @@ export default function DiscoverScreen() {
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
+        <Text style={styles.section}>EXPLORE OUTFITS</Text>
+        <View style={styles.card}>
+          <Text style={styles.body}>Choose how to explore. Demo inspiration and real supplier products are kept separate.</Text>
+          <View style={{flexDirection:screenWidth < 760 ? "column" : "row",gap:10}}>
+            <Pressable accessibilityRole="button" testID="discover-open-demo-outfits"
+              onPress={()=>{
+                setDemoMode(true); setPage(1); setSearchText(""); setBrandFilter("");
+                setCategoryFilter(""); setColourFilter(""); setSizeFilter("");
+                setMinPrice(""); setMaxPrice(""); setShowSavedOnly(false);
+                setOutfitOccasionFilter("All"); setJumpToDemo(true);
+              }}
+              style={{flex:1,minHeight:52,padding:12,borderWidth:1,
+                borderColor:"#777",borderRadius:10,justifyContent:"center",gap:3}}>
+              <Text style={styles.body}>Explore demo outfits</Text>
+              <Text style={styles.note}>10,000 synthetic garments · source XML outfit ideas · not for sale</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" testID="discover-open-supplier-outfits"
+              onPress={()=>{
+                setDemoMode(false); setPage(1); setJumpToDemo(false);
+                catalogueScrollRef.current?.scrollTo({y:0,animated:true});
+              }}
+              style={{flex:1,minHeight:52,padding:12,borderWidth:1,
+                borderColor:"#777",borderRadius:10,justifyContent:"center",gap:3}}>
+              <Text style={styles.body}>Shop real outfit ideas</Text>
+              <Text style={styles.note}>Matterhorn XML products · stock and prices not verified live</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.note}>Your own wardrobe recommendations remain separate below. Handbag recommendations identify Stefania P. Creations products and do not imply checkout availability.</Text>
+        </View>
         {prefs?.shop_for === "womens" ? <>
-          <Text style={styles.section}>WOMEN'S OUTFITS FROM THE CATALOGUE</Text>
+          <Text style={styles.section}>REAL SUPPLIER OUTFIT IDEAS · MATTERHORN</Text>
           <View style={styles.card}>
             <Text style={styles.body}>Ready-to-style ideas from genuine women's supplier catalogue records, even if your personal wardrobe is empty.</Text>
             <Text style={styles.note}>Photographs show the actual catalogue products. Supplier stock and current pricing are not verified. Handbag price is on request. These are separate product photos, not a generated photograph of the complete look.</Text>
@@ -962,8 +1002,8 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
         {demoMode && !searching && !searchError && searchResults ? (
-          <View>
-            <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
+          <View onLayout={event=>setDemoOutfitsY(event.nativeEvent.layout.y)}>
+            <Text style={styles.section}>DEMO STYLING OUTFITS · NOT FOR SALE</Text>
             <Text style={styles.note}>Complete looks from the source XML and carefully generated combinations of eligible demo garments. Illustrative only; no photographs, purchasing or Try-On.</Text>
             <Text style={styles.note}>Colour exploration: these demo outfits may include stocked neutral colours beyond your verified skin-analysis palette. They are suggestions to try, not verified complexion matches. Colours you explicitly avoid remain excluded.</Text>
             <Text style={styles.note}>{(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).length} shown of {searchResults.demo_outfits?.length || 0} eligible outfits · Simulated EUR prices</Text>
