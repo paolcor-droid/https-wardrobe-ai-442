@@ -1728,10 +1728,13 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 raise HTTPException(422, "Handbag description does not match the selected SKU")
         # Handbag and no-handbag concepts have separate fingerprints. Never
         # mistakenly reuse an older saved preview without the accessory.
+        # Changing bag-placement policy must not return a prior low-hanging bag.
+        from services.outfit_handbag_pose import HANDBAG_POSE_VERSION, handbag_pose_guidance
         # Preserve the historic cache key for clothing-only concepts.
         # Only the accessory-inclusive variant receives a new key.
         fingerprint_content = ([payload.presentation, validated] if selected_handbag is None
-                               else [payload.presentation, validated, selected_handbag])
+                               else [payload.presentation, validated, selected_handbag,
+                                     HANDBAG_POSE_VERSION])
         fingerprint = hashlib.sha256(json.dumps(
             fingerprint_content, sort_keys=True
         ).encode()).hexdigest()
@@ -1798,6 +1801,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 "No second bag. The resulting fashion image remains an AI interpretation, "
                 "not a verified supplier product photo."
             )
+            prompt += handbag_pose_guidance()
         # Reference images must be synthetic garment demo assets, never personal photographs.
         # The server validates compressed bytes rather than fetching arbitrary URLs.
         references = []
