@@ -1069,7 +1069,7 @@ export default function DiscoverScreen() {
                 {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
-                  {selectedBag ? <Text style={styles.note}>The new illustration will request the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The real Stefania product photo above remains the reference; exact bag appearance is not guaranteed. Previous clothing-only previews are preserved.</Text> : null}
+                  {selectedBag ? <Text style={styles.note}>The new illustration will attempt to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The real Stefania product photo above remains the reference; exact bag appearance is not guaranteed. Previous clothing-only previews are preserved.</Text> : null}
                   {previewImage ? (
                     <View>
                       <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
