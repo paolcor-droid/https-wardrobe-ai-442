@@ -5,6 +5,17 @@ filters first. This module never creates stock, prices, images or products.
 """
 from services.demo_outfit_combinations import garment_role, harmony
 
+def eligible_outfit_roles(products):
+    """Count source-backed women/unisex items with photos by styling role."""
+    counts = {name: 0 for name in ("top", "bottom", "dress", "shoes")}
+    for p in products:
+        if p.get("department") in ("womens", "unisex") and p.get("source_verified") and p.get("image_url"):
+            role = garment_role(p)
+            if role in counts:
+                counts[role] += 1
+    return counts
+
+
 def build_supplier_outfits(products, limit=8):
     roles = {name: [] for name in ("top", "bottom", "dress", "shoes")}
     for product in products:
