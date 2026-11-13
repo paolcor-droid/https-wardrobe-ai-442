@@ -1719,8 +1719,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             selected_handbag = {"name": name, "colour": colour, "brand": brand}
         # Handbag and no-handbag concepts have separate fingerprints. Never
         # mistakenly reuse an older saved preview without the accessory.
+        # Preserve the historic cache key for clothing-only concepts.
+        # Only the accessory-inclusive variant receives a new key.
+        fingerprint_content = ([payload.presentation, validated] if selected_handbag is None
+                               else [payload.presentation, validated, selected_handbag])
         fingerprint = hashlib.sha256(json.dumps(
-            [payload.presentation, validated, selected_handbag], sort_keys=True
+            fingerprint_content, sort_keys=True
         ).encode()).hexdigest()
         existing = await db.customer_outfit_previews.find_one(
             {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
