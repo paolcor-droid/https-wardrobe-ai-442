@@ -37,3 +37,41 @@ def test_mens_or_unverified_catalogue_records_are_never_in_outfits():
 
 def test_no_outfit_if_no_eligible_garment():
     assert build_supplier_outfits([])==[]
+
+
+def test_monochrome_genuine_outfits_are_not_suppressed():
+    products = [
+        product("top-black", "blouse", "black"),
+        product("pants-black", "trousers", "black"),
+        product("shoe-black", "shoes", "black"),
+    ]
+    diagnostics = {}
+    looks = build_supplier_outfits(products, diagnostics=diagnostics)
+    assert looks
+    assert any("Monochrome" in look["reason"] for look in looks)
+    assert diagnostics["accepted"] > 0
+    assert all(look["stock_verified_live"] is False for look in looks)
+
+
+def test_missing_supplier_colour_is_not_fabricated():
+    products = [
+        product("navy-blouse", "blouse", "navy"),
+        product("unlabelled-trousers", "trousers", ""),
+        product("black-shoes", "shoes", "black"),
+    ]
+    diagnostics = {}
+    looks = build_supplier_outfits(products, diagnostics=diagnostics)
+    assert looks
+    assert diagnostics["missing_colour"] > 0
+    assert any(any(not label for garment in look["garments"]
+                   for label in garment["colour_names"]) for look in looks)
+    assert "missing" in looks[0]["reason"].casefold()
+
+
+def test_supplier_candidate_diagnostics_do_not_include_customer_data():
+    diagnostics = {}
+    assert build_supplier_outfits([], diagnostics=diagnostics) == []
+    assert set(diagnostics) == {
+        "repeated_or_duplicate", "missing_colour", "harmony", "accepted"
+    }
+    assert all(isinstance(value, int) for value in diagnostics.values())
