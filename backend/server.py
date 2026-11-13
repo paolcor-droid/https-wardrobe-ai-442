@@ -1514,21 +1514,24 @@ async def supplier_outfits_for_customer(user_id):
     from services.supplier_outfit_combinations import build_supplier_outfits, eligible_outfit_roles
     source_roles = eligible_outfit_roles(normalized)
     eligible_roles = eligible_outfit_roles(eligible)
-    outfits = build_supplier_outfits(eligible)
+    combination_checks = {}
+    outfits = build_supplier_outfits(eligible, diagnostics=combination_checks)
     if not source_roles["bottom"] and not source_roles["dress"]:
         message = ("This supplier snapshot has no women's bottoms or dresses; "
                    "a full outfit cannot be created. Import the complete authorised "
                    "supplier XML catalogue to enable women's outfit combinations.")
     elif not outfits:
-        message = ("No complete outfit passed the current profile and styling rules. "
-                   "Check catalogue role counts and personalisation restrictions.")
+        message = ("No outfit could be assembled from the eligible supplier records. "
+                   "Check the garment-role and candidate-rejection diagnostics below; "
+                   "colour labels and styling rules may require review.")
     else:
         message = ("Real supplier snapshot products; availability, price freshness "
                    "and photographed shade are not verified live.")
     return {"outfits": outfits, "source": source,
             "diagnostics": {"source_product_count": len(normalized),
                             "eligible_product_count": len(eligible),
-                            "source_roles": source_roles, "eligible_roles": eligible_roles},
+                            "source_roles": source_roles, "eligible_roles": eligible_roles,
+                            "combination_checks": combination_checks},
             "live_inventory_enabled": False, "notice": message}
 
 
