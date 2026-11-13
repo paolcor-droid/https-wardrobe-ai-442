@@ -733,6 +733,8 @@ export async function getOutfitPreviewStatus(): Promise<{enabled:boolean;daily_l
 export async function generateOutfitPreview(input: {
   outfit_id: string;
   force_regenerate?: boolean;
+  /** Paid opt-in refinement of the account's saved image; preserves outfit/model. */
+  refine_existing?: boolean;
   reference_images?: string[];
   presentation: "woman" | "man";
   garments: Array<{name: string; colour: string; category?: string; style?: string; pattern?: string}>;
