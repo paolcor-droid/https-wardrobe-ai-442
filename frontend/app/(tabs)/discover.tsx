@@ -987,8 +987,7 @@ export default function DiscoverScreen() {
               <View key={product.product_id} style={{ width: gridColumns === 1 ? "100%" : gridColumns === 2 ? "48%" : "31.5%" }}>
                 {renderProduct(product)}
               </View>
-              );
-            })}
+            ))}
           </View>
         ) : null}
 
@@ -1197,7 +1196,8 @@ export default function DiscoverScreen() {
                   </View>
                 ) : null}
               </View>
-            ))}
+              );
+            })}
           </View>
         ) : null}
       </ScrollView>
