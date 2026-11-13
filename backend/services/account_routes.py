@@ -1707,16 +1707,25 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                     details[field] = raw
             validated.append(details)
         selected_handbag = None
+        bag_reference_jpeg = None
         if payload.handbag is not None:
-            # A handbag is a carried accessory, not an extra item of clothing.
-            # Keep the concept grounded in selected catalogue labels only.
-            name = str(payload.handbag.get("name", "")).strip()
-            colour = str(payload.handbag.get("colour", "")).strip()
-            brand = str(payload.handbag.get("brand", "")).strip()
-            if (not name or not colour or len(name) > 100 or len(colour) > 80
-                    or brand != "Stefania P. Creations"):
-                raise HTTPException(422, "Invalid handbag description")
-            selected_handbag = {"name": name, "colour": colour, "brand": brand}
+            from services.stefania_handbag_reference import (
+                HandbagReferenceError, handbag_reference,
+            )
+            sku = payload.handbag.get("sku", "")
+            try:
+                selected_handbag, bag_reference_jpeg = await run_in_threadpool(
+                    handbag_reference, sku
+                )
+            except HandbagReferenceError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            # Never trust client-supplied name/colour or remote image URLs:
+            # the SKU selects the single approved photo and canonical labels.
+            if any(
+                payload.handbag.get(field) != selected_handbag[field]
+                for field in ("name", "colour", "brand")
+            ):
+                raise HTTPException(422, "Handbag description does not match the selected SKU")
         # Handbag and no-handbag concepts have separate fingerprints. Never
         # mistakenly reuse an older saved preview without the accessory.
         # Preserve the historic cache key for clothing-only concepts.
@@ -1772,13 +1781,22 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         )
         if selected_handbag:
             prompt += (
-                " The same model MUST carry one visible handbag in her hand or "
-                "over one shoulder, fully within the frame: "
-                + selected_handbag["colour"] + " " + selected_handbag["name"]
-                + " from the named handbag collection. Keep the bag separate "
-                "from clothing; show the handles, main body and overall shape. "
-                "Do not add a second bag. The bag is an illustrative interpretation "
-                "based on its catalogue description; exact product details are unverified."
+                " IMPORTANT: Reference image 1 is the exact approved product photograph "
+                "of the handbag to reproduce, not an outfit reference or a background. "
+                "Carry ONE handbag based specifically on that photograph in the model's hand "
+                "or over a shoulder, with its entire outline visible. Reproduce its "
+                "silhouette, proportions, texture, colour, flap, handles and hardware as "
+                "closely as the image allows; do not replace it with a generic tote or "
+                "a different bag. Product SKU: " + selected_handbag["sku"]
+                + "; name: " + selected_handbag["name"]
+                + "; labelled colour: " + selected_handbag["colour"]
+                + "; labelled materials: " + selected_handbag["material"]
+                + "; approximate product dimensions: " + selected_handbag["dimensions"]
+                + ". Do not copy the handbag product photograph's background, tabletop or "
+                "props into the studio fashion image. Keep the outfit and model unchanged "
+                "by the reference photograph; any other images are garment guidance only. "
+                "No second bag. The resulting fashion image remains an AI interpretation, "
+                "not a verified supplier product photo."
             )
         # Reference images must be synthetic garment demo assets, never personal photographs.
         # The server validates compressed bytes rather than fetching arbitrary URLs.
@@ -1793,14 +1811,22 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             if not (data.startswith(bytes([0xff, 0xd8, 0xff])) and len(data) < 600000):
                 raise HTTPException(422, "Invalid outfit reference photograph")
             references.append(data)
+        # Image edits receive the approved handbag photo first, followed by at
+        # most two synthetic garment references. Never pass arbitrary client
+        # URLs or private wardrobe photographs to this flow.
+        if bag_reference_jpeg is not None:
+            references = [bag_reference_jpeg] + references[:2]
         def render():
             model = os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini")
             if references:
                 resp = requests.post(
                     "https://api.openai.com/v1/images/edits",
                     headers={"Authorization": "Bearer " + key},
-                    data={"model": model, "prompt": prompt + " Follow the attached garment references for fabric, shape and detail; retain the specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
-                    files=[("image[]", (f"garment_{i}.jpg", data, "image/jpeg")) for i, data in enumerate(references)],
+                    data={"model": model, "prompt": prompt + " Follow each reference's assigned role: reference 1 depicts ONLY the selected handbag if included; other references illustrate garments. Keep all specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
+                    files=[("image[]", (
+                        "approved_stefania_handbag.jpg" if bag_reference_jpeg is not None and i == 0
+                        else f"synthetic_garment_{i}.jpg", data, "image/jpeg"
+                    )) for i, data in enumerate(references)],
                     timeout=120,
                 )
             else:
