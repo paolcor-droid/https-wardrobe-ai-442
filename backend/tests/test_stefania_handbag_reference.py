@@ -21,7 +21,7 @@ def test_known_sku_loads_only_matching_approved_product_photo(tmp_path, monkeypa
     with Image.open(BytesIO(jpeg)) as img:
         assert img.format == "JPEG"
         assert img.width <= 1024 and img.height <= 1024
-    assert photo.read_bytes().startswith(b"\\xff\\xd8".decode("unicode_escape").encode("latin1"))
+    assert photo.read_bytes()[:2] == bytes([255, 216])
     other = tmp_path / "SPC-FW2627-01_hero.jpg"
     Image.new("RGB", (80, 80), (20, 20, 20)).save(other, "JPEG")
     black, black_jpeg = refs.handbag_reference("SPC-FW2627-01")
