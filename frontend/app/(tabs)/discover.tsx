@@ -1069,7 +1069,7 @@ export default function DiscoverScreen() {
                 {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
-                  {selectedBag ? <Text style={styles.note}>The new illustration will show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The real Stefania product photo above remains the reference; exact bag appearance is not guaranteed. Previous clothing-only previews are preserved.</Text> : null}
+                  {selectedBag ? <Text style={styles.note}>The new illustration will request the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The real Stefania product photo above remains the reference; exact bag appearance is not guaranteed. Previous clothing-only previews are preserved.</Text> : null}
                   {previewImage ? (
                     <View>
                       <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
@@ -1119,8 +1119,8 @@ export default function DiscoverScreen() {
                       }}
                       style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
                       {outfitPreviewLoading===previewId ? <ActivityIndicator /> : <Feather name="image" size={22} />}
-                      <Text style={styles.body}>{outfitPreviewLoading===previewId?"Generating outfit preview…":"Generate outfit with suggested handbag"}</Text>
-                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces and carrying the selected handbag · up to 20 previews per account/day in development</Text>
+                      <Text style={styles.body}>{outfitPreviewLoading===previewId?"Generating outfit preview…":selectedBag?"Generate outfit with suggested handbag":"Generate AI outfit preview"}</Text>
+                      <Text style={styles.note}>Optional · generic adult model wearing the selected clothes and, for women's outfits, carrying the suggested handbag · up to 20 generations per account/day</Text>
                     </Pressable>
                   )}
                   {outfitPreviewErrors[previewId] ? <Text style={styles.note}>{outfitPreviewErrors[previewId]}</Text> : null}
