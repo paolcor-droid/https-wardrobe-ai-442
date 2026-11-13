@@ -13,7 +13,7 @@ import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
 import { OutfitHandbagSuggestion } from "@/src/components/OutfitHandbagSuggestion";
-import { suggestBagForWomensOutfit } from "@/src/handbag-outfit-match";
+import { rankedBagsForWomensOutfit } from "@/src/handbag-outfit-match";
 
 function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[]}>):string {
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
@@ -160,6 +160,8 @@ export default function DiscoverScreen() {
     enabled:Boolean(profile), staleTime:60000,
   });
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
+  // Per-outfit handbag choices are local UI state, never a paid generation.
+  const [selectedDemoBagIds, setSelectedDemoBagIds] = useState<Record<string,string>>({});
   useFocusEffect(useCallback(() => {
     let active = true;
     getSavedOutfitPreviews().then(({previews}) => {
@@ -1031,13 +1033,16 @@ export default function DiscoverScreen() {
             <Pressable accessibilityRole="button" onPress={() => setShowSavedOnly(x=>!x)}><Text style={styles.body}>{showSavedOnly ? "Show all eligible outfits" : "Show saved outfits only"}</Text></Pressable>
             <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
             {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => {
-              const bagMatch = prefs?.shop_for === "womens" ?
-                suggestBagForWomensOutfit(outfit.garments, {
+              const bagChoices = prefs?.shop_for === "womens" ?
+                rankedBagsForWomensOutfit(outfit.garments, {
                   occasion:outfit.occasion,
                   preferred:prefs?.preferred_colours || [],
                   avoided:prefs?.avoided_colours || [],
-                }) : null;
-              const selectedBag = bagMatch?.bag;
+                }) : [];
+              const selectedBag = (
+                bagChoices.find(match=>match.bag.id===selectedDemoBagIds[outfit.id]) ||
+                bagChoices[0]
+              )?.bag;
               // A handbag-inclusive preview is distinct from the earlier
               // clothing-only saved image. Both remain saved in the account.
               const previewId = selectedBag ?
@@ -1066,10 +1071,15 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>Simulated outfit total</Text>
                   </View>
                 </View>
-                {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
+                {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion
+                  garments={outfit.garments} occasion={outfit.occasion}
+                  preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}
+                  selectedBagId={selectedBag?.id}
+                  onSelectBag={bagId=>setSelectedDemoBagIds(previous=>({...previous,[outfit.id]:bagId}))}
+                /> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
-                  {selectedBag ? <Text style={styles.note}>The new illustration uses the approved Stefania product photograph as an AI reference to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The handbag is fixed by product SKU and the saved reference image. The model should carry it near her hip with its strap above the floor. AI details or placement can still differ; compare with the real product photo above. Previous clothing-only previews are preserved.</Text> : null}
+                  {selectedBag ? <Text style={styles.note}>Selected: {selectedBag.name} ({selectedBag.colour}). You can browse other Stefania handbags above without using AI credits. The new illustration uses the approved Stefania product photograph as an AI reference to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The handbag is fixed by product SKU and the saved reference image. The model should carry it near her hip with its strap above the floor. AI details or placement can still differ; compare with the real product photo above. Previous clothing-only previews are preserved.</Text> : null}
                   {previewImage ? (
                     <View>
                       <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
