@@ -1511,10 +1511,25 @@ async def supplier_outfits_for_customer(user_id):
     feedback = await db.customer_feedback.find({"user_id":user_id}, {"_id":0}).to_list(500)
     blocked = {str(row.get("product_id")) for row in feedback if row.get("sentiment")=="disliked"}
     eligible = [p for p in eligible if p.get("external_id") not in blocked and product_key(p) not in blocked]
-    from services.supplier_outfit_combinations import build_supplier_outfits
-    return {"outfits": build_supplier_outfits(eligible),
-            "source": source, "live_inventory_enabled": False,
-            "notice": "Real supplier snapshot products; availability, price freshness and photographed shade are not verified live."}
+    from services.supplier_outfit_combinations import build_supplier_outfits, eligible_outfit_roles
+    source_roles = eligible_outfit_roles(normalized)
+    eligible_roles = eligible_outfit_roles(eligible)
+    outfits = build_supplier_outfits(eligible)
+    if not source_roles["bottom"] and not source_roles["dress"]:
+        message = ("This supplier snapshot has no women's bottoms or dresses; "
+                   "a full outfit cannot be created. Import the complete authorised "
+                   "supplier XML catalogue to enable women's outfit combinations.")
+    elif not outfits:
+        message = ("No complete outfit passed the current profile and styling rules. "
+                   "Check catalogue role counts and personalisation restrictions.")
+    else:
+        message = ("Real supplier snapshot products; availability, price freshness "
+                   "and photographed shade are not verified live.")
+    return {"outfits": outfits, "source": source,
+            "diagnostics": {"source_product_count": len(normalized),
+                            "eligible_product_count": len(eligible),
+                            "source_roles": source_roles, "eligible_roles": eligible_roles},
+            "live_inventory_enabled": False, "notice": message}
 
 
 async def search_catalogue_for_customer(user_id, filters, page=1, per_page=20):
