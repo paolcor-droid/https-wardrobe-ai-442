@@ -1095,6 +1095,40 @@ export default function DiscoverScreen() {
                       }} style={{paddingVertical:10}}>
                         <Text style={styles.body}>↻ Regenerate outfit illustration (uses one daily generation)</Text>
                       </Pressable>
+                      {selectedBag && previewHandbag ? (
+                        <Pressable accessibilityRole="button"
+                          testID={`refine-handbag-${outfit.id}`}
+                          disabled={outfitPreviewLoading !== null}
+                          onPress={async () => {
+                            setOutfitPreviewLoading(previewId);
+                            setOutfitPreviewErrors(old=>({...old,[previewId]:""}));
+                            try {
+                              const result = await generateOutfitPreview({
+                                outfit_id:previewId,
+                                presentation:"woman",
+                                garments:outfit.garments.slice(0,5).map(g=>({
+                                  name:g.name,colour:g.colour_names?.[0]||"neutral"
+                                })),
+                                handbag:previewHandbag,
+                                refine_existing:true,
+                                reference_images:[],
+                              });
+                              setOutfitPreviewImages(old=>({...old,[previewId]:result.image}));
+                            } catch (e) {
+                              const message=e instanceof Error ? e.message : "";
+                              setOutfitPreviewErrors(old=>({...old,[previewId]:
+                                message.includes("429") ? "Daily outfit-preview limit reached." :
+                                message.includes("503") ? "Image generation is unavailable on this server." :
+                                "Could not refine this handbag illustration. The saved outfit remains available."
+                              }));
+                            } finally {setOutfitPreviewLoading(null);}
+                          }}
+                          style={{padding:12,minHeight:48,borderWidth:1,
+                            borderColor:"rgba(128,128,128,0.32)",borderRadius:8,marginTop:6}}>
+                          <Text style={styles.body}>Refine handbag only · Keep this outfit</Text>
+                          <Text style={styles.note}>Use this saved picture and the actual Stefania handbag photograph to correct shape and placement. Uses one daily generation; model fidelity is not guaranteed.</Text>
+                        </Pressable>
+                      ) : null}
                     </View>
                   ) : (
                     <Pressable accessibilityRole="button" disabled={outfitPreviewLoading !== null}
