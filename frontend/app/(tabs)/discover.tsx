@@ -502,7 +502,14 @@ export default function DiscoverScreen() {
             {supplierOutfitsLoading ? <ActivityIndicator accessibilityLabel="Finding women's catalogue outfits"/> : null}
             {supplierOutfitsError ? <Text style={styles.error}>Women's catalogue outfits could not be loaded. Check the backend log and restart FastAPI.</Text> : null}
             {!supplierOutfitsLoading && !supplierOutfitsError && !(supplierOutfits?.outfits?.length) ?
-              <Text style={styles.note}>No compatible women's catalogue combinations were found. Check your colour restrictions and available clothing categories.</Text> : null}
+              <View style={{gap:5}}>
+                <Text style={styles.note}>{supplierOutfits?.notice || "No compatible women's catalogue combinations were found."}</Text>
+                {supplierOutfits?.diagnostics ? <>
+                  <Text style={styles.note}>Catalogue: {supplierOutfits.source || "unknown"} · {supplierOutfits.diagnostics.source_product_count} products · {supplierOutfits.diagnostics.eligible_product_count} eligible after profile filters</Text>
+                  <Text style={styles.note}>Garment types in source: {Object.entries(supplierOutfits.diagnostics.source_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
+                  <Text style={styles.note}>Eligible garment types: {Object.entries(supplierOutfits.diagnostics.eligible_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
+                </> : null}
+              </View> : null}
             {(supplierOutfits?.outfits || []).map((outfit,index)=>(
               <View key={outfit.id} style={{paddingVertical:16,gap:10,borderTopWidth:index?1:0,borderColor:"rgba(128,128,128,0.2)"}}>
                 <Text style={styles.body}>Women's catalogue look {index+1}</Text>
