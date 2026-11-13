@@ -2,7 +2,7 @@ import React from "react";
 import {Image,Text,View} from "react-native";
 import {suggestBagForWomensOutfit} from "@/src/handbag-outfit-match";
 export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=[]}:{
- garments:Array<{colour?:string|null; colour_names?:string[]|null; name?:string; category?:string}>;
+ garments:Array<{colour?:string|null; colour_names?:string[]|null; name?:string; category?:string|null}>;
  occasion?:string|null;preferred?:string[];avoided?:string[];
 }){
  const result=suggestBagForWomensOutfit(garments,{occasion,preferred,avoided});
