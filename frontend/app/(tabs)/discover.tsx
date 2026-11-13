@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, u
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, getSupplierOutfits, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
@@ -160,8 +161,47 @@ export default function DiscoverScreen() {
     enabled:Boolean(profile), staleTime:60000,
   });
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
-  // Per-outfit handbag choices are local UI state, never a paid generation.
-  const [selectedDemoBagIds, setSelectedDemoBagIds] = useState<Record<string,string>>({});
+  // Save only product SKUs, never customer photos or generated images. The
+  // account-scoped key prevents one signed-in user seeing another user's picks.
+  const [bagSelectionState, setBagSelectionState] = useState<{
+    accountId:string; selections:Record<string,string>; hydrated:boolean
+  }>({accountId:"",selections:{},hydrated:false});
+  const selectedDemoBagIds = bagSelectionState.accountId === profile?.id
+    ? bagSelectionState.selections : {};
+  useEffect(() => {
+    const accountId = profile?.id;
+    if (!accountId) {
+      setBagSelectionState({accountId:"",selections:{},hydrated:false});
+      return;
+    }
+    let active = true;
+    setBagSelectionState({accountId,selections:{},hydrated:false});
+    AsyncStorage.getItem("lumiere:demo-handbag-choices:v1:"+accountId)
+      .then(value => {
+        if (!active) return;
+        const parsed:unknown=value?JSON.parse(value):{};
+        const selections:Record<string,string>={};
+        if (parsed && typeof parsed==="object" && !Array.isArray(parsed)) {
+          for(const [outfitId,sku] of Object.entries(parsed).slice(0,200)) {
+            if(outfitId.length<=130 && typeof sku==="string" &&
+               /^SPC-FW2627-(0[1-9]|1[0-8])$/.test(sku)){
+              selections[outfitId]=sku;
+            }
+          }
+        }
+        setBagSelectionState({accountId,selections,hydrated:true});
+      })
+      .catch(()=>{if(active)setBagSelectionState({accountId,selections:{},hydrated:true});});
+    return ()=>{active=false;};
+  }, [profile?.id]);
+  useEffect(() => {
+    if (!bagSelectionState.hydrated || bagSelectionState.accountId!==profile?.id) return;
+    // User selection alone never calls an AI endpoint or consumes generation credits.
+    AsyncStorage.setItem(
+      "lumiere:demo-handbag-choices:v1:"+bagSelectionState.accountId,
+      JSON.stringify(bagSelectionState.selections)
+    ).catch(()=>{});
+  }, [bagSelectionState,profile?.id]);
   useFocusEffect(useCallback(() => {
     let active = true;
     getSavedOutfitPreviews().then(({previews}) => {
@@ -1075,7 +1115,11 @@ export default function DiscoverScreen() {
                   garments={outfit.garments} occasion={outfit.occasion}
                   preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}
                   selectedBagId={selectedBag?.id}
-                  onSelectBag={bagId=>setSelectedDemoBagIds(previous=>({...previous,[outfit.id]:bagId}))}
+                  onSelectBag={bagId=>setBagSelectionState(previous=>({
+                    accountId:profile!.id,
+                    selections:{...(previous.accountId===profile!.id?previous.selections:{}),[outfit.id]:bagId},
+                    hydrated:previous.accountId===profile!.id?previous.hydrated:false,
+                  }))}
                 /> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
