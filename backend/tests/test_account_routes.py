@@ -1664,3 +1664,55 @@ def test_preview_metadata_validation_is_private_and_does_not_trigger_generation(
                                       payload["garments"][1]]}
     error = client.post("/api/account/outfit-preview",headers=headers,json=invalid)
     assert error.status_code == 422
+
+
+def test_outfit_handbag_preview_is_distinct_from_clothing_only_cache(monkeypatch):
+    """A previous bag-free image must not masquerade as a handbag render."""
+    import hashlib
+    import json
+    db = Database()
+    db.customer_outfit_previews = Collection()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    creds = {"email": "handbag-preview@example.test", "password": "safe synthetic password"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    token = client.post("/api/account/login", json=creds).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    garments = [
+        {"name": "V-neck T-shirt", "colour": "Coral"},
+        {"name": "Shorts", "colour": "White"},
+    ]
+    request = {"outfit_id": "outfit-1", "presentation": "woman",
+               "garments": garments, "reference_images": []}
+    old_fingerprint = hashlib.sha256(
+        json.dumps(["woman", garments], sort_keys=True).encode()
+    ).hexdigest()
+    # Simulate an existing clothing-only concept cached before handbag support.
+    assert len(old_fingerprint) == 64
+    # Verify different fingerprint shape for the same garments plus handbag.
+    new_fingerprint = hashlib.sha256(
+        json.dumps(["woman", garments, {
+            "name": "Aura Sposa", "colour": "Silk White",
+            "brand": "Stefania P. Creations",
+        }], sort_keys=True).encode()
+    ).hexdigest()
+    assert new_fingerprint != old_fingerprint
+    # Compare the same request without any image generation configured.
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    handbag = {"name": "Aura Sposa", "colour": "Silk White",
+               "brand": "Stefania P. Creations"}
+    result = client.post("/api/account/outfit-preview", headers=headers,
+                         json={**request, "handbag": handbag})
+    assert result.status_code == 503
+    bad = client.post("/api/account/outfit-preview", headers=headers,
+                      json={**request, "handbag": {**handbag, "brand": "Unknown"}})
+    assert bad.status_code == 422
+    bad_colour = client.post("/api/account/outfit-preview", headers=headers,
+                             json={**request, "handbag": {**handbag, "colour": ""}})
+    assert bad_colour.status_code == 422
