@@ -197,7 +197,13 @@ export default function DiscoverScreen() {
           hydrated:true
         }));
       })
-      .catch(()=>{if(active)setBagSelectionState({accountId,selections:{},hydrated:true});});
+      .catch(()=>{
+        if(active)setBagSelectionState(previous=>({
+          accountId,
+          selections:previous.accountId===accountId?previous.selections:{},
+          hydrated:true
+        }));
+      });
     return ()=>{active=false;};
   }, [profile?.id]);
   useEffect(() => {
