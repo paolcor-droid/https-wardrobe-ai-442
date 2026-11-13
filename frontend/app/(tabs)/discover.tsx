@@ -1,17 +1,20 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { View, Text, ScrollView, Pressable, Linking, Image, ActivityIndicator, useWindowDimensions, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Feather from "@react-native-vector-icons/feather";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
+import { getProfile, updateProfile, browsePreLoved, getPreLovedMatches, getCatalogueRecommendations, getSupplierOutfits, searchCatalogue, searchDemoCatalogue, addShoppingBagItem, getShoppingBag, prepareCatalogueGarment, saveProductFeedback, getProductFeedback, generateOutfitPreview, getOutfitPreviewStatus, getSavedOutfitPreviews, listTryOns, listWardrobe, getWardrobeOutfits, getMixedWardrobeOutfits, getWardrobeOutfitFeedback, saveWardrobeOutfitFeedback, fileUrl, type WardrobeItem, type ProductSentiment, type ProductRecommendation } from "@/src/api";
 import { makeStyles, fonts } from "@/src/theme";
 import { AccountPhoto } from "@/src/components/AccountPhoto";
 import { demoSwatch } from "@/src/demo-outfit-colours";
 import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
+import { OutfitHandbagSuggestion } from "@/src/components/OutfitHandbagSuggestion";
+import { rankedBagsForWomensOutfit } from "@/src/handbag-outfit-match";
 
 function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[]}>):string {
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
@@ -54,6 +57,11 @@ export default function DiscoverScreen() {
     queryKey: ["mixed-wardrobe-outfits", JSON.stringify(ownedWardrobe.map(item => [item.id, item.category, item.colour, item.style, item.pattern, item.season])), profile?.updated_at, discoverClimate],
     queryFn: () => getMixedWardrobeOutfits(discoverClimate as "hot" | "mild" | "cold", profile?.preferences?.occasion || "casual"),
     enabled: Boolean(profile) && ownedWardrobe.length > 0,
+  });
+  const {data: supplierOutfits, isLoading: supplierOutfitsLoading, isError: supplierOutfitsError} = useQuery({
+    queryKey:["supplier-outfits",profile?.updated_at,profile?.preferences?.shop_for],
+    queryFn:getSupplierOutfits,
+    enabled:profile?.preferences?.shop_for==="womens",
   });
   const {data: ratedWardrobeLooks = []} = useQuery({
     queryKey:["wardrobe-outfit-feedback"], queryFn:getWardrobeOutfitFeedback,
@@ -137,6 +145,9 @@ export default function DiscoverScreen() {
   };
   const [searchText, setSearchText] = useState("");
   const [demoMode, setDemoMode] = useState(false);
+  const catalogueScrollRef = useRef<ScrollView>(null);
+  const [demoOutfitsY, setDemoOutfitsY] = useState<number | null>(null);
+  const [jumpToDemo, setJumpToDemo] = useState(false);
   const [showOutfitDiagnostics, setShowOutfitDiagnostics] = useState(false);
   const [expandedDemoOutfits, setExpandedDemoOutfits] = useState<string[]>([]);
   const [expandedProductDetails, setExpandedProductDetails] = useState<string[]>([]);
@@ -150,7 +161,66 @@ export default function DiscoverScreen() {
     enabled:Boolean(profile), staleTime:60000,
   });
   const [outfitPreviewImages, setOutfitPreviewImages] = useState<Record<string,string>>({});
+  // Save only product SKUs, never customer photos or generated images. The
+  // account-scoped key prevents one signed-in user seeing another user's picks.
+  const [bagSelectionState, setBagSelectionState] = useState<{
+    accountId:string; selections:Record<string,string>; hydrated:boolean
+  }>({accountId:"",selections:{},hydrated:false});
+  const selectedDemoBagIds = bagSelectionState.accountId === profile?.id
+    ? bagSelectionState.selections : {};
+  useEffect(() => {
+    const accountId = profile?.id;
+    if (!accountId) {
+      setBagSelectionState({accountId:"",selections:{},hydrated:false});
+      return;
+    }
+    let active = true;
+    setBagSelectionState({accountId,selections:{},hydrated:false});
+    AsyncStorage.getItem("lumiere:demo-handbag-choices:v1:"+accountId)
+      .then(value => {
+        if (!active) return;
+        const parsed:unknown=value?JSON.parse(value):{};
+        const selections:Record<string,string>={};
+        if (parsed && typeof parsed==="object" && !Array.isArray(parsed)) {
+          for(const [outfitId,sku] of Object.entries(parsed).slice(0,200)) {
+            if(outfitId.length<=130 && typeof sku==="string" &&
+               /^SPC-FW2627-(0[1-9]|1[0-8])$/.test(sku)){
+              selections[outfitId]=sku;
+            }
+          }
+        }
+        // A user may choose a handbag while the local selection is loading.
+        // Preserve that fresh choice over an older saved choice.
+        setBagSelectionState(previous=>({
+          accountId,
+          selections:{...selections,...(previous.accountId===accountId?previous.selections:{})},
+          hydrated:true
+        }));
+      })
+      .catch(()=>{
+        if(active)setBagSelectionState(previous=>({
+          accountId,
+          selections:previous.accountId===accountId?previous.selections:{},
+          hydrated:true
+        }));
+      });
+    return ()=>{active=false;};
+  }, [profile?.id]);
+  useEffect(() => {
+    if (!bagSelectionState.hydrated || bagSelectionState.accountId!==profile?.id) return;
+    // User selection alone never calls an AI endpoint or consumes generation credits.
+    AsyncStorage.setItem(
+      "lumiere:demo-handbag-choices:v1:"+bagSelectionState.accountId,
+      JSON.stringify(bagSelectionState.selections)
+    ).catch(()=>{});
+  }, [bagSelectionState,profile?.id]);
+  // Images are private to the authenticated account. Never retain a prior
+  // account's cached preview on screen after login changes.
+  useEffect(() => {
+    setOutfitPreviewImages({});
+  }, [profile?.id]);
   useFocusEffect(useCallback(() => {
+    if (!profile?.id) return;
     let active = true;
     getSavedOutfitPreviews().then(({previews}) => {
       if (!active) return;
@@ -165,7 +235,7 @@ export default function DiscoverScreen() {
       setOutfitPreviewImages(previous => ({...previous,...saved}));
     }).catch(() => {});
     return () => { active = false; };
-  }, []));
+  }, [profile?.id]));
 
   const [personalDemoResults, setPersonalDemoResults] = useState<Record<string,{path:string;prompt:string}>>({});
   useFocusEffect(useCallback(() => {
@@ -217,6 +287,14 @@ export default function DiscoverScreen() {
     queryFn: () => demoMode ? searchDemoCatalogue(searchFilters) : searchCatalogue(searchFilters),
     enabled: Boolean(profile),
   });
+  // Wait until demo results have rendered before scrolling to their section.
+  // Switching source never mixes synthetic results with live supplier data.
+  useEffect(() => {
+    if (jumpToDemo && demoMode && !searching && searchResults && demoOutfitsY !== null) {
+      catalogueScrollRef.current?.scrollTo({y:Math.max(0,demoOutfitsY - 16),animated:true});
+      setJumpToDemo(false);
+    }
+  }, [jumpToDemo,demoMode,searching,searchResults,demoOutfitsY]);
   const shownProducts = [...(searchResults?.recommendations ?? [])].sort((a,b) => brandSort ? (a.brand || "").localeCompare(b.brand || "") : 0);
   const [bagMessage, setBagMessage] = useState("");
   const [bagMessageProduct, setBagMessageProduct] = useState("");
@@ -458,7 +536,7 @@ export default function DiscoverScreen() {
         <Text style={styles.title}>Discover</Text>
         <Text style={styles.subtitle}>Your personalised shopping edit</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={catalogueScrollRef} contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>What LUMIÈRE is looking for</Text>
           <Text style={styles.body}>
@@ -488,6 +566,74 @@ export default function DiscoverScreen() {
           ) : <Text style={styles.body}>Scan your skin tone in You to personalise recommendations using your colour palette.</Text>}
         </View>
 
+        <Text style={styles.section}>EXPLORE OUTFITS</Text>
+        <View style={styles.card}>
+          <Text style={styles.body}>Choose how to explore. Demo inspiration and real supplier products are kept separate.</Text>
+          <View style={{flexDirection:screenWidth < 760 ? "column" : "row",gap:10}}>
+            <Pressable accessibilityRole="button" testID="discover-open-demo-outfits"
+              onPress={()=>{
+                setDemoMode(true); setPage(1); setSearchText(""); setBrandFilter("");
+                setCategoryFilter(""); setColourFilter(""); setSizeFilter("");
+                setMinPrice(""); setMaxPrice(""); setShowSavedOnly(false);
+                setOutfitOccasionFilter("All"); setJumpToDemo(true);
+              }}
+              style={{flex:1,minHeight:52,padding:12,borderWidth:1,
+                borderColor:"#777",borderRadius:10,justifyContent:"center",gap:3}}>
+              <Text style={styles.body}>Explore demo outfits</Text>
+              <Text style={styles.note}>10,000 synthetic garments · source XML outfit ideas · not for sale</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" testID="discover-open-supplier-outfits"
+              onPress={()=>{
+                setDemoMode(false); setPage(1); setJumpToDemo(false);
+                catalogueScrollRef.current?.scrollTo({y:0,animated:true});
+              }}
+              style={{flex:1,minHeight:52,padding:12,borderWidth:1,
+                borderColor:"#777",borderRadius:10,justifyContent:"center",gap:3}}>
+              <Text style={styles.body}>Shop real outfit ideas</Text>
+              <Text style={styles.note}>Matterhorn XML products · stock and prices not verified live</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.note}>Your own wardrobe recommendations remain separate below. Handbag recommendations identify Stefania P. Creations products and do not imply checkout availability.</Text>
+        </View>
+        {prefs?.shop_for === "womens" ? <>
+          <Text style={styles.section}>REAL SUPPLIER OUTFIT IDEAS · MATTERHORN</Text>
+          <View style={styles.card}>
+            <Text style={styles.body}>Ready-to-style ideas from genuine women's supplier catalogue records, even if your personal wardrobe is empty.</Text>
+            <Text style={styles.note}>Photographs show the actual catalogue products. Supplier stock and current pricing are not verified. Handbag price is on request. These are separate product photos, not a generated photograph of the complete look.</Text>
+            {supplierOutfitsLoading ? <ActivityIndicator accessibilityLabel="Finding women's catalogue outfits"/> : null}
+            {supplierOutfitsError ? <Text style={styles.error}>Women's catalogue outfits could not be loaded. Check the backend log and restart FastAPI.</Text> : null}
+            {!supplierOutfitsLoading && !supplierOutfitsError && !(supplierOutfits?.outfits?.length) ?
+              <View style={{gap:5}}>
+                <Text style={styles.note}>{supplierOutfits?.notice || "No compatible women's catalogue combinations were found."}</Text>
+                {supplierOutfits?.diagnostics ? <>
+                  <Text style={styles.note}>Catalogue: {supplierOutfits.source || "unknown"} · {supplierOutfits.diagnostics.source_product_count} products · {supplierOutfits.diagnostics.eligible_product_count} eligible after profile filters</Text>
+                  <Text style={styles.note}>Garment types in source: {Object.entries(supplierOutfits.diagnostics.source_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
+                  <Text style={styles.note}>Eligible garment types: {Object.entries(supplierOutfits.diagnostics.eligible_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
+                  {supplierOutfits.diagnostics.combination_checks ? <Text style={styles.note}>Outfit candidate checks: {Object.entries(supplierOutfits.diagnostics.combination_checks).map(([reason,count])=>reason.replace(/_/g," ")+": "+count).join(" · ")}</Text> : null}
+                </> : null}
+              </View> : null}
+            {(supplierOutfits?.outfits || []).map((outfit,index)=>(
+              <View key={outfit.id} style={{paddingVertical:16,gap:10,borderTopWidth:index?1:0,borderColor:"rgba(128,128,128,0.2)"}}>
+                <Text style={styles.body}>Women's catalogue look {index+1}</Text>
+                <Text style={styles.note}>Coordinated from supplier products · {outfit.garments.length} clothing pieces</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:12}}>
+                  {outfit.garments.map(garment=>(
+                    <View key={garment.product_id} style={{width:138,gap:5}}>
+                      {garment.image_url?<Image source={{uri:garment.image_url}} resizeMode="contain" style={{width:138,height:170,borderRadius:8,backgroundColor:"#f4f2ef"}}/>:
+                        <View style={{width:138,height:170,backgroundColor:"#eee"}}/>}
+                      <Text style={styles.note} numberOfLines={3}>{garment.name}</Text>
+                      <Text style={styles.note}>{garment.colour_names.join(", ")||"Colour not labelled"}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+                <OutfitHandbagSuggestion garments={outfit.garments} occasion={prefs?.occasion} preferred={prefs?.preferred_colours||[]} avoided={prefs?.avoided_colours||[]}/>
+                <Text style={styles.note}>{outfit.reason}</Text>
+                <Text style={styles.note}>Supplier snapshot · availability and current prices unverified · no checkout in this outfit view</Text>
+              </View>
+            ))}
+          </View>
+        </> : null}
+
         <Text style={styles.section}>OUTFITS FROM YOUR WARDROBE</Text>
         <View style={styles.card}>
           <Text style={styles.body}>Style the clothes you already own. Rankings use your confirmed colour and style labels, saved colour scan and preferences—not the shopping catalogue.</Text>
@@ -498,7 +644,9 @@ export default function DiscoverScreen() {
           {!wardrobeLoading && !wardrobeError && ownedWardrobe.length === 0 ?
             <Text style={styles.note}>Your wardrobe is empty. Add clothes in My Wardrobe to see suggestions here.</Text> : null}
           {ownedWardrobe.length > 0 && !ownedOutfitsLoading && !ownedSuggestions?.outfits?.length ?
-            <Text style={styles.note}>No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to “Build a look from what you own” below to see any available suggestions for a missing garment category.</Text> : null}
+            <Text style={styles.note}>{prefs?.shop_for === "womens" || prefs?.shop_for === "mens"
+              ? "No complete outfit from garments marked for this audience. Open Wardrobe → Edit on your saved garments and label each Women, Men or Everyone. Older garments are unclassified; LUMIÈRE will not assume they belong to your newly selected fashion category."
+              : "No complete outfit from owned garments yet. Add a top and bottom (or a dress) in Wardrobe. Scroll to Build a look from what you own below to see available suggestions for missing categories."}</Text> : null}
           {ownedOutfitsError ? <Text style={styles.error}>Unable to create wardrobe suggestions right now.</Text> : null}
           {ownedOutfitError ? <Text style={styles.error}>{ownedOutfitError}</Text> : null}
           {mixedFeedbackError ? <Text style={styles.error}>{mixedFeedbackError}</Text> : null}
@@ -614,6 +762,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </ScrollView>
+              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={garments} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
               {!hasShoes ? <Text style={styles.note}>Finish this outfit with shoes. Matching catalogue options appear below when available; nothing is added to your wardrobe automatically.</Text> : null}
               {discoverClimate === "cold" && !hasOuterwear ? <Text style={styles.note}>Consider a suitable outer layer for cold weather.</Text> : null}
               {!hasAccessory ? <Text style={styles.note}>Optional: add an accessory to finish the outfit.</Text> : null}
@@ -664,10 +813,10 @@ export default function DiscoverScreen() {
                 borderRadius:10,backgroundColor:"rgba(120,120,120,0.1)"}}>
               <Text style={styles.body}>{showAllOwnedLooks ? "Show top two looks" : "Explore more wardrobe looks"}</Text>
             </Pressable> : null}
-          {ratedWardrobeLooks.length > 0 ? (
+          {ratedWardrobeLooks.some(entry => entry.item_ids.length > 0 && entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id && (prefs?.shop_for !== "womens" && prefs?.shop_for !== "mens" || item.shop_for === prefs?.shop_for || item.shop_for === "all")))) ? (
             <View style={{marginTop:18,gap:10,borderTopWidth:1,borderColor:"rgba(128,128,128,0.25)",paddingTop:16}}>
               <Text style={styles.body}>YOUR OUTFIT FEEDBACK</Text>
-              <Text style={styles.note}>Reviewed looks stay here even if they move out of your top recommendations. “Not for me” never removes garments or saved images from your wardrobe. You can change your preference at any time.</Text>
+              <Text style={styles.note}>Past feedback for garments eligible under your current fashion selection. Other history is retained and will reappear if you switch audiences. “Not for me” never deletes wardrobe photos.</Text>
               {ratedWardrobeLooks.filter(entry =>
                 entry.item_ids.length > 0 &&
                 entry.item_ids.every(id => ownedWardrobe.some(item => item.id === id))
@@ -748,6 +897,7 @@ export default function DiscoverScreen() {
                   </View>
                 ))}
               </View>
+              {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={[...look.owned_ids.map(id=>ownedWardrobe.find(g=>g.id===id)).filter((g):g is WardrobeItem=>Boolean(g)),...look.suggested_products.map(p=>({name:p.name}))]} occasion={prefs?.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
               <Text style={styles.note}>{look.reason}</Text>
               {!look.purchase_required && look.owned_ids.length ? (
                 <Pressable accessibilityRole="button" testID={`mixed-outfit-try-${look.id}`}
@@ -913,8 +1063,8 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
         {demoMode && !searching && !searchError && searchResults ? (
-          <View>
-            <Text style={styles.section}>COORDINATED DEMO OUTFITS</Text>
+          <View onLayout={event=>setDemoOutfitsY(event.nativeEvent.layout.y)}>
+            <Text style={styles.section}>DEMO STYLING OUTFITS · NOT FOR SALE</Text>
             <Text style={styles.note}>Complete looks from the source XML and carefully generated combinations of eligible demo garments. Illustrative only; no photographs, purchasing or Try-On.</Text>
             <Text style={styles.note}>Colour exploration: these demo outfits may include stocked neutral colours beyond your verified skin-analysis palette. They are suggestions to try, not verified complexion matches. Colours you explicitly avoid remain excluded.</Text>
             <Text style={styles.note}>{(searchResults.demo_outfits ?? []).filter(outfit => outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter).length} shown of {searchResults.demo_outfits?.length || 0} eligible outfits · Simulated EUR prices</Text>
@@ -940,7 +1090,33 @@ export default function DiscoverScreen() {
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             <Pressable accessibilityRole="button" onPress={() => setShowSavedOnly(x=>!x)}><Text style={styles.body}>{showSavedOnly ? "Show all eligible outfits" : "Show saved outfits only"}</Text></Pressable>
             <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
-            {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => (
+            {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => {
+              const bagChoices = prefs?.shop_for === "womens" ?
+                rankedBagsForWomensOutfit(outfit.garments, {
+                  occasion:outfit.occasion,
+                  preferred:prefs?.preferred_colours || [],
+                  avoided:prefs?.avoided_colours || [],
+                }) : [];
+              const selectedBag = (
+                bagChoices.find(match=>match.bag.id===selectedDemoBagIds[outfit.id]) ||
+                bagChoices[0]
+              )?.bag;
+              // A handbag-inclusive preview is distinct from the earlier
+              // clothing-only saved image. Both remain saved in the account.
+              const previewId = selectedBag ?
+                "demo-bag-natural-carry-v2:" + outfit.id.slice(0,85) + ":" + selectedBag.id : outfit.id;
+              const previewImage = outfitPreviewImages[previewId] || (!selectedBag
+                ? outfitPreviewImages[previewGarmentKey(
+                    prefs?.shop_for === "womens" ? "woman" : "man",
+                    outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"}))
+                  )] : undefined);
+              const previewHandbag = selectedBag ? {
+                sku:selectedBag.sku,
+                name:selectedBag.name,
+                colour:selectedBag.colour,
+                brand:"Stefania P. Creations" as const,
+              } : undefined;
+              return (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
                   <View style={{ flex: 2, minWidth: 230 }}>
@@ -953,60 +1129,107 @@ export default function DiscoverScreen() {
                     <Text style={styles.note}>Simulated outfit total</Text>
                   </View>
                 </View>
+                {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion
+                  garments={outfit.garments} occasion={outfit.occasion}
+                  preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}
+                  selectedBagId={selectedBag?.id}
+                  onSelectBag={bagId=>setBagSelectionState(previous=>({
+                    accountId:profile!.id,
+                    selections:{...(previous.accountId===profile!.id?previous.selections:{}),[outfit.id]:bagId},
+                    hydrated:true,
+                  }))}
+                /> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
-                  <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
-                  {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
+                  <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
+                  {selectedBag ? <Text style={styles.note}>Selected: {selectedBag.name} ({selectedBag.colour}). You can browse other Stefania handbags above without using AI credits. The new illustration uses the approved Stefania product photograph as an AI reference to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The handbag is fixed by product SKU and the saved reference image. The model should carry it near her hip with its strap above the floor. AI details or placement can still differ; compare with the real product photo above. Previous clothing-only previews are preserved.</Text> : null}
+                  {previewImage ? (
                     <View>
-                      <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
+                      <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
                       <Text style={styles.note}>Saved full-outfit styling concept restored from your account when available. This is AI-generated imagery, not a verified product photograph or fit prediction.</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
-                        setOutfitPreviewLoading(outfit.id);
+                        setOutfitPreviewLoading(previewId);
                         try {
                           const result=await generateOutfitPreview({
-                            outfit_id:outfit.id,
+                            outfit_id:previewId,
                             force_regenerate:true,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            handbag:previewHandbag,
                             reference_images:outfit.garments.slice(0,3).map(g=>
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.colourAccurate && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
-                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:""}));
+                          setOutfitPreviewImages(old=>({...old,[previewId]:result.image}));
+                          setOutfitPreviewErrors(old=>({...old,[previewId]:""}));
                         } catch(e) {
-                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
+                          setOutfitPreviewErrors(old=>({...old,[previewId]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
                         } finally {setOutfitPreviewLoading(null);}
                       }} style={{paddingVertical:10}}>
-                        <Text style={styles.body}>↻ Regenerate preview (uses one daily generation)</Text>
+                        <Text style={styles.body}>↻ Regenerate outfit illustration (uses one daily generation)</Text>
                       </Pressable>
+                      {selectedBag && previewHandbag ? (
+                        <Pressable accessibilityRole="button"
+                          testID={`refine-handbag-${outfit.id}`}
+                          disabled={outfitPreviewLoading !== null}
+                          onPress={async () => {
+                            setOutfitPreviewLoading(previewId);
+                            setOutfitPreviewErrors(old=>({...old,[previewId]:""}));
+                            try {
+                              const result = await generateOutfitPreview({
+                                outfit_id:previewId,
+                                presentation:"woman",
+                                garments:outfit.garments.slice(0,5).map(g=>({
+                                  name:g.name,colour:g.colour_names?.[0]||"neutral"
+                                })),
+                                handbag:previewHandbag,
+                                refine_existing:true,
+                                reference_images:[],
+                              });
+                              setOutfitPreviewImages(old=>({...old,[previewId]:result.image}));
+                            } catch (e) {
+                              const message=e instanceof Error ? e.message : "";
+                              setOutfitPreviewErrors(old=>({...old,[previewId]:
+                                message.includes("429") ? "Daily outfit-preview limit reached." :
+                                message.includes("503") ? "Image generation is unavailable on this server." :
+                                "Could not refine this handbag illustration. The saved outfit remains available."
+                              }));
+                            } finally {setOutfitPreviewLoading(null);}
+                          }}
+                          style={{padding:12,minHeight:48,borderWidth:1,
+                            borderColor:"rgba(128,128,128,0.32)",borderRadius:8,marginTop:6}}>
+                          <Text style={styles.body}>Refine handbag only · Keep this outfit</Text>
+                          <Text style={styles.note}>Use this saved picture and the actual Stefania handbag photograph to correct shape and placement. Uses one daily generation; model fidelity is not guaranteed.</Text>
+                        </Pressable>
+                      ) : null}
                     </View>
                   ) : (
                     <Pressable accessibilityRole="button" disabled={outfitPreviewLoading !== null}
                       onPress={async () => {
-                        setOutfitPreviewLoading(outfit.id);
-                        setOutfitPreviewErrors(v=>({...v,[outfit.id]:""}));
+                        setOutfitPreviewLoading(previewId);
+                        setOutfitPreviewErrors(v=>({...v,[previewId]:""}));
                         try {
                           const result=await generateOutfitPreview({
                             force_regenerate:false,
-                            outfit_id:outfit.id,
+                            outfit_id:previewId,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            handbag:previewHandbag,
                             reference_images:outfit.garments.slice(0,3).map(g=>
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
+                          setOutfitPreviewImages(v=>({...v,[previewId]:result.image}));
                         } catch(e) {
-                          setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
+                          setOutfitPreviewErrors(v=>({...v,[previewId]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
                         } finally {setOutfitPreviewLoading(null);}
                       }}
                       style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
-                      {outfitPreviewLoading===outfit.id ? <ActivityIndicator /> : <Feather name="image" size={22} />}
-                      <Text style={styles.body}>{outfitPreviewLoading===outfit.id?"Generating outfit preview…":"Generate AI outfit preview"}</Text>
-                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces · up to 20 previews per account/day in development</Text>
+                      {outfitPreviewLoading===previewId ? <ActivityIndicator /> : <Feather name="image" size={22} />}
+                      <Text style={styles.body}>{outfitPreviewLoading===previewId?"Generating outfit preview…":selectedBag?"Generate outfit with suggested handbag":"Generate AI outfit preview"}</Text>
+                      <Text style={styles.note}>Optional · generic adult model wearing the selected clothes and, for women's outfits, carrying the suggested handbag · up to 20 generations per account/day</Text>
                     </Pressable>
                   )}
-                  {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
+                  {outfitPreviewErrors[previewId] ? <Text style={styles.note}>{outfitPreviewErrors[previewId]}</Text> : null}
                   <Pressable accessibilityRole="button" testID={`demo-tryon-${outfit.id}`}
                     onPress={() => router.push({pathname:"/(tabs)/tryon",params:{
                       demoOutfitId:outfit.id,
@@ -1080,7 +1303,8 @@ export default function DiscoverScreen() {
                   </View>
                 ) : null}
               </View>
-            ))}
+              );
+            })}
           </View>
         ) : null}
       </ScrollView>

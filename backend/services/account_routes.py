@@ -62,7 +62,9 @@ class OutfitPreviewInput(BaseModel):
     outfit_id: str = Field(min_length=1, max_length=150)
     presentation: str = Field(pattern="^(woman|man)$")
     garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
+    handbag: dict[str, str] | None = None
     force_regenerate: bool = False
+    refine_existing: bool = False
     reference_images: list[str] = Field(default_factory=list, max_length=3)
 
 
@@ -78,7 +80,7 @@ class Credentials(BaseModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
-def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None, recognize_garment=None):
+def configure_account_router(db, validate_image, sanitize_image, save_image, read_image, delete_image=None, generate_chat=None, recommend_catalogue=None, generate_tryon=None, analyze_skin=None, prepare_catalogue=None, search_catalogue=None, resolve_bag_product=None, resolve_tryon_identity=None, resolve_saved_outfit=None, search_demo_catalogue=None, recognize_garment=None, supplier_outfits=None):
     # A fresh router binds each app to its own database and storage callbacks.
     router = APIRouter(prefix="/api/account", tags=["account"])
     COOKIE_NAME = "lumiere_session"
@@ -1075,6 +1077,12 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "size": size, "min_price": min_price, "max_price": max_price,
         }, page, per_page)
 
+    @router.get("/catalogue/outfits")
+    async def supplier_outfit_suggestions(user_id: str = Depends(current_user)):
+        if supplier_outfits is None:
+            raise HTTPException(503, "Supplier outfit suggestions unavailable")
+        return await supplier_outfits(user_id)
+
     @router.get("/catalogue/recommendations")
     async def customer_discover(user_id: str = Depends(current_user)):
         if recommend_catalogue is None:
@@ -1170,6 +1178,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             photo_id = private_path.removeprefix("private:")
             if not await db.customer_photos.find_one({"id": photo_id, "user_id": user_id}):
                 raise HTTPException(404, "Wardrobe photograph not found")
+        if payload.get("shop_for") not in {"mens", "womens", "all"}:
+            raise HTTPException(422, "Choose whether this garment is for women, men or everyone")
         item = {"id": str(uuid.uuid4()), "user_id": user_id, "name": name.strip(),
                 "category": str(payload.get("category", "other"))[:40],
                 "colour": str(payload.get("colour", ""))[:80],
@@ -1179,6 +1189,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 "material": str(payload.get("material", ""))[:80],
                 "image_path": private_path,
                 "notes": str(payload.get("notes", ""))[:500],
+                "shop_for": payload.get("shop_for"),
                 "created_at": datetime.now(timezone.utc).isoformat(), "deleted_at": None}
         await db.customer_wardrobe.insert_one(item)
         item.pop("_id", None)
@@ -1187,7 +1198,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
     @router.patch("/wardrobe/{item_id}")
     async def wardrobe_correct(item_id: str, payload: dict, user_id: str = Depends(current_user)):
         """Allow a customer to correct confirmed labels; never change photo ownership."""
-        allowed = {"name", "category", "colour", "style", "pattern", "season", "material"}
+        allowed = {"name", "category", "colour", "style", "pattern", "season", "material", "shop_for"}
         categories = {"top", "bottom", "dress", "outerwear", "shoes", "accessory", "other"}
         if not isinstance(payload, dict) or not payload or set(payload) - allowed:
             raise HTTPException(422, "Only confirmed garment labels can be edited")
@@ -1200,6 +1211,8 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 raise HTTPException(422, "Garment name cannot be empty")
             if field == "category" and cleaned not in categories:
                 raise HTTPException(422, "Invalid garment category")
+            if field == "shop_for" and cleaned not in {"mens", "womens", "all"}:
+                raise HTTPException(422, "Invalid garment audience")
             updated[field] = cleaned
         result = await db.customer_wardrobe.update_one(
             {"id": item_id, "user_id": user_id, "deleted_at": None},
@@ -1393,7 +1406,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         return {"outfits": plan_outfits(items, occasion=occasion, climate=climate,
                 scan=profile.get("skin"), preferred_colours=prefs.get("preferred_colours"),
                 avoided_colours=prefs.get("avoided_colours"), preferred_style=prefs.get("style"),
-                feedback=feedback)}
+                feedback=feedback, shop_for=prefs.get("shop_for"))}
 
     @router.get("/wardrobe/mixed-outfits")
     async def owned_first_outfits(
@@ -1694,15 +1707,70 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 if raw:
                     details[field] = raw
             validated.append(details)
-        # Hash the exact selected garment set: do not confuse unrelated outfits.
+        selected_handbag = None
+        bag_reference_jpeg = None
+        if payload.handbag is not None:
+            from services.stefania_handbag_reference import (
+                HandbagReferenceError, handbag_reference,
+            )
+            sku = payload.handbag.get("sku", "")
+            try:
+                selected_handbag, bag_reference_jpeg = await run_in_threadpool(
+                    handbag_reference, sku
+                )
+            except HandbagReferenceError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            # Never trust client-supplied name/colour or remote image URLs:
+            # the SKU selects the single approved photo and canonical labels.
+            if any(
+                payload.handbag.get(field) != selected_handbag[field]
+                for field in ("name", "colour", "brand")
+            ):
+                raise HTTPException(422, "Handbag description does not match the selected SKU")
+        # Handbag and no-handbag concepts have separate fingerprints. Never
+        # mistakenly reuse an older saved preview without the accessory.
+        # Changing bag-placement policy must not return a prior low-hanging bag.
+        from services.outfit_handbag_pose import HANDBAG_POSE_VERSION, handbag_pose_guidance
+        # Preserve the historic cache key for clothing-only concepts.
+        # Only the accessory-inclusive variant receives a new key.
+        fingerprint_content = ([payload.presentation, validated] if selected_handbag is None
+                               else [payload.presentation, validated, selected_handbag,
+                                     HANDBAG_POSE_VERSION])
         fingerprint = hashlib.sha256(json.dumps(
-            [payload.presentation, validated], sort_keys=True
+            fingerprint_content, sort_keys=True
         ).encode()).hexdigest()
         existing = await db.customer_outfit_previews.find_one(
             {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
         )
-        if existing and not payload.force_regenerate:
+        if existing and not payload.force_regenerate and not payload.refine_existing:
             return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
+        if payload.refine_existing and (not selected_handbag or not existing):
+            raise HTTPException(409, "Save a handbag outfit preview before refining its design or placement")
+        # Existing images are fetched only by this authenticated user's precise
+        # outfit fingerprint; never accept a client-supplied image URL or ID.
+        previous_preview_jpeg = None
+        if payload.refine_existing:
+            from io import BytesIO
+            from PIL import Image, ImageOps, UnidentifiedImageError
+            saved_image = existing.get("image", "")
+            if not isinstance(saved_image, str) or not saved_image.startswith("data:image/png;base64,"):
+                raise HTTPException(422, "Saved outfit image cannot be refined")
+            try:
+                raw = base64.b64decode(saved_image.split(",", 1)[1], validate=True)
+                if len(raw) > 9_000_000:
+                    raise ValueError("Saved preview is too large")
+                with Image.open(BytesIO(raw)) as photo:
+                    if photo.width * photo.height > 30_000_000:
+                        raise ValueError("Saved preview dimensions are too large")
+                    rendered = ImageOps.exif_transpose(photo).convert("RGB")
+                    rendered.thumbnail((1024, 1536))
+                    buffer = BytesIO()
+                    rendered.save(buffer, "JPEG", quality=85, optimize=True)
+                previous_preview_jpeg = buffer.getvalue()
+                if len(previous_preview_jpeg) > 1_500_000:
+                    raise ValueError("Compressed preview too large")
+            except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
+                raise HTTPException(422, "Saved outfit image cannot be refined") from exc
         if not key or os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") != "1":
             raise HTTPException(503, "Outfit previews are not enabled on this server")
 
@@ -1742,6 +1810,29 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "One person, no text, no brand logos, no additional garments changing the look. "
             "This is a generic styling interpretation, not a supplier product or customer's likeness."
         )
+        if selected_handbag:
+            prompt += (
+                " IMPORTANT: Reference image 1 is the exact approved product photograph "
+                "of the handbag to reproduce, not an outfit reference or a background. "
+                "Carry ONE handbag based specifically on that photograph in the model's hand "
+                "or over a shoulder, with its entire outline visible. Reproduce its "
+                "silhouette, proportions, texture, colour, flap, handles and hardware as "
+                "closely as the image allows; do not replace it with a generic tote or "
+                "a different bag. Product SKU: " + selected_handbag["sku"]
+                + "; name: " + selected_handbag["name"]
+                + "; labelled colour: " + selected_handbag["colour"]
+                + "; labelled materials: " + selected_handbag["material"]
+                + "; approximate product dimensions: " + selected_handbag["dimensions"]
+                + ". Do not copy the handbag product photograph's background, tabletop or "
+                "props into the studio fashion image. Keep the outfit and model unchanged "
+                "by the reference photograph; any other images are garment guidance only. "
+                "No second bag. The resulting fashion image remains an AI interpretation, "
+                "not a verified supplier product photo."
+            )
+            prompt += handbag_pose_guidance()
+            if payload.refine_existing:
+                from services.outfit_handbag_pose import handbag_refinement_guidance
+                prompt += handbag_refinement_guidance()
         # Reference images must be synthetic garment demo assets, never personal photographs.
         # The server validates compressed bytes rather than fetching arbitrary URLs.
         references = []
@@ -1755,14 +1846,26 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             if not (data.startswith(bytes([0xff, 0xd8, 0xff])) and len(data) < 600000):
                 raise HTTPException(422, "Invalid outfit reference photograph")
             references.append(data)
+        # Image edits receive the approved handbag photo first, followed by at
+        # most two synthetic garment references. Never pass arbitrary client
+        # URLs or private wardrobe photographs to this flow.
+        if bag_reference_jpeg is not None:
+            if previous_preview_jpeg is not None:
+                references = [bag_reference_jpeg, previous_preview_jpeg]
+            else:
+                references = [bag_reference_jpeg] + references[:2]
         def render():
             model = os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini")
             if references:
                 resp = requests.post(
                     "https://api.openai.com/v1/images/edits",
                     headers={"Authorization": "Bearer " + key},
-                    data={"model": model, "prompt": prompt + " Follow the attached garment references for fabric, shape and detail; retain the specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
-                    files=[("image[]", (f"garment_{i}.jpg", data, "image/jpeg")) for i, data in enumerate(references)],
+                    data={"model": model, "prompt": prompt + " Follow the assigned reference roles: the first image is the selected handbag; if a second image is an existing outfit preview, preserve that outfit and its model while correcting the handbag, otherwise later images are only garment examples. Keep all specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
+                    files=[("image[]", (
+                        "approved_stefania_handbag.jpg" if bag_reference_jpeg is not None and i == 0
+                        else "existing_outfit_preview.jpg" if previous_preview_jpeg is not None and i == 1
+                        else f"synthetic_garment_{i}.jpg", data, "image/jpeg"
+                    )) for i, data in enumerate(references)],
                     timeout=120,
                 )
             else:
@@ -1788,7 +1891,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(502, "Outfit preview could not be generated. Please try later.")
         await db.customer_outfit_previews.update_one(
             {"user_id": user_id, "fingerprint": fingerprint},
-            {"$set": {"outfit_id": payload.outfit_id, "presentation": payload.presentation, "garments": validated, "image": image, "created_at": now},
+            {"$set": {"outfit_id": payload.outfit_id, "presentation": payload.presentation, "garments": validated, "handbag": selected_handbag, "image": image, "created_at": now},
              "$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint}},
             upsert=True,
         )

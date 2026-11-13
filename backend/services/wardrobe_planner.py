@@ -96,7 +96,7 @@ def _feedback_delta(look_ids, by_id, signals, legacy_signals):
 
 def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
                  scan=None, preferred_colours=None, avoided_colours=None, preferred_style=None,
-                 feedback=None):
+                 feedback=None, shop_for=None):
     """Rank owned combinations by labelled colour, style and saved-scan evidence.
 
     Use a bounded candidate pool; do not read garment pixels or infer fabric/fit.
@@ -106,6 +106,11 @@ def plan_outfits(items, occasion="casual", climate="mild", limit=12, *,
     if not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
     items = _items(items)
+    # Never infer a garment audience from appearance or quietly reuse a previous
+    # men\'s wardrobe for a women\'s styling preference. Legacy unlabelled
+    # items require the owner to classify them in Wardrobe.
+    if shop_for in ("mens", "womens"):
+        items = [g for g in items if g.get("shop_for") in (shop_for, "all")]
     feedback_items, feedback_signals, legacy_feedback = _feedback_adjustments(items, feedback)
     tops = [x for x in items if x.get("category") == "top"]
     bottoms = [x for x in items if x.get("category") == "bottom"]

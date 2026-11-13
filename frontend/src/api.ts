@@ -481,6 +481,16 @@ export async function searchDemoCatalogue(filters: CatalogueSearchFilters): Prom
   return accountRequest<CatalogueSearchResponse>(`/catalogue/demo/search?${query.toString()}`);
 }
 
+export type SupplierOutfit = {
+  id:string; score:number; reason:string;
+  garments:Array<{product_id:string;name:string;brand?:string|null;category?:string|null;
+    colour_names:string[];image_url?:string|null;price?:number|null;currency?:string|null}>;
+  price_verified_live:false;stock_verified_live:false;
+};
+export async function getSupplierOutfits():Promise<{outfits:SupplierOutfit[];notice:string;source?:string;diagnostics?:{source_product_count:number;eligible_product_count:number;source_roles:Record<string,number>;eligible_roles:Record<string,number>;combination_checks?:Record<string,number>}}>{
+  return accountRequest<{outfits:SupplierOutfit[];notice:string;source?:string}>("/catalogue/outfits");
+}
+
 export async function getCatalogueRecommendations(): Promise<CatalogueRecommendationsResponse> {
   return accountRequest<CatalogueRecommendationsResponse>("/catalogue/recommendations");
 }
@@ -510,6 +520,7 @@ export async function previewCatalogueRecommendations(
 }
 
 export type WardrobeItem = {
+  shop_for?: "mens" | "womens" | "all";
   id: string;
   name: string;
   category: "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "other";
@@ -548,14 +559,14 @@ export async function listWardrobe(): Promise<WardrobeItem[]> {
   return accountRequest<WardrobeItem[]>("/wardrobe");
 }
 
-export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes"> & { style?: string; pattern?: string; season?: string; material?: string }): Promise<WardrobeItem> {
+export async function addWardrobeItem(body: Pick<WardrobeItem, "name" | "category" | "colour" | "image_path" | "notes" | "shop_for"> & { style?: string; pattern?: string; season?: string; material?: string }): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>("/wardrobe", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
 }
 
 export async function correctWardrobeItem(
-  id: string, fields: Partial<Pick<WardrobeItem, "name"|"category"|"colour"|"style"|"pattern"|"season"|"material">>
+  id: string, fields: Partial<Pick<WardrobeItem, "name"|"category"|"colour"|"style"|"pattern"|"season"|"material"|"shop_for">>
 ): Promise<WardrobeItem> {
   return accountRequest<WardrobeItem>(`/wardrobe/${encodeURIComponent(id)}`, {
     method: "PATCH", headers: {"Content-Type":"application/json"},
@@ -722,9 +733,12 @@ export async function getOutfitPreviewStatus(): Promise<{enabled:boolean;daily_l
 export async function generateOutfitPreview(input: {
   outfit_id: string;
   force_regenerate?: boolean;
+  /** Paid opt-in refinement of the account's saved image; preserves outfit/model. */
+  refine_existing?: boolean;
   reference_images?: string[];
   presentation: "woman" | "man";
   garments: Array<{name: string; colour: string; category?: string; style?: string; pattern?: string}>;
+  handbag?: {sku:string; name:string; colour:string; brand:"Stefania P. Creations"};
 }): Promise<{image: string; cached: boolean; label: string}> {
   return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
 }

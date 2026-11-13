@@ -21,6 +21,7 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="bag.fill" />
           <NativeTabs.Trigger.Label>Discover</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="handbags"><NativeTabs.Trigger.Icon sf="bag.fill" /><NativeTabs.Trigger.Label>Handbags</NativeTabs.Trigger.Label></NativeTabs.Trigger>
         <NativeTabs.Trigger name="wardrobe"><NativeTabs.Trigger.Icon sf="square.grid.2x2.fill" /><NativeTabs.Trigger.Label>Wardrobe</NativeTabs.Trigger.Label></NativeTabs.Trigger>
         <NativeTabs.Trigger name="tryon">
           <NativeTabs.Trigger.Icon sf="camera.fill" />
@@ -63,6 +64,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen name="handbags" options={{ title: "Handbags", tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
       <Tabs.Screen name="wardrobe" options={{ title: "Wardrobe", tabBarIcon: ({ color, size }) => <Feather name="grid" size={size} color={color} /> }} />
       <Tabs.Screen
         name="tryon"

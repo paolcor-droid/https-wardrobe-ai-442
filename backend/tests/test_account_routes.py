@@ -123,7 +123,7 @@ def test_account_profile_wardrobe_and_photo_access_isolation():
     assert client.put("/api/account/profile", headers=a,
                       json={"notes": "first account"}).status_code == 200
     assert client.get("/api/account/profile", headers=b).json().get("notes") == ""
-    item = client.post("/api/account/wardrobe", headers=a, json={"name": "Private shirt"}).json()
+    item = client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", "name": "Private shirt"}).json()
     assert len(client.get("/api/account/wardrobe", headers=b).json()) == 0
     assert client.post("/api/account/wardrobe/capsule", headers=b, json={}).json()["items"] == []
     assert [x["id"] for x in client.post("/api/account/wardrobe/capsule", headers=a, json={}).json()["items"]] == [item["id"]]
@@ -330,10 +330,10 @@ def test_skin_analysis_and_wardrobe_photo_links_require_ownership():
     private_path = "private:" + photo
     assert client.post("/api/account/skin-analysis", headers=b,
                        json={"image_path": private_path}).status_code == 404
-    assert client.post("/api/account/wardrobe", headers=b, json={
+    assert client.post("/api/account/wardrobe", headers=b, json={"shop_for": "all", 
         "name": "Stolen photo", "image_path": private_path
     }).status_code == 404
-    assert client.post("/api/account/wardrobe", headers=b, json={
+    assert client.post("/api/account/wardrobe", headers=b, json={"shop_for": "all", 
         "name": "Legacy shared photo", "image_path": "local/legacy.png"
     }).status_code == 422
     analysed = client.post("/api/account/skin-analysis", headers=a,
@@ -341,7 +341,7 @@ def test_skin_analysis_and_wardrobe_photo_links_require_ownership():
     assert analysed.status_code == 200, analysed.text
     assert client.get("/api/account/profile", headers=a).json()["skin"]["summary"] == "private colour result"
     assert client.get("/api/account/profile", headers=b).json()["skin"] is None
-    assert client.post("/api/account/wardrobe", headers=a, json={
+    assert client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
         "name": "Owned item", "image_path": private_path
     }).status_code == 201
 
@@ -397,7 +397,7 @@ def test_multi_feature_two_customer_e2e():
         "image_path": "private:" + photo_id
     }).status_code == 200
     assert client.get("/api/account/profile", headers=b).json()["skin"] is None
-    assert client.post("/api/account/wardrobe", headers=a, json={
+    assert client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
         "name": "Linen shirt", "image_path": "private:" + photo_id
     }).status_code == 201
     assert client.get("/api/account/wardrobe", headers=b).json() == []
@@ -632,7 +632,7 @@ def test_photo_deletion_clears_skin_wardrobe_and_derived_tryon():
     db.customer_profiles.docs.append({
         "user_id": client_profile["id"], "skin": {"image_path": "private:" + face},
     })
-    item = client.post("/api/account/wardrobe", headers=token, json={
+    item = client.post("/api/account/wardrobe", headers=token, json={"shop_for": "all", 
         "name": "Test garment", "image_path": "private:" + face,
     }).json()
     db.customer_tryons.docs.append({
@@ -1315,7 +1315,7 @@ def test_mixed_wardrobe_suggestions_and_reactions_are_account_isolated():
         ("Navy shirt", "top", "navy"),
         ("Cream trousers", "bottom", "cream"),
     ]:
-        assert client.post("/api/account/wardrobe", headers=a, json={
+        assert client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
             "name": name, "category": category, "colour": colour, "style": "classic",
         }).status_code == 201
     outfits_a = client.get("/api/account/wardrobe/mixed-outfits", headers=a)
@@ -1351,13 +1351,13 @@ def test_confirmed_wardrobe_corrections_recalculate_rankings_for_owner_only():
         token = client.post("/api/account/login", json=credentials).json()["access_token"]
         headers.append({"Authorization":"Bearer " + token})
     a, b = headers
-    first = client.post("/api/account/wardrobe", headers=a, json={
+    first = client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
         "name":"First shirt", "category":"top", "colour":"navy", "style":"classic",
     }).json()
-    second = client.post("/api/account/wardrobe", headers=a, json={
+    second = client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
         "name":"Second shirt", "category":"top", "colour":"orange", "style":"casual",
     }).json()
-    client.post("/api/account/wardrobe", headers=a, json={
+    client.post("/api/account/wardrobe", headers=a, json={"shop_for": "all", 
         "name":"Trousers", "category":"bottom", "colour":"cream", "style":"classic",
     })
     assert client.put("/api/account/profile", headers=a, json={
@@ -1395,7 +1395,7 @@ def test_preloved_private_draft_publication_and_opt_in_matching_are_isolated(mon
         login = client.post("/api/account/login", json=credentials)
         headers.append({"Authorization": "Bearer " + login.json()["access_token"]})
     seller, buyer = headers
-    garment = client.post("/api/account/wardrobe", headers=seller, json={
+    garment = client.post("/api/account/wardrobe", headers=seller, json={"shop_for": "all", 
         "name": "Navy blazer", "category": "outerwear",
         "colour": "navy", "style": "classic",
     }).json()
@@ -1467,7 +1467,7 @@ def test_preloved_invalid_listing_content_and_deleted_wardrobe_unpublishes(monke
     token = client.post("/api/account/login", json=creds).json()["access_token"]
     auth = {"Authorization": "Bearer " + token}
     garment = client.post("/api/account/wardrobe", headers=auth,
-                          json={"name": "Blue shirt", "category": "top", "colour": "blue"}).json()
+                          json={"shop_for": "all", "name": "Blue shirt", "category": "top", "colour": "blue"}).json()
     base = {"wardrobe_item_id": garment["id"], "size": "L", "condition": "good",
             "price": 40, "currency": "AUD", "delivery": "arrange later"}
     for bad in ({"description": "email me at private@example.com"},
@@ -1500,7 +1500,7 @@ def test_preloved_publishing_disabled_by_default_and_anonymous_requests_blocked(
     token = client.post("/api/account/login", json=creds).json()["access_token"]
     auth = {"Authorization": "Bearer " + token}
     item = client.post("/api/account/wardrobe", headers=auth,
-                       json={"name": "Cream jacket", "category": "outerwear"}).json()
+                       json={"shop_for": "all", "name": "Cream jacket", "category": "outerwear"}).json()
     draft = client.post("/api/account/preloved", headers=auth, json={
         "wardrobe_item_id": item["id"], "size": "M", "condition": "good",
         "price": 20, "currency": "AUD", "delivery": "arrange later",
@@ -1598,7 +1598,7 @@ def test_owned_outfit_feedback_updates_rankings_without_cross_account_learning()
             ("Cream trousers", "bottom", "cream"),
         ):
             response = client.post("/api/account/wardrobe", headers=auth,
-                json={"name": name, "category": category, "colour": colour})
+                json={"shop_for": "all", "name": name, "category": category, "colour": colour})
             assert response.status_code == 201, response.text
             owned_ids.append(response.json()["id"])
         wardrobe_ids.append(owned_ids)
@@ -1664,3 +1664,130 @@ def test_preview_metadata_validation_is_private_and_does_not_trigger_generation(
                                       payload["garments"][1]]}
     error = client.post("/api/account/outfit-preview",headers=headers,json=invalid)
     assert error.status_code == 422
+
+
+def test_outfit_handbag_preview_is_distinct_from_clothing_only_cache(monkeypatch):
+    """A previous bag-free image must not masquerade as a handbag render."""
+    import hashlib
+    import json
+    db = Database()
+    db.customer_outfit_previews = Collection()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    creds = {"email": "handbag-preview@example.test", "password": "safe synthetic password"}
+    assert client.post("/api/account/register", json=creds).status_code == 201
+    token = client.post("/api/account/login", json=creds).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    garments = [
+        {"name": "V-neck T-shirt", "colour": "Coral"},
+        {"name": "Shorts", "colour": "White"},
+    ]
+    request = {"outfit_id": "outfit-1", "presentation": "woman",
+               "garments": garments, "reference_images": []}
+    old_fingerprint = hashlib.sha256(
+        json.dumps(["woman", garments], sort_keys=True).encode()
+    ).hexdigest()
+    # Simulate an existing clothing-only concept cached before handbag support.
+    assert len(old_fingerprint) == 64
+    # Verify different fingerprint shape for the same garments plus handbag.
+    new_fingerprint = hashlib.sha256(
+        json.dumps(["woman", garments, {
+            "name": "Aura Sposa", "colour": "Silk White",
+            "brand": "Stefania P. Creations",
+        }], sort_keys=True).encode()
+    ).hexdigest()
+    assert new_fingerprint != old_fingerprint
+    db.customer_outfit_previews.docs.append({
+        "user_id": db.customer_accounts.docs[0]["id"],
+        "fingerprint": old_fingerprint,
+        "image": "data:image/png;base64,old-preview",
+    })
+    # Compare the same request without any image generation configured.
+    monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    old = client.post("/api/account/outfit-preview", headers=headers, json=request)
+    assert old.status_code == 200
+    assert old.json()["cached"] is True
+    from services import stefania_handbag_reference as bag_refs
+    handbag = {"sku": "SPC-FW2627-15", "name": "Aura Sposa", "colour": "Silk White",
+               "brand": "Stefania P. Creations"}
+    monkeypatch.setattr(bag_refs, "handbag_reference", lambda sku: ({
+        **handbag, "material": "satin", "dimensions": "21 × 14 × 3 cm",
+        "photo_sha256": "a" * 64,
+    }, b"synthetic-jpeg-reference"))
+    result = client.post("/api/account/outfit-preview", headers=headers,
+                         json={**request, "handbag": handbag})
+    assert result.status_code == 503
+    bad = client.post("/api/account/outfit-preview", headers=headers,
+                      json={**request, "handbag": {**handbag, "brand": "Unknown"}})
+    assert bad.status_code == 422
+    bad_colour = client.post("/api/account/outfit-preview", headers=headers,
+                             json={**request, "handbag": {**handbag, "colour": ""}})
+    assert bad_colour.status_code == 422
+
+
+def test_handbag_refinement_requires_existing_private_image_and_approved_sku(monkeypatch):
+    """Never refine another customer's image or consume quota without a saved preview."""
+    import hashlib
+    import json
+    from services import stefania_handbag_reference as bag_refs
+    from services.outfit_handbag_pose import HANDBAG_POSE_VERSION
+    db = Database()
+    db.customer_outfit_previews = Collection()
+    app = FastAPI()
+    app.include_router(configure_account_router(
+        db, lambda *args: ("png", "image/png"),
+        lambda data, ext: data, lambda *args: "local/test.png",
+        lambda path: (b"test", "image/png"), lambda path: None,
+    ))
+    client = TestClient(app)
+    headers = []
+    for email in ("bag-owner@example.test", "bag-stranger@example.test"):
+        credentials = {"email":email,"password":"test secure account password"}
+        assert client.post("/api/account/register", json=credentials).status_code == 201
+        token = client.post("/api/account/login", json=credentials).json()["access_token"]
+        headers.append({"Authorization":"Bearer "+token})
+    owner, stranger = headers
+    bag = {"sku":"SPC-FW2627-15", "name":"Aura Sposa",
+           "colour":"Silk White", "brand":"Stefania P. Creations"}
+    canonical = {**bag,"material":"satin","dimensions":"21 × 14 × 3 cm","photo_sha256":"b"*64}
+    monkeypatch.setattr(bag_refs,"handbag_reference",
+                        lambda sku: (canonical,b"synthetic-photo"))
+    garments = [{"name":"Coral top","colour":"Coral"},
+                {"name":"White shorts","colour":"White"}]
+    payload = {"outfit_id":"bag-refine","presentation":"woman",
+               "garments":garments,"handbag":bag,
+               "refine_existing":True,"reference_images":[]}
+    assert client.post("/api/account/outfit-preview",json=payload).status_code==401
+    # Missing image is rejected even if model generation is configured.
+    assert client.post("/api/account/outfit-preview",headers=owner,json=payload).status_code==409
+    fingerprint = hashlib.sha256(json.dumps(
+        ["woman",garments,canonical,HANDBAG_POSE_VERSION],sort_keys=True
+    ).encode()).hexdigest()
+    db.customer_outfit_previews.docs.append({
+        "user_id": db.customer_accounts.docs[0]["id"],
+        "fingerprint":fingerprint,
+        "image":"data:image/png;base64,not-valid-base64!",
+    })
+    # Image is scoped to the owner, never accessible from another account.
+    assert client.post("/api/account/outfit-preview",headers=stranger,json=payload).status_code==409
+    # Malformed saved images cannot be forwarded to image-edit endpoints.
+    assert client.post("/api/account/outfit-preview",headers=owner,json=payload).status_code==422
+    # Refinement without a selected handbag is not allowed.
+    no_bag={k:v for k,v in payload.items() if k!="handbag"}
+    assert client.post("/api/account/outfit-preview",headers=owner,json=no_bag).status_code==409
+
+
+def test_handbag_refinement_prompt_preserves_outfit_and_corrects_carried_bag():
+    from services.outfit_handbag_pose import handbag_refinement_guidance
+    prompt=handbag_refinement_guidance()
+    assert "same adult model" in prompt
+    assert "FIRST reference" in prompt
+    assert "ABOVE THE KNEE" in prompt
+    assert "Do not change the handbag into a plain tote" in prompt
+    assert "full head" in prompt
