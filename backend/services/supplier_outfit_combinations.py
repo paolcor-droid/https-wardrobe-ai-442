@@ -16,7 +16,16 @@ def eligible_outfit_roles(products):
     return counts
 
 
-def build_supplier_outfits(products, limit=8):
+def build_supplier_outfits(products, limit=8, diagnostics=None):
+    """Build genuine eligible looks, including legitimate monochrome styling.
+
+    Diagnostics describe why candidate outfits were rejected without exposing
+    product records or personal profile data.
+    """
+    rejected = {"repeated_or_duplicate": 0, "missing_colour": 0,
+                "harmony": 0, "accepted": 0}
+    if diagnostics is not None:
+        diagnostics.update(rejected)
     roles = {name: [] for name in ("top", "bottom", "dress", "shoes")}
     for product in products:
         if product.get("department") not in ("womens", "unisex"):
@@ -31,14 +40,30 @@ def build_supplier_outfits(products, limit=8):
     def add(garments):
         ids = tuple(str(p.get("external_id")) for p in garments)
         if len(ids) != len(set(ids)) or ids in seen:
+            rejected["repeated_or_duplicate"] += 1
             return
         seen.add(ids)
         colours = [(p.get("colour_names") or [""])[0] for p in garments]
-        if not all(colours):
-            return
-        points, reason = harmony(colours)
-        if points < -2:
-            return
+        # Some genuine supplier records do not contain a colour label.
+        # Such looks remain provisional; do not invent the missing shade.
+        missing_colours = any(not str(c).strip() for c in colours)
+        if missing_colours:
+            rejected["missing_colour"] += 1
+            labelled = [c for c in colours if str(c).strip()]
+            if not labelled:
+                points, reason = -6, "Supplier colour labels are missing; visual harmony is unverified."
+            else:
+                points, reason = -4, "Some supplier colour labels are missing; check the product photos."
+        elif len({str(c).strip().casefold() for c in colours}) == 1:
+            # The shared demo heuristic rejects identical names because
+            # fabric shades cannot be proven. That is not a valid hard
+            # exclusion for real monochromatic outfits (e.g. black+black).
+            points, reason = 0, "Monochrome styling; check actual shades and textures in product photos."
+        else:
+            points, reason = harmony(colours)
+            if points < -2:
+                rejected["harmony"] += 1
+                return
         # Explicitly reject incompatible saturated colour families; neutral bags
         # are considered independently by the frontend.
         score = sum(float(p.get("recommendation_score") or 0) for p in garments) / len(garments) + points
@@ -53,6 +78,7 @@ def build_supplier_outfits(products, limit=8):
                 "image_url":p.get("image_url"), "price":price,
                 "currency":p.get("currency"),
             })
+        rejected["accepted"] += 1
         results.append({"id":"supplier-outfit:"+":".join(ids),
             "garments":customer_items, "score":round(score,1),
             "reason":reason+" Check real product photographs to confirm shades and proportions.",
@@ -83,4 +109,6 @@ def build_supplier_outfits(products, limit=8):
         output.append(row)
         if len(output)>=limit:
             break
+    if diagnostics is not None:
+        diagnostics.update(rejected)
     return output
