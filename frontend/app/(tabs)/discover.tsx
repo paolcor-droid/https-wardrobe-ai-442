@@ -508,6 +508,7 @@ export default function DiscoverScreen() {
                   <Text style={styles.note}>Catalogue: {supplierOutfits.source || "unknown"} · {supplierOutfits.diagnostics.source_product_count} products · {supplierOutfits.diagnostics.eligible_product_count} eligible after profile filters</Text>
                   <Text style={styles.note}>Garment types in source: {Object.entries(supplierOutfits.diagnostics.source_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
                   <Text style={styles.note}>Eligible garment types: {Object.entries(supplierOutfits.diagnostics.eligible_roles).map(([role,count])=>role+": "+count).join(" · ")}</Text>
+                  {supplierOutfits.diagnostics.combination_checks ? <Text style={styles.note}>Outfit candidate checks: {Object.entries(supplierOutfits.diagnostics.combination_checks).map(([reason,count])=>reason.replace(/_/g," ")+": "+count).join(" · ")}</Text> : null}
                 </> : null}
               </View> : null}
             {(supplierOutfits?.outfits || []).map((outfit,index)=>(
