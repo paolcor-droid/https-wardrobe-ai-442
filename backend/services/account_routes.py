@@ -62,6 +62,7 @@ class OutfitPreviewInput(BaseModel):
     outfit_id: str = Field(min_length=1, max_length=150)
     presentation: str = Field(pattern="^(woman|man)$")
     garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
+    handbag: dict[str, str] | None = None
     force_regenerate: bool = False
     reference_images: list[str] = Field(default_factory=list, max_length=3)
 
@@ -1705,9 +1706,21 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 if raw:
                     details[field] = raw
             validated.append(details)
-        # Hash the exact selected garment set: do not confuse unrelated outfits.
+        selected_handbag = None
+        if payload.handbag is not None:
+            # A handbag is a carried accessory, not an extra item of clothing.
+            # Keep the concept grounded in selected catalogue labels only.
+            name = str(payload.handbag.get("name", "")).strip()
+            colour = str(payload.handbag.get("colour", "")).strip()
+            brand = str(payload.handbag.get("brand", "")).strip()
+            if (not name or not colour or len(name) > 100 or len(colour) > 80
+                    or brand != "Stefania P. Creations"):
+                raise HTTPException(422, "Invalid handbag description")
+            selected_handbag = {"name": name, "colour": colour, "brand": brand}
+        # Handbag and no-handbag concepts have separate fingerprints. Never
+        # mistakenly reuse an older saved preview without the accessory.
         fingerprint = hashlib.sha256(json.dumps(
-            [payload.presentation, validated], sort_keys=True
+            [payload.presentation, validated, selected_handbag], sort_keys=True
         ).encode()).hexdigest()
         existing = await db.customer_outfit_previews.find_one(
             {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
@@ -1753,6 +1766,16 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             "One person, no text, no brand logos, no additional garments changing the look. "
             "This is a generic styling interpretation, not a supplier product or customer's likeness."
         )
+        if selected_handbag:
+            prompt += (
+                " The same model MUST carry one visible handbag in her hand or "
+                "over one shoulder, fully within the frame: "
+                + selected_handbag["colour"] + " " + selected_handbag["name"]
+                + " from the named handbag collection. Keep the bag separate "
+                "from clothing; show the handles, main body and overall shape. "
+                "Do not add a second bag. The bag is an illustrative interpretation "
+                "based on its catalogue description; exact product details are unverified."
+            )
         # Reference images must be synthetic garment demo assets, never personal photographs.
         # The server validates compressed bytes rather than fetching arbitrary URLs.
         references = []
@@ -1799,7 +1822,7 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
             raise HTTPException(502, "Outfit preview could not be generated. Please try later.")
         await db.customer_outfit_previews.update_one(
             {"user_id": user_id, "fingerprint": fingerprint},
-            {"$set": {"outfit_id": payload.outfit_id, "presentation": payload.presentation, "garments": validated, "image": image, "created_at": now},
+            {"$set": {"outfit_id": payload.outfit_id, "presentation": payload.presentation, "garments": validated, "handbag": selected_handbag, "image": image, "created_at": now},
              "$setOnInsert": {"user_id": user_id, "fingerprint": fingerprint}},
             upsert=True,
         )
