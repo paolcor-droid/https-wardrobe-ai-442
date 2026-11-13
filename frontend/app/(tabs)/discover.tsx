@@ -1041,7 +1041,7 @@ export default function DiscoverScreen() {
               // A handbag-inclusive preview is distinct from the earlier
               // clothing-only saved image. Both remain saved in the account.
               const previewId = selectedBag ?
-                "demo-bag-photo-v1:" + outfit.id.slice(0,90) + ":" + selectedBag.id : outfit.id;
+                "demo-bag-natural-carry-v2:" + outfit.id.slice(0,85) + ":" + selectedBag.id : outfit.id;
               const previewImage = outfitPreviewImages[previewId] || (!selectedBag
                 ? outfitPreviewImages[previewGarmentKey(
                     prefs?.shop_for === "womens" ? "woman" : "man",
@@ -1069,7 +1069,7 @@ export default function DiscoverScreen() {
                 {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
                   <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
-                  {selectedBag ? <Text style={styles.note}>The new illustration uses the approved Stefania product photograph as an AI reference to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The handbag is fixed by product SKU and the saved reference image. AI details may still differ; check the real photo above. Previous clothing-only previews are preserved.</Text> : null}
+                  {selectedBag ? <Text style={styles.note}>The new illustration uses the approved Stefania product photograph as an AI reference to show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The handbag is fixed by product SKU and the saved reference image. The model should carry it near her hip with its strap above the floor. AI details or placement can still differ; compare with the real product photo above. Previous clothing-only previews are preserved.</Text> : null}
                   {previewImage ? (
                     <View>
                       <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
