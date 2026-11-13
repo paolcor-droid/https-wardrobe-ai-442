@@ -64,6 +64,7 @@ class OutfitPreviewInput(BaseModel):
     garments: list[dict[str, str]] = Field(min_length=2, max_length=5)
     handbag: dict[str, str] | None = None
     force_regenerate: bool = False
+    refine_existing: bool = False
     reference_images: list[str] = Field(default_factory=list, max_length=3)
 
 
@@ -1741,8 +1742,35 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         existing = await db.customer_outfit_previews.find_one(
             {"user_id": user_id, "fingerprint": fingerprint}, {"_id": 0}
         )
-        if existing and not payload.force_regenerate:
+        if existing and not payload.force_regenerate and not payload.refine_existing:
             return {"image": existing["image"], "cached": True, "label": "AI-generated styling concept · Not actual supplier products"}
+        if payload.refine_existing and (not selected_handbag or not existing):
+            raise HTTPException(409, "Save a handbag outfit preview before refining its design or placement")
+        # Existing images are fetched only by this authenticated user's precise
+        # outfit fingerprint; never accept a client-supplied image URL or ID.
+        previous_preview_jpeg = None
+        if payload.refine_existing:
+            from io import BytesIO
+            from PIL import Image, ImageOps, UnidentifiedImageError
+            saved_image = existing.get("image", "")
+            if not isinstance(saved_image, str) or not saved_image.startswith("data:image/png;base64,"):
+                raise HTTPException(422, "Saved outfit image cannot be refined")
+            try:
+                raw = base64.b64decode(saved_image.split(",", 1)[1], validate=True)
+                if len(raw) > 9_000_000:
+                    raise ValueError("Saved preview is too large")
+                with Image.open(BytesIO(raw)) as photo:
+                    if photo.width * photo.height > 30_000_000:
+                        raise ValueError("Saved preview dimensions are too large")
+                    rendered = ImageOps.exif_transpose(photo).convert("RGB")
+                    rendered.thumbnail((1024, 1536))
+                    buffer = BytesIO()
+                    rendered.save(buffer, "JPEG", quality=85, optimize=True)
+                previous_preview_jpeg = buffer.getvalue()
+                if len(previous_preview_jpeg) > 1_500_000:
+                    raise ValueError("Compressed preview too large")
+            except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
+                raise HTTPException(422, "Saved outfit image cannot be refined") from exc
         if not key or os.environ.get("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0") != "1":
             raise HTTPException(503, "Outfit previews are not enabled on this server")
 
@@ -1802,6 +1830,9 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
                 "not a verified supplier product photo."
             )
             prompt += handbag_pose_guidance()
+            if payload.refine_existing:
+                from services.outfit_handbag_pose import handbag_refinement_guidance
+                prompt += handbag_refinement_guidance()
         # Reference images must be synthetic garment demo assets, never personal photographs.
         # The server validates compressed bytes rather than fetching arbitrary URLs.
         references = []
@@ -1819,16 +1850,20 @@ def configure_account_router(db, validate_image, sanitize_image, save_image, rea
         # most two synthetic garment references. Never pass arbitrary client
         # URLs or private wardrobe photographs to this flow.
         if bag_reference_jpeg is not None:
-            references = [bag_reference_jpeg] + references[:2]
+            if previous_preview_jpeg is not None:
+                references = [bag_reference_jpeg, previous_preview_jpeg]
+            else:
+                references = [bag_reference_jpeg] + references[:2]
         def render():
             model = os.environ.get("LUMIERE_OUTFIT_IMAGE_MODEL", "gpt-image-1-mini")
             if references:
                 resp = requests.post(
                     "https://api.openai.com/v1/images/edits",
                     headers={"Authorization": "Bearer " + key},
-                    data={"model": model, "prompt": prompt + " Follow each reference's assigned role: reference 1 depicts ONLY the selected handbag if included; other references illustrate garments. Keep all specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
+                    data={"model": model, "prompt": prompt + " Follow the assigned reference roles: the first image is the selected handbag; if a second image is an existing outfit preview, preserve that outfit and its model while correcting the handbag, otherwise later images are only garment examples. Keep all specified colours. This remains an illustrative interpretation.", "size": "1024x1536", "n": "1"},
                     files=[("image[]", (
                         "approved_stefania_handbag.jpg" if bag_reference_jpeg is not None and i == 0
+                        else "existing_outfit_preview.jpg" if previous_preview_jpeg is not None and i == 1
                         else f"synthetic_garment_{i}.jpg", data, "image/jpeg"
                     )) for i, data in enumerate(references)],
                     timeout=120,
