@@ -1702,9 +1702,17 @@ def test_outfit_handbag_preview_is_distinct_from_clothing_only_cache(monkeypatch
         }], sort_keys=True).encode()
     ).hexdigest()
     assert new_fingerprint != old_fingerprint
+    db.customer_outfit_previews.docs.append({
+        "user_id": db.customer_accounts.docs[0]["id"],
+        "fingerprint": old_fingerprint,
+        "image": "data:image/png;base64,old-preview",
+    })
     # Compare the same request without any image generation configured.
     monkeypatch.setenv("LUMIERE_OUTFIT_PREVIEWS_ENABLED", "0")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    old = client.post("/api/account/outfit-preview", headers=headers, json=request)
+    assert old.status_code == 200
+    assert old.json()["cached"] is True
     handbag = {"name": "Aura Sposa", "colour": "Silk White",
                "brand": "Stefania P. Creations"}
     result = client.post("/api/account/outfit-preview", headers=headers,
