@@ -20,6 +20,6 @@ export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=
        <Text style={{fontSize:12,color:"#62594f"}}>Price on request · availability not confirmed</Text>
      </View>
    </View>
-   <Text style={{fontSize:11,color:"#786b60"}}>Styling suggestion based on colour labels, not verified fabric shades. Handbag shown separately from AI-generated outfit previews.</Text>
+   <Text style={{fontSize:11,color:"#786b60"}}>Styling suggestion based on colour labels, not verified fabric shades. The full-outfit AI preview can include an illustrative version of this handbag; compare it with the actual product photograph shown here.</Text>
  </View>;
 }
