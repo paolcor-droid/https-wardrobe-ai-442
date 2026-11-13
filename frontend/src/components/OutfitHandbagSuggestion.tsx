@@ -1,11 +1,18 @@
 import React from "react";
-import {Image,Text,View} from "react-native";
-import {suggestBagForWomensOutfit} from "@/src/handbag-outfit-match";
-export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=[]}:{
+import {Image,Pressable,ScrollView,Text,View} from "react-native";
+import {suggestBagForWomensOutfit,rankedBagsForWomensOutfit} from "@/src/handbag-outfit-match";
+export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=[],selectedBagId,onSelectBag}:{
  garments:Array<{colour?:string|null; colour_names?:string[]|null; name?:string; category?:string|null}>;
  occasion?:string|null;preferred?:string[];avoided?:string[];
+ selectedBagId?:string;onSelectBag?:(bagId:string)=>void;
 }){
- const result=suggestBagForWomensOutfit(garments,{occasion,preferred,avoided});
+ const candidates=onSelectBag
+   ? rankedBagsForWomensOutfit(garments,{occasion,preferred,avoided})
+   : [];
+ const result=onSelectBag
+   ? candidates.find(entry=>entry.bag.id===selectedBagId)||candidates[0]
+   : suggestBagForWomensOutfit(garments,{occasion,preferred,avoided});
+ const [showAll,setShowAll]=React.useState(false);
  if(!result)return null;
  const {bag}=result;
  return <View style={{backgroundColor:"#f5eee6",borderRadius:10,padding:12,marginVertical:8,gap:7}}>
@@ -20,6 +27,27 @@ export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=
        <Text style={{fontSize:12,color:"#62594f"}}>Price on request · availability not confirmed</Text>
      </View>
    </View>
-   <Text style={{fontSize:11,color:"#786b60"}}>Styling suggestion based on colour labels, not verified fabric shades. The full-outfit AI preview can include an illustrative version of this handbag; compare it with the actual product photograph shown here.</Text>
+   {onSelectBag && candidates.length>1 ? <View style={{gap:7}}>
+     <Text style={{fontSize:12,fontWeight:"600",color:"#493e34"}}>Choose a Stefania handbag for this outfit · no AI generation required</Text>
+     <ScrollView horizontal showsHorizontalScrollIndicator accessibilityLabel="Browse compatible Stefania handbag photographs" contentContainerStyle={{gap:10,paddingVertical:5,paddingRight:12}}>
+       {(showAll?candidates:candidates.slice(0,6)).map(({bag:option},index)=>(
+         <Pressable key={option.id} accessibilityRole="button"
+           accessibilityState={{selected:option.id===bag.id}}
+           accessibilityLabel={`Select ${option.name}, ${option.colour}`}
+           onPress={()=>onSelectBag(option.id)}
+           style={{width:116,borderRadius:9,padding:6,borderWidth:option.id===bag.id?2:1,
+             borderColor:option.id===bag.id?"#85694e":"#d4c8bc",backgroundColor:"#fff",gap:4}}>
+           {option.image?<Image source={option.image} resizeMode="contain" style={{height:110,width:"100%",borderRadius:5}}/>:null}
+           <Text numberOfLines={2} style={{fontWeight:option.id===bag.id?"700":"500",fontSize:12,color:"#29241f"}}>{option.name}</Text>
+           <Text numberOfLines={2} style={{fontSize:11,color:"#62594f"}}>{option.colour}</Text>
+           <Text style={{fontSize:10,color:"#85694e"}}>{option.id===bag.id?"Selected":index===0?"Top match":"Choose"}</Text>
+         </Pressable>
+       ))}
+     </ScrollView>
+     {candidates.length>6?<Pressable accessibilityRole="button" onPress={()=>setShowAll(value=>!value)}>
+       <Text style={{fontSize:12,fontWeight:"600",color:"#65513e"}}>{showAll?`Show top 6 handbags`:`Browse all ${candidates.length} compatible handbags`}</Text>
+     </Pressable>:null}
+   </View>:null}
+   <Text style={{fontSize:11,color:"#786b60"}}>Styling suggestion based on colour labels, not verified fabric shades. Choosing a handbag changes the AI preview selection; image generation occurs only when you request it. Compare any AI illustration with the actual product photograph above.</Text>
  </View>;
 }
