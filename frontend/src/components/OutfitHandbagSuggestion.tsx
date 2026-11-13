@@ -28,8 +28,8 @@ export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=
      </View>
    </View>
    {onSelectBag && candidates.length>1 ? <View style={{gap:7}}>
-     <Text style={{fontSize:12,fontWeight:"600",color:"#493e34"}}>Choose a Stefania handbag for this outfit · no AI generation required</Text>
-     <ScrollView horizontal showsHorizontalScrollIndicator accessibilityLabel="Browse compatible Stefania handbag photographs" contentContainerStyle={{gap:10,paddingVertical:5,paddingRight:12}}>
+     <Text style={{fontSize:12,fontWeight:"600",color:"#493e34"}}>Choose a Stefania handbag · ranked by colour compatibility · no AI generation required</Text>
+     <ScrollView horizontal showsHorizontalScrollIndicator accessibilityLabel="Browse ranked Stefania handbag photographs" contentContainerStyle={{gap:10,paddingVertical:5,paddingRight:12}}>
        {(showAll?candidates:candidates.slice(0,6)).map(({bag:option},index)=>(
          <Pressable key={option.id} accessibilityRole="button"
            accessibilityState={{selected:option.id===bag.id}}
@@ -45,7 +45,7 @@ export function OutfitHandbagSuggestion({garments,occasion,preferred=[],avoided=
        ))}
      </ScrollView>
      {candidates.length>6?<Pressable accessibilityRole="button" onPress={()=>setShowAll(value=>!value)}>
-       <Text style={{fontSize:12,fontWeight:"600",color:"#65513e"}}>{showAll?`Show top 6 handbags`:`Browse all ${candidates.length} compatible handbags`}</Text>
+       <Text style={{fontSize:12,fontWeight:"600",color:"#65513e"}}>{showAll?`Show top 6 handbags`:`Browse all ${candidates.length} catalogue handbags`}</Text>
      </Pressable>:null}
    </View>:null}
    <Text style={{fontSize:11,color:"#786b60"}}>Styling suggestion based on colour labels, not verified fabric shades. Choosing a handbag changes the AI preview selection; image generation occurs only when you request it. Compare any AI illustration with the actual product photograph above.</Text>
