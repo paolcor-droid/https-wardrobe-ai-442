@@ -13,6 +13,7 @@ import { demoInspiration } from "@/src/demo-inspiration-images";
 import { DemoPhotoTile } from "@/src/demo-photo-tile";
 import { explainDemoLook } from "@/src/demo-styling";
 import { OutfitHandbagSuggestion } from "@/src/components/OutfitHandbagSuggestion";
+import { suggestBagForWomensOutfit } from "@/src/handbag-outfit-match";
 
 function demoOutfitDescription(garments:Array<{name:string;colour_names?:string[]}>):string {
   return garments.slice(0,5).map(g=>`${g.colour_names?.[0]||"neutral"} ${g.name}`).join("; ");
@@ -986,7 +987,8 @@ export default function DiscoverScreen() {
               <View key={product.product_id} style={{ width: gridColumns === 1 ? "100%" : gridColumns === 2 ? "48%" : "31.5%" }}>
                 {renderProduct(product)}
               </View>
-            ))}
+              );
+            })}
           </View>
         ) : null}
 
@@ -1029,7 +1031,29 @@ export default function DiscoverScreen() {
             {(searchResults.demo_outfits ?? []).length > 0 && outfitOccasionFilter !== "All" && !(searchResults.demo_outfits ?? []).some(outfit => outfit.occasion === outfitOccasionFilter) ? <Text style={styles.note}>No currently eligible outfits for {outfitOccasionFilter}. Choose All to see other suitable looks; personalisation rules remain unchanged.</Text> : null}
             <Pressable accessibilityRole="button" onPress={() => setShowSavedOnly(x=>!x)}><Text style={styles.body}>{showSavedOnly ? "Show all eligible outfits" : "Show saved outfits only"}</Text></Pressable>
             <Text style={styles.note}>{favouriteOutfitIds.length} outfit(s) saved for this Discover session · Saving to your account is not enabled yet.</Text>
-            {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => (
+            {(searchResults.demo_outfits ?? []).filter(outfit => (outfitOccasionFilter === "All" || outfit.occasion === outfitOccasionFilter) && (!showSavedOnly || favouriteOutfitIds.includes(outfit.id))).sort((a,b) => ((outfitReactions[b.id] === "loved" ? 2 : outfitReactions[b.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(b.id))) - ((outfitReactions[a.id] === "loved" ? 2 : outfitReactions[a.id] === "disliked" ? -2 : 0) + Number(favouriteOutfitIds.includes(a.id)))).map((outfit) => {
+              const bagMatch = prefs?.shop_for === "womens" ?
+                suggestBagForWomensOutfit(outfit.garments, {
+                  occasion:outfit.occasion,
+                  preferred:prefs?.preferred_colours || [],
+                  avoided:prefs?.avoided_colours || [],
+                }) : null;
+              const selectedBag = bagMatch?.bag;
+              // A handbag-inclusive preview is distinct from the earlier
+              // clothing-only saved image. Both remain saved in the account.
+              const previewId = selectedBag ?
+                "demo-handbag:" + outfit.id.slice(0,95) + ":" + selectedBag.id : outfit.id;
+              const previewImage = outfitPreviewImages[previewId] || (!selectedBag
+                ? outfitPreviewImages[previewGarmentKey(
+                    prefs?.shop_for === "womens" ? "woman" : "man",
+                    outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"}))
+                  )] : undefined);
+              const previewHandbag = selectedBag ? {
+                name:selectedBag.name,
+                colour:selectedBag.colour,
+                brand:"Stefania P. Creations" as const,
+              } : undefined;
+              return (
               <View key={outfit.id} style={[styles.card, { width: "100%", maxWidth: 860, alignSelf: "center", paddingVertical: 14 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", columnGap: 18, rowGap: 8 }}>
                   <View style={{ flex: 2, minWidth: 230 }}>
@@ -1044,59 +1068,62 @@ export default function DiscoverScreen() {
                 </View>
                 {prefs?.shop_for === "womens" ? <OutfitHandbagSuggestion garments={outfit.garments} occasion={outfit.occasion} preferred={prefs?.preferred_colours || []} avoided={prefs?.avoided_colours || []}/> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
-                  <Text style={styles.body}>FULL OUTFIT PREVIEW</Text>
-                  {(outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]) ? (
+                  <Text style={styles.body}>{selectedBag ? "FULL OUTFIT PREVIEW · WITH HANDBAG" : "FULL OUTFIT PREVIEW"}</Text>
+                  {selectedBag ? <Text style={styles.note}>The new illustration will show the model carrying the suggested {selectedBag.name} handbag ({selectedBag.colour}). The real Stefania product photo above remains the reference; exact bag appearance is not guaranteed. Previous clothing-only previews are preserved.</Text> : null}
+                  {previewImage ? (
                     <View>
-                      <Image source={{uri:outfitPreviewImages[outfit.id] || outfitPreviewImages[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
+                      <Image source={{uri:previewImage}} resizeMode="contain" accessibilityLabel="Complete AI outfit preview on a generic model" style={{width:"100%",maxWidth:400,alignSelf:"center",height:screenWidth >= 760 ? 470 : 340, backgroundColor:"#f4f4f2",borderRadius:8}} />
                       <Text style={styles.note}>Saved full-outfit styling concept restored from your account when available. This is AI-generated imagery, not a verified product photograph or fit prediction.</Text>
                       <Pressable accessibilityRole="button" disabled={outfitPreviewLoading!==null} onPress={async () => {
-                        setOutfitPreviewLoading(outfit.id);
+                        setOutfitPreviewLoading(previewId);
                         try {
                           const result=await generateOutfitPreview({
-                            outfit_id:outfit.id,
+                            outfit_id:previewId,
                             force_regenerate:true,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            handbag:previewHandbag,
                             reference_images:outfit.garments.slice(0,3).map(g=>
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.colourAccurate && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(old=>({...old,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
-                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:""}));
+                          setOutfitPreviewImages(old=>({...old,[previewId]:result.image}));
+                          setOutfitPreviewErrors(old=>({...old,[previewId]:""}));
                         } catch(e) {
-                          setOutfitPreviewErrors(old=>({...old,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
+                          setOutfitPreviewErrors(old=>({...old,[previewId]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : "Unable to regenerate right now."}));
                         } finally {setOutfitPreviewLoading(null);}
                       }} style={{paddingVertical:10}}>
-                        <Text style={styles.body}>↻ Regenerate preview (uses one daily generation)</Text>
+                        <Text style={styles.body}>↻ Regenerate outfit illustration (uses one daily generation)</Text>
                       </Pressable>
                     </View>
                   ) : (
                     <Pressable accessibilityRole="button" disabled={outfitPreviewLoading !== null}
                       onPress={async () => {
-                        setOutfitPreviewLoading(outfit.id);
-                        setOutfitPreviewErrors(v=>({...v,[outfit.id]:""}));
+                        setOutfitPreviewLoading(previewId);
+                        setOutfitPreviewErrors(v=>({...v,[previewId]:""}));
                         try {
                           const result=await generateOutfitPreview({
                             force_regenerate:false,
-                            outfit_id:outfit.id,
+                            outfit_id:previewId,
                             presentation:prefs?.shop_for==="womens"?"woman":"man",
                             garments:outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})),
+                            handbag:previewHandbag,
                             reference_images:outfit.garments.slice(0,3).map(g=>
                               demoInspiration(g.name,g.colour_names?.[0]||"",prefs?.shop_for==="womens"?"women":"men")
                             ).filter((p):p is NonNullable<typeof p>=>Boolean(p && p.kind==="ai_generated_demo" && p.uri.startsWith("data:image/jpeg;base64,"))).map(p=>p.uri),
                           });
-                          setOutfitPreviewImages(v=>({...v,[outfit.id]:result.image,[previewGarmentKey(prefs?.shop_for==="womens"?"woman":"man",outfit.garments.slice(0,5).map(g=>({name:g.name,colour:g.colour_names?.[0]||"neutral"})))]:result.image}));
+                          setOutfitPreviewImages(v=>({...v,[previewId]:result.image}));
                         } catch(e) {
-                          setOutfitPreviewErrors(v=>({...v,[outfit.id]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
+                          setOutfitPreviewErrors(v=>({...v,[previewId]:e instanceof Error && e.message.includes("429") ? "Daily outfit-preview limit reached." : e instanceof Error && e.message.includes("503") ? "Image generation is disabled on this server." : "Preview could not be generated."}));
                         } finally {setOutfitPreviewLoading(null);}
                       }}
                       style={{padding:16,alignItems:"center",backgroundColor:"rgba(120,120,120,0.08)",borderRadius:8}}>
-                      {outfitPreviewLoading===outfit.id ? <ActivityIndicator /> : <Feather name="image" size={22} />}
-                      <Text style={styles.body}>{outfitPreviewLoading===outfit.id?"Generating outfit preview…":"Generate AI outfit preview"}</Text>
-                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces · up to 20 previews per account/day in development</Text>
+                      {outfitPreviewLoading===previewId ? <ActivityIndicator /> : <Feather name="image" size={22} />}
+                      <Text style={styles.body}>{outfitPreviewLoading===previewId?"Generating outfit preview…":"Generate outfit with suggested handbag"}</Text>
+                      <Text style={styles.note}>Optional · one adult model wearing the suggested pieces and carrying the selected handbag · up to 20 previews per account/day in development</Text>
                     </Pressable>
                   )}
-                  {outfitPreviewErrors[outfit.id] ? <Text style={styles.note}>{outfitPreviewErrors[outfit.id]}</Text> : null}
+                  {outfitPreviewErrors[previewId] ? <Text style={styles.note}>{outfitPreviewErrors[previewId]}</Text> : null}
                   <Pressable accessibilityRole="button" testID={`demo-tryon-${outfit.id}`}
                     onPress={() => router.push({pathname:"/(tabs)/tryon",params:{
                       demoOutfitId:outfit.id,
