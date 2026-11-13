@@ -1729,9 +1729,3 @@ def test_outfit_handbag_preview_is_distinct_from_clothing_only_cache(monkeypatch
     bad_colour = client.post("/api/account/outfit-preview", headers=headers,
                              json={**request, "handbag": {**handbag, "colour": ""}})
     assert bad_colour.status_code == 422
-    unknown = client.post("/api/account/outfit-preview", headers=headers,
-                          json={**request, "handbag": {**handbag, "sku": "SPC-FW2627-99"}})
-    # The production allowlist rejects unknown SKUs; this test uses a mocked
-    # reference loader, so the new SKU is accepted by the stub. Validate real
-    # allowlist rejection separately in test_stefania_handbag_reference.py.
-    assert unknown.status_code == 503
