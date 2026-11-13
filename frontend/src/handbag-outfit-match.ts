@@ -15,7 +15,7 @@ const hasNeutral=(name:string)=>neutrals.some(c=>tokens(name).includes(c));
 
 export type OutfitBagMatch={bag:SPCBag; explanation:string; confidence:"high"|"moderate"|"low"; score:number};
 export function suggestBagForWomensOutfit(
- garments: Array<{colour?:string|null; colour_names?:string[]|null; name?:string; category?:string}>,
+ garments: Array<{colour?:string|null; colour_names?:string[]|null; name?:string; category?:string|null}>,
  opts:{occasion?:string|null; preferred?:string[]; avoided?:string[]; excludedIds?:string[]}={}
 ):OutfitBagMatch|null{
  if(!SPC_BAGS.length)return null;
