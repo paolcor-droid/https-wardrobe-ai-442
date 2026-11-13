@@ -31,3 +31,24 @@ def handbag_pose_guidance() -> str:
         "detached straps. Keep the full look balanced, easy to inspect, and "
         "photographed straight-on at a natural standing distance."
     )
+
+
+def handbag_refinement_guidance() -> str:
+    """Keep the existing look stable while correcting only its bag depiction."""
+    return (
+        " IMAGE REFINEMENT INSTRUCTIONS: the second reference image is the "
+        "existing AI-generated full-body outfit preview for this account. "
+        "Use that as the base composition: preserve the same adult model, "
+        "hairstyle, face, pose where feasible, clothing items, garment colours, "
+        "shoes, studio lighting and background. The FIRST reference is the "
+        "approved handbag product photograph and is authoritative for handbag "
+        "colour, silhouette, texture, handles, hardware and proportions. "
+        "Correct ONLY the carried handbag, its strap and the model's hand/arm "
+        "enough to support it naturally. Hold the bag firmly at the waist/hip "
+        "near the upper thigh, with its bottom ABOVE THE KNEE and all chains "
+        "or straps well clear of the floor. If needed, adjust the crop to "
+        "include the full head and both shoes without changing outfit details. "
+        "Do not change the handbag into a plain tote or add a second bag. "
+        "Do not add objects from the product photograph to the studio scene. "
+        "Output one coherent photorealistic full-body image."
+    )
