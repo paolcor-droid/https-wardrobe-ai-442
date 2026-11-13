@@ -736,6 +736,7 @@ export async function generateOutfitPreview(input: {
   reference_images?: string[];
   presentation: "woman" | "man";
   garments: Array<{name: string; colour: string; category?: string; style?: string; pattern?: string}>;
+  handbag?: {name:string; colour:string; brand:"Stefania P. Creations"};
 }): Promise<{image: string; cached: boolean; label: string}> {
   return accountRequest("/outfit-preview", {method:"POST", body:JSON.stringify(input)});
 }
