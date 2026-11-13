@@ -189,7 +189,13 @@ export default function DiscoverScreen() {
             }
           }
         }
-        setBagSelectionState({accountId,selections,hydrated:true});
+        // A user may choose a handbag while the local selection is loading.
+        // Preserve that fresh choice over an older saved choice.
+        setBagSelectionState(previous=>({
+          accountId,
+          selections:{...selections,...(previous.accountId===accountId?previous.selections:{})},
+          hydrated:true
+        }));
       })
       .catch(()=>{if(active)setBagSelectionState({accountId,selections:{},hydrated:true});});
     return ()=>{active=false;};
@@ -1118,7 +1124,7 @@ export default function DiscoverScreen() {
                   onSelectBag={bagId=>setBagSelectionState(previous=>({
                     accountId:profile!.id,
                     selections:{...(previous.accountId===profile!.id?previous.selections:{}),[outfit.id]:bagId},
-                    hydrated:previous.accountId===profile!.id?previous.hydrated:false,
+                    hydrated:true,
                   }))}
                 /> : null}
                 <View style={{ borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", padding: 12, marginTop: 12, gap: 8 }}>
