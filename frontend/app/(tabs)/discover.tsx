@@ -214,7 +214,13 @@ export default function DiscoverScreen() {
       JSON.stringify(bagSelectionState.selections)
     ).catch(()=>{});
   }, [bagSelectionState,profile?.id]);
+  // Images are private to the authenticated account. Never retain a prior
+  // account's cached preview on screen after login changes.
+  useEffect(() => {
+    setOutfitPreviewImages({});
+  }, [profile?.id]);
   useFocusEffect(useCallback(() => {
+    if (!profile?.id) return;
     let active = true;
     getSavedOutfitPreviews().then(({previews}) => {
       if (!active) return;
@@ -229,7 +235,7 @@ export default function DiscoverScreen() {
       setOutfitPreviewImages(previous => ({...previous,...saved}));
     }).catch(() => {});
     return () => { active = false; };
-  }, []));
+  }, [profile?.id]));
 
   const [personalDemoResults, setPersonalDemoResults] = useState<Record<string,{path:string;prompt:string}>>({});
   useFocusEffect(useCallback(() => {
