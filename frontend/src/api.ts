@@ -487,7 +487,7 @@ export type SupplierOutfit = {
     colour_names:string[];image_url?:string|null;price?:number|null;currency?:string|null}>;
   price_verified_live:false;stock_verified_live:false;
 };
-export async function getSupplierOutfits():Promise<{outfits:SupplierOutfit[];notice:string;source?:string}>{
+export async function getSupplierOutfits():Promise<{outfits:SupplierOutfit[];notice:string;source?:string;diagnostics?:{source_product_count:number;eligible_product_count:number;source_roles:Record<string,number>;eligible_roles:Record<string,number>}}>{
   return accountRequest<{outfits:SupplierOutfit[];notice:string;source?:string}>("/catalogue/outfits");
 }
 
