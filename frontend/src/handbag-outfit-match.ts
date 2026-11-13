@@ -46,3 +46,21 @@ export function suggestBagForWomensOutfit(
   :"Closest available handbag; colour harmony is uncertain. Review the photos and shades.";
  return {bag:best.bag,confidence,explanation,score:best.score};
 }
+
+
+/** Deterministic ranked alternatives; selection does not generate images or use API quota. */
+export function rankedBagsForWomensOutfit(
+ garments: Parameters<typeof suggestBagForWomensOutfit>[0],
+ opts: Parameters<typeof suggestBagForWomensOutfit>[1]={},
+ limit=18,
+): OutfitBagMatch[] {
+ const ranked: OutfitBagMatch[]=[];
+ const excluded=new Set(opts.excludedIds||[]);
+ for(let i=0;i<Math.min(Math.max(limit,0),SPC_BAGS.length);i++){
+   const result=suggestBagForWomensOutfit(garments,{...opts,excludedIds:[...excluded]});
+   if(!result)break;
+   ranked.push(result);
+   excluded.add(result.bag.id);
+ }
+ return ranked;
+}
